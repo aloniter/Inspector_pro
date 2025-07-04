@@ -108,7 +108,7 @@ class InspectortApp {
     showPage(pageId) {
         // Clean up current page
         if (this.currentPage === 'projectPage') {
-            this.stopCamera(); // Stop camera if active when leaving project page
+            this.closeCameraModal(); // Close camera modal if active when leaving project page
         }
 
         // Hide all pages
@@ -268,131 +268,169 @@ class InspectortApp {
     // Photo Management
     async capturePhoto() {
         try {
-            // Check if camera is already active
-            if (this.cameraStream) {
-                this.stopCamera();
-                return;
-            }
+            this.showCameraModal();
+        } catch (error) {
+            console.error('Camera initialization error:', error);
+            this.showError('Failed to initialize camera. Please use the upload option.');
+        }
+    }
 
+    async showCameraModal() {
+        try {
+            // Create camera modal
+            const modal = document.createElement('div');
+            modal.className = 'camera-modal';
+            modal.innerHTML = `
+                <div class="camera-modal-content">
+                    <div class="camera-header">
+                        <button class="camera-close-btn" id="closeCameraModal">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2"/>
+                            </svg>
+                        </button>
+                        <h3>Take Photo</h3>
+                        <div style="width: 24px;"></div>
+                    </div>
+                    <div class="camera-preview">
+                        <video id="cameraVideoModal" autoplay playsinline></video>
+                        <canvas id="cameraCanvasModal" style="display: none;"></canvas>
+                    </div>
+                    <div class="camera-controls">
+                        <button class="camera-capture-btn" id="cameraCaptureBtn">
+                            <div class="capture-circle">
+                                <div class="capture-inner"></div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Get camera stream
             const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'environment' } 
+                video: { 
+                    facingMode: 'environment',
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                } 
             });
             
             this.cameraStream = stream;
-            const video = document.getElementById('cameraVideo');
-            const canvas = document.getElementById('cameraCanvas');
-            const ctx = canvas.getContext('2d');
-            const captureBtn = document.getElementById('captureBtn');
-
+            const video = document.getElementById('cameraVideoModal');
             video.srcObject = stream;
-            video.classList.remove('hidden');
             
-            await new Promise(resolve => {
+            // Wait for video to be ready
+            await new Promise((resolve) => {
                 video.onloadedmetadata = () => {
                     video.play();
                     resolve();
                 };
             });
-
-            // Update UI for capture mode
-            captureBtn.innerHTML = `
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <circle cx="10" cy="10" r="6" stroke="currentColor" stroke-width="2" fill="white"/>
-                </svg>
-                Capture Photo
-            `;
-            captureBtn.onclick = () => this.takePicture();
-
-            // Add cancel button functionality
-            const cancelBtn = document.createElement('button');
-            cancelBtn.className = 'btn btn-secondary';
-            cancelBtn.innerHTML = 'Cancel';
-            cancelBtn.onclick = () => this.stopCamera();
-            captureBtn.parentNode.appendChild(cancelBtn);
-
+            
+            // Show modal with animation
+            setTimeout(() => modal.classList.add('visible'), 10);
+            
+            // Setup event listeners
+            document.getElementById('closeCameraModal').onclick = () => this.closeCameraModal();
+            document.getElementById('cameraCaptureBtn').onclick = () => this.capturePhotoFromModal();
+            
+            // Handle modal background click
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    this.closeCameraModal();
+                }
+            };
+            
         } catch (error) {
             console.error('Camera access denied:', error);
-            this.showError('Camera access denied. Please use the upload option.');
-            this.stopCamera();
+            this.showError('Camera access denied. Please check permissions and try again.');
+            this.closeCameraModal();
         }
     }
 
-    takePicture() {
-        const video = document.getElementById('cameraVideo');
-        const canvas = document.getElementById('cameraCanvas');
-        const ctx = canvas.getContext('2d');
-
-        if (video.videoWidth === 0 || video.videoHeight === 0) {
-            this.showError('Camera not ready. Please try again.');
-            return;
-        }
-
-        // Set canvas size to match video
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        
-        // Draw the video frame to canvas
-        ctx.drawImage(video, 0, 0);
-        
-        // Convert to blob and process
-        canvas.toBlob(blob => {
-            if (blob) {
-                this.processPhoto(blob);
-                this.stopCamera();
-                this.showSuccess('Photo captured successfully!');
-            } else {
-                this.showError('Failed to capture photo. Please try again.');
+    async capturePhotoFromModal() {
+        try {
+            const video = document.getElementById('cameraVideoModal');
+            const canvas = document.getElementById('cameraCanvasModal');
+            const ctx = canvas.getContext('2d');
+            
+            if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
+                this.showError('Camera not ready. Please try again.');
+                return;
             }
-        }, 'image/jpeg', 0.8);
+            
+            // Set canvas size to match video
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            // Draw video frame to canvas
+            ctx.drawImage(video, 0, 0);
+            
+            // Show capture feedback
+            const captureBtn = document.getElementById('cameraCaptureBtn');
+            captureBtn.style.transform = 'scale(0.9)';
+            setTimeout(() => captureBtn.style.transform = 'scale(1)', 100);
+            
+            // Convert to blob and process
+            canvas.toBlob(async (blob) => {
+                if (blob) {
+                    await this.processPhoto(blob);
+                    this.closeCameraModal();
+                    this.showSuccess('Photo captured successfully!');
+                } else {
+                    this.showError('Failed to capture photo. Please try again.');
+                }
+            }, 'image/jpeg', 0.9);
+            
+        } catch (error) {
+            console.error('Photo capture error:', error);
+            this.showError('Failed to capture photo. Please try again.');
+        }
     }
 
-    stopCamera() {
+    closeCameraModal() {
+        // Stop camera stream
         if (this.cameraStream) {
             this.cameraStream.getTracks().forEach(track => track.stop());
             this.cameraStream = null;
         }
-
-        const video = document.getElementById('cameraVideo');
-        const captureBtn = document.getElementById('captureBtn');
         
-        // Reset video
-        video.srcObject = null;
-        video.classList.add('hidden');
-        
-        // Reset capture button
-        captureBtn.innerHTML = `
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <circle cx="10" cy="10" r="3" stroke="currentColor" stroke-width="2"/>
-                <path d="M10 1V3M10 17V19M1 10H3M17 10H19" stroke="currentColor" stroke-width="2"/>
-            </svg>
-            Take Photo
-        `;
-        captureBtn.onclick = () => this.capturePhoto();
-
-        // Remove cancel button if it exists
-        const cancelBtn = captureBtn.parentNode.querySelector('.btn-secondary');
-        if (cancelBtn && cancelBtn.textContent === 'Cancel') {
-            cancelBtn.remove();
+        // Remove modal
+        const modal = document.querySelector('.camera-modal');
+        if (modal) {
+            modal.classList.remove('visible');
+            setTimeout(() => modal.remove(), 300);
         }
     }
 
-    handleFileUpload(files) {
+    async handleFileUpload(files) {
         if (!files || files.length === 0) {
             return;
         }
 
         let validFiles = 0;
-        Array.from(files).forEach(file => {
+        let processedFiles = 0;
+        
+        for (const file of files) {
             if (file.type.startsWith('image/')) {
-                this.processPhoto(file);
                 validFiles++;
+                try {
+                    await this.processPhoto(file);
+                    processedFiles++;
+                } catch (error) {
+                    console.error('Failed to process file:', file.name, error);
+                    this.showError(`Failed to process ${file.name}. Please try again.`);
+                }
             } else {
                 console.warn('Skipped non-image file:', file.name);
             }
-        });
+        }
 
         if (validFiles === 0) {
             this.showError('Please select valid image files.');
+        } else if (processedFiles > 0) {
+            this.showSuccess(`${processedFiles} photo${processedFiles !== 1 ? 's' : ''} added successfully!`);
         }
 
         // Reset file input
@@ -400,37 +438,44 @@ class InspectortApp {
         fileInput.value = '';
     }
 
-    processPhoto(file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            // Generate a unique ID using timestamp and random number, but ensure it's an integer
-            const photoId = Math.floor(Date.now() + Math.random() * 1000);
-            
-            const photo = {
-                id: photoId,
-                url: e.target.result,
-                name: `Photo ${this.currentProject.photos.length + 1}`,
-                description: '',
-                annotations: [],
-                createdAt: new Date().toISOString(),
-                type: file instanceof File ? 'uploaded' : 'captured'
-            };
+    async processPhoto(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    // Generate a unique ID using timestamp and random number, but ensure it's an integer
+                    const photoId = Math.floor(Date.now() + Math.random() * 1000);
+                    
+                    const photo = {
+                        id: photoId,
+                        url: e.target.result,
+                        name: `Photo ${this.currentProject.photos.length + 1}`,
+                        description: '',
+                        annotations: [],
+                        createdAt: new Date().toISOString(),
+                        type: file instanceof File ? 'uploaded' : 'captured'
+                    };
 
-            this.currentProject.photos.push(photo);
-            this.currentProject.updatedAt = new Date().toISOString();
-            this.saveDataToStorage();
-            this.updatePhotosList();
+                    this.currentProject.photos.push(photo);
+                    this.currentProject.updatedAt = new Date().toISOString();
+                    this.saveDataToStorage();
+                    this.updatePhotosList();
+                    
+                    console.log('Photo processed successfully:', photo.id, photo.type);
+                    resolve(photo);
+                } catch (error) {
+                    console.error('Error processing photo:', error);
+                    reject(error);
+                }
+            };
             
-            console.log('Photo processed:', photo.id, photo.type);
-            this.showSuccess('Photo added successfully!');
-        };
-        
-        reader.onerror = () => {
-            console.error('Failed to read file:', file);
-            this.showError('Failed to process photo. Please try again.');
-        };
-        
-        reader.readAsDataURL(file);
+            reader.onerror = (error) => {
+                console.error('Failed to read file:', error);
+                reject(error);
+            };
+            
+            reader.readAsDataURL(file);
+        });
     }
 
     updatePhotosList() {
@@ -900,8 +945,8 @@ class InspectortApp {
             document.getElementById('fileInput').click();
         });
 
-        document.getElementById('fileInput').addEventListener('change', (e) => {
-            this.handleFileUpload(e.target.files);
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+            await this.handleFileUpload(e.target.files);
         });
 
         // Project Editing
