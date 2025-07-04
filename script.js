@@ -370,8 +370,28 @@ class InspectortApp {
         // Load image
         const img = new Image();
         img.onload = () => {
+            // Set canvas dimensions to match image
             canvas.width = img.width;
             canvas.height = img.height;
+            
+            // Calculate display dimensions while maintaining aspect ratio
+            const maxWidth = 350;
+            const maxHeight = 250;
+            const aspectRatio = img.width / img.height;
+            
+            let displayWidth = maxWidth;
+            let displayHeight = maxWidth / aspectRatio;
+            
+            if (displayHeight > maxHeight) {
+                displayHeight = maxHeight;
+                displayWidth = maxHeight * aspectRatio;
+            }
+            
+            // Set canvas display style
+            canvas.style.width = displayWidth + 'px';
+            canvas.style.height = displayHeight + 'px';
+            
+            // Draw image
             ctx.drawImage(img, 0, 0);
 
             // Draw existing annotations
@@ -404,37 +424,38 @@ class InspectortApp {
         // Touch events for mobile
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            const touch = e.touches[0];
-            const rect = canvas.getBoundingClientRect();
-            const mouseEvent = new MouseEvent('mousedown', {
-                clientX: touch.clientX,
-                clientY: touch.clientY
-            });
-            canvas.dispatchEvent(mouseEvent);
+            this.startDrawing(e.touches[0], ctx);
         });
 
         canvas.addEventListener('touchmove', (e) => {
             e.preventDefault();
-            const touch = e.touches[0];
-            const mouseEvent = new MouseEvent('mousemove', {
-                clientX: touch.clientX,
-                clientY: touch.clientY
-            });
-            canvas.dispatchEvent(mouseEvent);
+            this.draw(e.touches[0], ctx);
         });
 
         canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
-            const mouseEvent = new MouseEvent('mouseup', {});
-            canvas.dispatchEvent(mouseEvent);
+            this.stopDrawing();
         });
+    }
+
+    getCanvasCoordinates(e, canvas) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        
+        return {
+            x: (e.clientX - rect.left) * scaleX,
+            y: (e.clientY - rect.top) * scaleY
+        };
     }
 
     startDrawing(e, ctx) {
         this.isDrawing = true;
-        const rect = e.target.getBoundingClientRect();
-        this.lastX = e.clientX - rect.left;
-        this.lastY = e.clientY - rect.top;
+        const canvas = ctx.canvas;
+        const coords = this.getCanvasCoordinates(e, canvas);
+        
+        this.lastX = coords.x;
+        this.lastY = coords.y;
 
         ctx.beginPath();
         ctx.moveTo(this.lastX, this.lastY);
@@ -443,9 +464,10 @@ class InspectortApp {
     draw(e, ctx) {
         if (!this.isDrawing) return;
 
-        const rect = e.target.getBoundingClientRect();
-        const currentX = e.clientX - rect.left;
-        const currentY = e.clientY - rect.top;
+        const canvas = ctx.canvas;
+        const coords = this.getCanvasCoordinates(e, canvas);
+        const currentX = coords.x;
+        const currentY = coords.y;
 
         ctx.globalCompositeOperation = 'source-over';
         ctx.strokeStyle = this.annotationColor;
