@@ -12,6 +12,7 @@ class InspectortApp {
         this.isDrawing = false;
         this.lastX = 0;
         this.lastY = 0;
+        this.cameraStream = null;
 
         this.initializeApp();
     }
@@ -105,6 +106,11 @@ class InspectortApp {
 
     // Navigation
     showPage(pageId) {
+        // Clean up current page
+        if (this.currentPage === 'projectPage') {
+            this.stopCamera(); // Stop camera if active when leaving project page
+        }
+
         // Hide all pages
         document.querySelectorAll('.page').forEach(page => {
             page.classList.remove('active', 'slide-left');
@@ -262,13 +268,21 @@ class InspectortApp {
     // Photo Management
     async capturePhoto() {
         try {
+            // Check if camera is already active
+            if (this.cameraStream) {
+                this.stopCamera();
+                return;
+            }
+
             const stream = await navigator.mediaDevices.getUserMedia({ 
                 video: { facingMode: 'environment' } 
             });
             
+            this.cameraStream = stream;
             const video = document.getElementById('cameraVideo');
             const canvas = document.getElementById('cameraCanvas');
             const ctx = canvas.getContext('2d');
+            const captureBtn = document.getElementById('captureBtn');
 
             video.srcObject = stream;
             video.classList.remove('hidden');
@@ -280,55 +294,142 @@ class InspectortApp {
                 };
             });
 
-            // Show capture button
-            const captureBtn = document.getElementById('captureBtn');
-            captureBtn.textContent = 'Capture';
-            captureBtn.onclick = () => {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                ctx.drawImage(video, 0, 0);
-                
-                canvas.toBlob(blob => {
-                    this.processPhoto(blob);
-                    stream.getTracks().forEach(track => track.stop());
-                    video.classList.add('hidden');
-                    captureBtn.textContent = 'Take Photo';
-                    captureBtn.onclick = () => this.capturePhoto();
-                });
-            };
+            // Update UI for capture mode
+            captureBtn.innerHTML = `
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <circle cx="10" cy="10" r="6" stroke="currentColor" stroke-width="2" fill="white"/>
+                </svg>
+                Capture Photo
+            `;
+            captureBtn.onclick = () => this.takePicture();
+
+            // Add cancel button functionality
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'btn btn-secondary';
+            cancelBtn.innerHTML = 'Cancel';
+            cancelBtn.onclick = () => this.stopCamera();
+            captureBtn.parentNode.appendChild(cancelBtn);
 
         } catch (error) {
             console.error('Camera access denied:', error);
             this.showError('Camera access denied. Please use the upload option.');
+            this.stopCamera();
+        }
+    }
+
+    takePicture() {
+        const video = document.getElementById('cameraVideo');
+        const canvas = document.getElementById('cameraCanvas');
+        const ctx = canvas.getContext('2d');
+
+        if (video.videoWidth === 0 || video.videoHeight === 0) {
+            this.showError('Camera not ready. Please try again.');
+            return;
+        }
+
+        // Set canvas size to match video
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        // Draw the video frame to canvas
+        ctx.drawImage(video, 0, 0);
+        
+        // Convert to blob and process
+        canvas.toBlob(blob => {
+            if (blob) {
+                this.processPhoto(blob);
+                this.stopCamera();
+                this.showSuccess('Photo captured successfully!');
+            } else {
+                this.showError('Failed to capture photo. Please try again.');
+            }
+        }, 'image/jpeg', 0.8);
+    }
+
+    stopCamera() {
+        if (this.cameraStream) {
+            this.cameraStream.getTracks().forEach(track => track.stop());
+            this.cameraStream = null;
+        }
+
+        const video = document.getElementById('cameraVideo');
+        const captureBtn = document.getElementById('captureBtn');
+        
+        // Reset video
+        video.srcObject = null;
+        video.classList.add('hidden');
+        
+        // Reset capture button
+        captureBtn.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <circle cx="10" cy="10" r="3" stroke="currentColor" stroke-width="2"/>
+                <path d="M10 1V3M10 17V19M1 10H3M17 10H19" stroke="currentColor" stroke-width="2"/>
+            </svg>
+            Take Photo
+        `;
+        captureBtn.onclick = () => this.capturePhoto();
+
+        // Remove cancel button if it exists
+        const cancelBtn = captureBtn.parentNode.querySelector('.btn-secondary');
+        if (cancelBtn && cancelBtn.textContent === 'Cancel') {
+            cancelBtn.remove();
         }
     }
 
     handleFileUpload(files) {
+        if (!files || files.length === 0) {
+            return;
+        }
+
+        let validFiles = 0;
         Array.from(files).forEach(file => {
             if (file.type.startsWith('image/')) {
                 this.processPhoto(file);
+                validFiles++;
+            } else {
+                console.warn('Skipped non-image file:', file.name);
             }
         });
+
+        if (validFiles === 0) {
+            this.showError('Please select valid image files.');
+        }
+
+        // Reset file input
+        const fileInput = document.getElementById('fileInput');
+        fileInput.value = '';
     }
 
     processPhoto(file) {
         const reader = new FileReader();
         reader.onload = (e) => {
+            // Generate a unique ID using timestamp and random number, but ensure it's an integer
+            const photoId = Math.floor(Date.now() + Math.random() * 1000);
+            
             const photo = {
-                id: Date.now() + Math.random(),
+                id: photoId,
                 url: e.target.result,
                 name: `Photo ${this.currentProject.photos.length + 1}`,
                 description: '',
                 annotations: [],
-                createdAt: new Date().toISOString()
+                createdAt: new Date().toISOString(),
+                type: file instanceof File ? 'uploaded' : 'captured'
             };
 
             this.currentProject.photos.push(photo);
             this.currentProject.updatedAt = new Date().toISOString();
             this.saveDataToStorage();
             this.updatePhotosList();
+            
+            console.log('Photo processed:', photo.id, photo.type);
             this.showSuccess('Photo added successfully!');
         };
+        
+        reader.onerror = () => {
+            console.error('Failed to read file:', file);
+            this.showError('Failed to process photo. Please try again.');
+        };
+        
         reader.readAsDataURL(file);
     }
 
@@ -359,13 +460,23 @@ class InspectortApp {
 
     // Annotation System
     openAnnotationModal(photoId) {
-        const photo = this.currentProject.photos.find(p => p.id == photoId);
-        if (!photo) return;
+        // Convert photoId to number for comparison since HTML data attributes are strings
+        const numericPhotoId = typeof photoId === 'string' ? parseFloat(photoId) : photoId;
+        const photo = this.currentProject.photos.find(p => p.id === numericPhotoId);
+        
+        if (!photo) {
+            console.error('Photo not found:', photoId, 'Available photos:', this.currentProject.photos.map(p => p.id));
+            this.showError('Photo not found. Please try again.');
+            return;
+        }
 
         this.currentPhoto = photo;
         const modal = document.getElementById('annotationModal');
         const canvas = document.getElementById('annotationCanvas');
         const ctx = canvas.getContext('2d');
+
+        // Clear any existing canvas content
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // Load image
         const img = new Image();
@@ -375,16 +486,16 @@ class InspectortApp {
             canvas.height = img.height;
             
             // Calculate display dimensions while maintaining aspect ratio
-            const maxWidth = 350;
-            const maxHeight = 250;
+            const containerWidth = 350;
+            const containerHeight = 250;
             const aspectRatio = img.width / img.height;
             
-            let displayWidth = maxWidth;
-            let displayHeight = maxWidth / aspectRatio;
+            let displayWidth = containerWidth;
+            let displayHeight = containerWidth / aspectRatio;
             
-            if (displayHeight > maxHeight) {
-                displayHeight = maxHeight;
-                displayWidth = maxHeight * aspectRatio;
+            if (displayHeight > containerHeight) {
+                displayHeight = containerHeight;
+                displayWidth = containerHeight * aspectRatio;
             }
             
             // Set canvas display style
@@ -396,7 +507,15 @@ class InspectortApp {
 
             // Draw existing annotations
             this.redrawAnnotations(ctx);
+            
+            console.log('Annotation modal opened for photo:', photo.id);
         };
+        
+        img.onerror = () => {
+            console.error('Failed to load image:', photo.url);
+            this.showError('Failed to load image. Please try again.');
+        };
+        
         img.src = photo.url;
 
         // Set description
@@ -414,27 +533,37 @@ class InspectortApp {
 
     setupAnnotationCanvas() {
         const canvas = document.getElementById('annotationCanvas');
-        const ctx = canvas.getContext('2d');
+        
+        // Remove any existing event listeners to prevent duplicates
+        const newCanvas = canvas.cloneNode(true);
+        canvas.parentNode.replaceChild(newCanvas, canvas);
+        
+        const ctx = newCanvas.getContext('2d');
 
-        canvas.addEventListener('mousedown', (e) => this.startDrawing(e, ctx));
-        canvas.addEventListener('mousemove', (e) => this.draw(e, ctx));
-        canvas.addEventListener('mouseup', () => this.stopDrawing());
-        canvas.addEventListener('mouseout', () => this.stopDrawing());
+        newCanvas.addEventListener('mousedown', (e) => this.startDrawing(e, ctx));
+        newCanvas.addEventListener('mousemove', (e) => this.draw(e, ctx));
+        newCanvas.addEventListener('mouseup', () => this.stopDrawing());
+        newCanvas.addEventListener('mouseout', () => this.stopDrawing());
 
         // Touch events for mobile
-        canvas.addEventListener('touchstart', (e) => {
+        newCanvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
             this.startDrawing(e.touches[0], ctx);
         });
 
-        canvas.addEventListener('touchmove', (e) => {
+        newCanvas.addEventListener('touchmove', (e) => {
             e.preventDefault();
             this.draw(e.touches[0], ctx);
         });
 
-        canvas.addEventListener('touchend', (e) => {
+        newCanvas.addEventListener('touchend', (e) => {
             e.preventDefault();
             this.stopDrawing();
+        });
+
+        // Prevent context menu on long press (mobile)
+        newCanvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
         });
     }
 
