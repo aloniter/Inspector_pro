@@ -2507,8 +2507,611 @@ function formatFileSize(bytes) {
 }
 
 function exportReport() {
-    // TODO: Implement report export
-    console.log('Export report');
+    if (!appState.currentProject) {
+        showNotification('יש לבחור פרויקט תחילה', 'error');
+        return;
+    }
+
+    const projectPhotos = getPhotosByProject(appState.currentProject.id);
+    
+    if (projectPhotos.length === 0) {
+        showNotification('אין תמונות בפרויקט לייצוא', 'error');
+        return;
+    }
+
+    // Show export configuration modal
+    showExportConfigModal();
+}
+
+function showExportConfigModal() {
+    const project = appState.currentProject;
+    const projectPhotos = getPhotosByProject(project.id);
+    
+    const modalContent = `
+        <div class="export-config-container">
+            <div class="export-summary">
+                <h3>סיכום הדוח</h3>
+                <div class="export-summary-details">
+                    <div class="summary-item">
+                        <span class="summary-label">שם הפרויקט:</span>
+                        <span class="summary-value">${project.name}</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">מספר תמונות:</span>
+                        <span class="summary-value">${projectPhotos.length}</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">תמונות עם הערות:</span>
+                        <span class="summary-value">${projectPhotos.filter(p => p.isAnnotated).length}</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">תאריך יצירה:</span>
+                        <span class="summary-value">${new Date(project.createdAt).toLocaleDateString('he-IL')}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="export-config-form">
+                <h3>הגדרות הדוח</h3>
+                
+                <div class="form-section">
+                    <h4>כותרת עליונה (תופיע בכל עמוד)</h4>
+                    <div class="form-group">
+                        <label for="headerCompany">שם החברה:</label>
+                        <input type="text" id="headerCompany" class="form-input" 
+                               placeholder="הכנס שם החברה" value="איליט הנדסה">
+                    </div>
+                    <div class="form-group">
+                        <label for="headerTitle">כותרת נוספת:</label>
+                        <input type="text" id="headerTitle" class="form-input" 
+                               placeholder="למשל: דוח בדיקה מקצועי" value="דוח בדיקה מקצועי">
+                    </div>
+                </div>
+                
+                <div class="form-section">
+                    <h4>כותרת תחתונה (תופיע בכל עמוד)</h4>
+                    <div class="form-group">
+                        <label for="footerContact">פרטי קשר:</label>
+                        <input type="text" id="footerContact" class="form-input" 
+                               placeholder="טלפון, אימייל, כתובת" value="📞 054-6222577 | ✉️ info@company.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="footerExtra">מידע נוסף:</label>
+                        <input type="text" id="footerExtra" class="form-input" 
+                               placeholder="מידע נוסף לתחתית הדף" value="הזדמנות לפתרונות הנדסיים">
+                    </div>
+                </div>
+                
+                <div class="form-section">
+                    <h4>הגדרות נוספות</h4>
+                    <div class="form-group">
+                        <label for="includeAnnotations">
+                            <input type="checkbox" id="includeAnnotations" checked>
+                            <span class="checkbox-label">כלול הערות וציורים על התמונות</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="imageQuality">איכות תמונות:</label>
+                        <select id="imageQuality" class="form-select">
+                            <option value="high">גבוהה (קובץ גדול יותר)</option>
+                            <option value="medium" selected>בינונית (מומלץ)</option>
+                            <option value="low">נמוכה (קובץ קטן)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const modal = createModal(
+        'יצוא דוח - הגדרות',
+        modalContent,
+        [
+            {
+                text: 'ביטול',
+                class: 'btn-secondary',
+                action: 'closeModal(this.closest(\'.modal-overlay\'))'
+            },
+            {
+                text: 'יצוא Word',
+                class: 'btn-primary',
+                action: 'exportToWord()'
+            },
+            {
+                text: 'יצוא PDF',
+                class: 'btn-primary',
+                action: 'exportToPDF()'
+            }
+        ]
+    );
+
+    showModal(modal);
+}
+
+function getExportConfig() {
+    return {
+        headerCompany: document.getElementById('headerCompany')?.value || '',
+        headerTitle: document.getElementById('headerTitle')?.value || '',
+        footerContact: document.getElementById('footerContact')?.value || '',
+        footerExtra: document.getElementById('footerExtra')?.value || '',
+        includeAnnotations: document.getElementById('includeAnnotations')?.checked || false,
+        imageQuality: document.getElementById('imageQuality')?.value || 'medium'
+    };
+}
+
+async function exportToWord() {
+    try {
+        showNotification('מכין דוח Word...', 'info');
+        
+        const config = getExportConfig();
+        const project = appState.currentProject;
+        const projectPhotos = getPhotosByProject(project.id);
+        
+        if (projectPhotos.length === 0) {
+            showNotification('אין תמונות לייצוא', 'error');
+            return;
+        }
+
+        // Close the config modal
+        closeModal(document.querySelector('.modal-overlay'));
+        
+        // Create Word document
+        const docx = window.docx;
+        const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, Header, Footer, AlignmentType, WidthType, ImageRun } = docx;
+        
+        const doc = new Document({
+            sections: [{
+                properties: {
+                    page: {
+                        margin: {
+                            top: 1440,    // 1 inch
+                            right: 1440,
+                            bottom: 1440,
+                            left: 1440,
+                        },
+                    },
+                },
+                headers: {
+                    default: new Header({
+                        children: [
+                            new Paragraph({
+                                children: [
+                                    new TextRun({
+                                        text: config.headerCompany,
+                                        bold: true,
+                                        size: 28,
+                                    }),
+                                ],
+                                alignment: AlignmentType.CENTER,
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({
+                                        text: config.headerTitle,
+                                        size: 24,
+                                    }),
+                                ],
+                                alignment: AlignmentType.CENTER,
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({
+                                        text: `פרויקט: ${project.name}`,
+                                        size: 20,
+                                    }),
+                                ],
+                                alignment: AlignmentType.CENTER,
+                            }),
+                        ],
+                    }),
+                },
+                footers: {
+                    default: new Footer({
+                        children: [
+                            new Paragraph({
+                                children: [
+                                    new TextRun({
+                                        text: config.footerContact,
+                                        size: 20,
+                                    }),
+                                ],
+                                alignment: AlignmentType.CENTER,
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({
+                                        text: config.footerExtra,
+                                        size: 18,
+                                    }),
+                                ],
+                                alignment: AlignmentType.CENTER,
+                            }),
+                        ],
+                    }),
+                },
+                children: await createWordContent(projectPhotos, config),
+            }],
+        });
+
+        // Generate and download
+        const blob = await Packer.toBlob(doc);
+        const fileName = `${project.name}_דוח_${new Date().toISOString().split('T')[0]}.docx`;
+        
+        // Use FileSaver to download
+        saveAs(blob, fileName);
+        
+        showNotification('דוח Word נוצר בהצלחה!', 'success');
+        
+    } catch (error) {
+        console.error('Error exporting to Word:', error);
+        showNotification('שגיאה ביצירת דוח Word', 'error');
+    }
+}
+
+async function createWordContent(photos, config) {
+    const content = [];
+    
+    // Title page
+    content.push(
+        new Paragraph({
+            children: [
+                new TextRun({
+                    text: `דוח בדיקה - ${appState.currentProject.name}`,
+                    bold: true,
+                    size: 32,
+                }),
+            ],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 400 },
+        })
+    );
+    
+    content.push(
+        new Paragraph({
+            children: [
+                new TextRun({
+                    text: `תאריך: ${new Date().toLocaleDateString('he-IL')}`,
+                    size: 24,
+                }),
+            ],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 800 },
+        })
+    );
+
+    // Process each photo
+    for (let i = 0; i < photos.length; i++) {
+        const photo = photos[i];
+        
+        try {
+            // Create image data
+            let imageData;
+            if (config.includeAnnotations && photo.annotations && photo.annotations.length > 0) {
+                imageData = await renderPhotoWithAnnotations(photo, config.imageQuality);
+            } else {
+                imageData = photo.url;
+            }
+            
+            // Convert base64 to buffer
+            const base64Data = imageData.split(',')[1];
+            const buffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+            
+            // Create table for photo layout
+            const photoTable = new Table({
+                width: {
+                    size: 100,
+                    type: WidthType.PERCENTAGE,
+                },
+                rows: [
+                    new TableRow({
+                        children: [
+                            new TableCell({
+                                children: [
+                                    new Paragraph({
+                                        children: [
+                                            new ImageRun({
+                                                data: buffer,
+                                                transformation: {
+                                                    width: 300,
+                                                    height: 225,
+                                                },
+                                            }),
+                                        ],
+                                        alignment: AlignmentType.CENTER,
+                                    }),
+                                ],
+                                width: {
+                                    size: 50,
+                                    type: WidthType.PERCENTAGE,
+                                },
+                            }),
+                            new TableCell({
+                                children: [
+                                    new Paragraph({
+                                        children: [
+                                            new TextRun({
+                                                text: `${i + 1}. ${photo.name || 'ללא שם'}`,
+                                                bold: true,
+                                                size: 24,
+                                            }),
+                                        ],
+                                        spacing: { after: 200 },
+                                    }),
+                                    new Paragraph({
+                                        children: [
+                                            new TextRun({
+                                                text: photo.description || 'ללא תיאור',
+                                                size: 22,
+                                            }),
+                                        ],
+                                        spacing: { after: 200 },
+                                    }),
+                                    new Paragraph({
+                                        children: [
+                                            new TextRun({
+                                                text: `תאריך: ${new Date(photo.createdAt).toLocaleDateString('he-IL')}`,
+                                                size: 18,
+                                                color: "666666",
+                                            }),
+                                        ],
+                                    }),
+                                ],
+                                width: {
+                                    size: 50,
+                                    type: WidthType.PERCENTAGE,
+                                },
+                            }),
+                        ],
+                    }),
+                ],
+            });
+            
+            content.push(photoTable);
+            
+            // Add spacing between photos
+            content.push(
+                new Paragraph({
+                    children: [new TextRun({ text: "" })],
+                    spacing: { after: 400 },
+                })
+            );
+            
+        } catch (error) {
+            console.error('Error processing photo:', error);
+            // Add error placeholder
+            content.push(
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: `${i + 1}. שגיאה בטעינת תמונה: ${photo.name || 'ללא שם'}`,
+                            color: "FF0000",
+                        }),
+                    ],
+                    spacing: { after: 400 },
+                })
+            );
+        }
+    }
+    
+    return content;
+}
+
+async function renderPhotoWithAnnotations(photo, quality) {
+    return new Promise((resolve, reject) => {
+        try {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            
+            img.onload = function() {
+                // Set canvas size based on quality
+                const scale = quality === 'high' ? 1 : quality === 'medium' ? 0.8 : 0.6;
+                canvas.width = img.width * scale;
+                canvas.height = img.height * scale;
+                
+                // Draw image
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                
+                // Draw annotations
+                if (photo.annotations && photo.annotations.length > 0) {
+                    photo.annotations.forEach(annotation => {
+                        drawAnnotationOnCanvas(ctx, annotation, scale);
+                    });
+                }
+                
+                // Convert to data URL
+                const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+                resolve(dataURL);
+            };
+            
+            img.onerror = function() {
+                reject(new Error('Failed to load image'));
+            };
+            
+            img.src = photo.url;
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+function drawAnnotationOnCanvas(ctx, annotation, scale) {
+    ctx.strokeStyle = annotation.color || '#FF0000';
+    ctx.lineWidth = (annotation.strokeWidth || 3) * scale;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    switch (annotation.type) {
+        case 'pen':
+            if (annotation.points && annotation.points.length > 1) {
+                ctx.beginPath();
+                ctx.moveTo(annotation.points[0].x * scale, annotation.points[0].y * scale);
+                for (let i = 1; i < annotation.points.length; i++) {
+                    ctx.lineTo(annotation.points[i].x * scale, annotation.points[i].y * scale);
+                }
+                ctx.stroke();
+            }
+            break;
+            
+        case 'arrow':
+            if (annotation.start && annotation.end) {
+                drawArrowOnCanvas(ctx, 
+                    { x: annotation.start.x * scale, y: annotation.start.y * scale },
+                    { x: annotation.end.x * scale, y: annotation.end.y * scale }
+                );
+            }
+            break;
+            
+        case 'rectangle':
+            if (annotation.start && annotation.end) {
+                const width = (annotation.end.x - annotation.start.x) * scale;
+                const height = (annotation.end.y - annotation.start.y) * scale;
+                ctx.strokeRect(annotation.start.x * scale, annotation.start.y * scale, width, height);
+            }
+            break;
+            
+        case 'circle':
+            if (annotation.center && annotation.radius) {
+                ctx.beginPath();
+                ctx.arc(annotation.center.x * scale, annotation.center.y * scale, annotation.radius * scale, 0, 2 * Math.PI);
+                ctx.stroke();
+            }
+            break;
+            
+        case 'text':
+            if (annotation.text && annotation.position) {
+                ctx.font = `${(annotation.fontSize || 16) * scale}px Arial`;
+                ctx.fillStyle = annotation.color || '#FF0000';
+                ctx.fillText(annotation.text, annotation.position.x * scale, annotation.position.y * scale);
+            }
+            break;
+    }
+}
+
+function drawArrowOnCanvas(ctx, start, end) {
+    const headlen = 15;
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const angle = Math.atan2(dy, dx);
+    
+    // Draw line
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+    
+    // Draw arrowhead
+    ctx.beginPath();
+    ctx.moveTo(end.x, end.y);
+    ctx.lineTo(end.x - headlen * Math.cos(angle - Math.PI / 6), end.y - headlen * Math.sin(angle - Math.PI / 6));
+    ctx.moveTo(end.x, end.y);
+    ctx.lineTo(end.x - headlen * Math.cos(angle + Math.PI / 6), end.y - headlen * Math.sin(angle + Math.PI / 6));
+    ctx.stroke();
+}
+
+async function exportToPDF() {
+    try {
+        showNotification('מכין דוח PDF...', 'info');
+        
+        const config = getExportConfig();
+        const project = appState.currentProject;
+        const projectPhotos = getPhotosByProject(project.id);
+        
+        if (projectPhotos.length === 0) {
+            showNotification('אין תמונות לייצוא', 'error');
+            return;
+        }
+
+        // Close the config modal
+        closeModal(document.querySelector('.modal-overlay'));
+        
+        // Create PDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('p', 'mm', 'a4');
+        
+        // Add title page
+        doc.setFontSize(20);
+        doc.text(`דוח בדיקה - ${project.name}`, 105, 50, { align: 'center' });
+        doc.setFontSize(14);
+        doc.text(`תאריך: ${new Date().toLocaleDateString('he-IL')}`, 105, 70, { align: 'center' });
+        
+        // Add header and footer function
+        const addHeaderFooter = (pageNum, totalPages) => {
+            // Header
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'bold');
+            doc.text(config.headerCompany, 105, 15, { align: 'center' });
+            doc.setFont(undefined, 'normal');
+            doc.text(config.headerTitle, 105, 25, { align: 'center' });
+            
+            // Footer
+            doc.setFontSize(10);
+            doc.text(config.footerContact, 105, 280, { align: 'center' });
+            doc.text(config.footerExtra, 105, 290, { align: 'center' });
+            doc.text(`עמוד ${pageNum} מתוך ${totalPages}`, 105, 297, { align: 'center' });
+        };
+        
+        // Process photos
+        for (let i = 0; i < projectPhotos.length; i++) {
+            const photo = projectPhotos[i];
+            
+            if (i > 0) {
+                doc.addPage();
+            }
+            
+            try {
+                // Render photo with annotations
+                let imageData;
+                if (config.includeAnnotations && photo.annotations && photo.annotations.length > 0) {
+                    imageData = await renderPhotoWithAnnotations(photo, config.imageQuality);
+                } else {
+                    imageData = photo.url;
+                }
+                
+                // Add image to PDF
+                doc.addImage(imageData, 'JPEG', 20, 40, 80, 60);
+                
+                // Add photo details
+                doc.setFontSize(14);
+                doc.setFont(undefined, 'bold');
+                doc.text(`${i + 1}. ${photo.name || 'ללא שם'}`, 110, 50, { align: 'right' });
+                
+                doc.setFontSize(12);
+                doc.setFont(undefined, 'normal');
+                const description = photo.description || 'ללא תיאור';
+                const splitDescription = doc.splitTextToSize(description, 80);
+                doc.text(splitDescription, 110, 65, { align: 'right' });
+                
+                doc.setFontSize(10);
+                doc.text(`תאריך: ${new Date(photo.createdAt).toLocaleDateString('he-IL')}`, 110, 95, { align: 'right' });
+                
+            } catch (error) {
+                console.error('Error processing photo for PDF:', error);
+                // Add error text
+                doc.setFontSize(12);
+                doc.setTextColor(255, 0, 0);
+                doc.text(`${i + 1}. שגיאה בטעינת תמונה: ${photo.name || 'ללא שם'}`, 110, 50, { align: 'right' });
+                doc.setTextColor(0, 0, 0);
+            }
+        }
+        
+        // Add headers and footers to all pages
+        const totalPages = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            addHeaderFooter(i, totalPages);
+        }
+        
+        // Save PDF
+        const fileName = `${project.name}_דוח_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(fileName);
+        
+        showNotification('דוח PDF נוצר בהצלחה!', 'success');
+        
+    } catch (error) {
+        console.error('Error exporting to PDF:', error);
+        showNotification('שגיאה ביצירת דוח PDF', 'error');
+    }
 }
 
 function openPhotoAnnotation(photo) {
