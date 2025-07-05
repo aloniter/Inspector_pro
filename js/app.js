@@ -225,13 +225,24 @@ function setupEventListeners() {
 async function handleLogin(e) {
     e.preventDefault();
     
+    // Clear previous errors
+    clearFormErrors();
+    
     const email = elements.loginEmail.value.trim();
     const password = elements.loginPassword.value;
     
-    if (!email || !password) {
-        showNotification('אנא מלא את כל השדות', 'error');
+    // Validate inputs
+    const validationErrors = validateLoginForm(email, password);
+    if (validationErrors.length > 0) {
+        showFormErrors(validationErrors);
         return;
     }
+    
+    // Show loading state
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    submitBtn.textContent = 'מתחבר...';
+    submitBtn.disabled = true;
     
     try {
         // Simulate authentication (replace with real API call)
@@ -244,14 +255,20 @@ async function handleLogin(e) {
             // Save user data
             setStorageItem(STORAGE_KEYS.user, userData);
             
-            showNotification('התחברת בהצלחה!', 'success');
+            showNotification(`ברוך הבא, ${userData.name}!`, 'success');
             navigateToPage('dashboard');
         } else {
-            showNotification('פרטי התחברות שגויים', 'error');
+            showNotification('כתובת אימייל או סיסמה שגויים', 'error');
+            highlightFieldError(elements.loginEmail);
+            highlightFieldError(elements.loginPassword);
         }
     } catch (error) {
         console.error('Login error:', error);
-        showNotification('שגיאה בהתחברות', 'error');
+        showNotification('שגיאה בהתחברות לשרת. אנא נסה שוב.', 'error');
+    } finally {
+        // Reset button state
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
     }
 }
 
@@ -261,21 +278,35 @@ async function handleLogin(e) {
 async function handleRegister(e) {
     e.preventDefault();
     
+    // Clear previous errors
+    clearFormErrors();
+    
     const name = elements.registerName.value.trim();
     const email = elements.registerEmail.value.trim();
     const password = elements.registerPassword.value;
     
-    if (!name || !email || !password) {
-        showNotification('אנא מלא את כל השדות', 'error');
+    // Validate inputs
+    const validationErrors = validateRegisterForm(name, email, password);
+    if (validationErrors.length > 0) {
+        showFormErrors(validationErrors);
         return;
     }
     
-    if (password.length < 6) {
-        showNotification('הסיסמה חייבת להכיל לפחות 6 תווים', 'error');
-        return;
-    }
+    // Show loading state
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    submitBtn.textContent = 'נרשם...';
+    submitBtn.disabled = true;
     
     try {
+        // Check if email already exists
+        const existingUser = checkEmailExists(email);
+        if (existingUser) {
+            showNotification('כתובת האימייל כבר קיימת במערכת', 'error');
+            highlightFieldError(elements.registerEmail);
+            return;
+        }
+        
         // Simulate registration (replace with real API call)
         const userData = await registerUser(name, email, password);
         
@@ -286,14 +317,18 @@ async function handleRegister(e) {
             // Save user data
             setStorageItem(STORAGE_KEYS.user, userData);
             
-            showNotification('נרשמת בהצלחה!', 'success');
+            showNotification(`ברוך הבא, ${userData.name}! נרשמת בהצלחה.`, 'success');
             navigateToPage('dashboard');
         } else {
-            showNotification('שגיאה בהרשמה', 'error');
+            showNotification('שגיאה בהרשמה. אנא נסה שוב.', 'error');
         }
     } catch (error) {
         console.error('Registration error:', error);
-        showNotification('שגיאה בהרשמה', 'error');
+        showNotification('שגיאה בהרשמה לשרת. אנא נסה שוב.', 'error');
+    } finally {
+        // Reset button state
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
     }
 }
 
@@ -356,6 +391,9 @@ function updateDashboardContent() {
     const projectsGrid = elements.projectsGrid;
     if (!projectsGrid) return;
     
+    // Update user info in header
+    updateUserInfo();
+    
     // Clear existing content
     projectsGrid.innerHTML = '';
     
@@ -363,15 +401,57 @@ function updateDashboardContent() {
         projectsGrid.innerHTML = `
             <div class="empty-state">
                 <div class="empty-icon">📁</div>
-                <h3>אין עדיין פרויקטים</h3>
-                <p>צור פרויקט חדש כדי להתחיל</p>
+                <h3>שלום ${appState.currentUser?.name || 'משתמש'}!</h3>
+                <h4>אין עדיין פרויקטים</h4>
+                <p>צור פרויקט חדש כדי להתחיל בדיקות</p>
+                <button class="btn btn-primary" onclick="showCreateProjectModal()">
+                    <span class="btn-icon">+</span>
+                    צור פרויקט ראשון
+                </button>
             </div>
         `;
     } else {
+        // Add welcome message
+        const welcomeDiv = document.createElement('div');
+        welcomeDiv.className = 'dashboard-welcome';
+        welcomeDiv.innerHTML = `
+            <h3>שלום ${appState.currentUser?.name}!</h3>
+            <p>יש לך ${appState.projects.length} פרויקט${appState.projects.length === 1 ? '' : 'ים'} פעיל${appState.projects.length === 1 ? '' : 'ים'}</p>
+        `;
+        projectsGrid.appendChild(welcomeDiv);
+        
+        // Add projects
         appState.projects.forEach(project => {
             const projectCard = createProjectCard(project);
             projectsGrid.appendChild(projectCard);
         });
+    }
+}
+
+/**
+ * Update user info in header
+ */
+function updateUserInfo() {
+    if (appState.currentUser && elements.userMenuBtn) {
+        // Update user button to show name initial
+        const userIcon = elements.userMenuBtn.querySelector('.user-icon');
+        if (userIcon && appState.currentUser.name) {
+            const initial = appState.currentUser.name.charAt(0).toUpperCase();
+            userIcon.textContent = initial;
+            userIcon.style.backgroundColor = 'var(--primary-color)';
+            userIcon.style.color = 'white';
+            userIcon.style.borderRadius = '50%';
+            userIcon.style.width = '32px';
+            userIcon.style.height = '32px';
+            userIcon.style.display = 'flex';
+            userIcon.style.alignItems = 'center';
+            userIcon.style.justifyContent = 'center';
+            userIcon.style.fontSize = 'var(--font-size-sm)';
+            userIcon.style.fontWeight = '600';
+        }
+        
+        // Add tooltip with user name
+        elements.userMenuBtn.title = `${appState.currentUser.name} - לחץ לתפריט משתמש`;
     }
 }
 
@@ -548,25 +628,221 @@ async function authenticateUser(email, password) {
     // Mock authentication - replace with real API call
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // For demo purposes, accept any email/password
-    return {
-        id: Date.now().toString(),
-        name: 'משתמש לדוגמה',
-        email: email,
-        createdAt: new Date().toISOString()
-    };
+    // Check credentials against saved users
+    const allUsers = getStorageItem('all_users') || [];
+    const user = allUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+    
+    if (user) {
+        // In a real app, you'd verify the password hash here
+        // For demo purposes, we'll accept any password for existing users
+        return {
+            ...user,
+            lastLogin: new Date().toISOString()
+        };
+    }
+    
+    // For demo purposes, create a new user if email/password is provided
+    if (email && password) {
+        return {
+            id: Date.now().toString(),
+            name: 'משתמש לדוגמה',
+            email: email,
+            createdAt: new Date().toISOString(),
+            lastLogin: new Date().toISOString()
+        };
+    }
+    
+    return null;
 }
 
 async function registerUser(name, email, password) {
     // Mock registration - replace with real API call
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    return {
+    const userData = {
         id: Date.now().toString(),
         name: name,
         email: email,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString()
     };
+    
+    // Save user to all users list
+    const allUsers = getStorageItem('all_users') || [];
+    allUsers.push(userData);
+    setStorageItem('all_users', allUsers);
+    
+    return userData;
+}
+
+/**
+ * Form validation functions
+ */
+function validateLoginForm(email, password) {
+    const errors = [];
+    
+    if (!email.trim()) {
+        errors.push({
+            field: 'email',
+            message: 'כתובת אימייל נדרשת'
+        });
+    } else if (!isValidEmail(email)) {
+        errors.push({
+            field: 'email',
+            message: 'כתובת אימייל לא תקינה'
+        });
+    }
+    
+    if (!password) {
+        errors.push({
+            field: 'password',
+            message: 'סיסמה נדרשת'
+        });
+    }
+    
+    return errors;
+}
+
+function validateRegisterForm(name, email, password) {
+    const errors = [];
+    
+    if (!name.trim()) {
+        errors.push({
+            field: 'name',
+            message: 'שם מלא נדרש'
+        });
+    } else if (name.trim().length < 2) {
+        errors.push({
+            field: 'name',
+            message: 'השם חייב להכיל לפחות 2 תווים'
+        });
+    }
+    
+    if (!email.trim()) {
+        errors.push({
+            field: 'email',
+            message: 'כתובת אימייל נדרשת'
+        });
+    } else if (!isValidEmail(email)) {
+        errors.push({
+            field: 'email',
+            message: 'כתובת אימייל לא תקינה'
+        });
+    }
+    
+    if (!password) {
+        errors.push({
+            field: 'password',
+            message: 'סיסמה נדרשת'
+        });
+    } else if (password.length < 6) {
+        errors.push({
+            field: 'password',
+            message: 'הסיסמה חייבת להכיל לפחות 6 תווים'
+        });
+    } else if (!isValidPassword(password)) {
+        errors.push({
+            field: 'password',
+            message: 'הסיסמה חייבת להכיל לפחות אות אחת ומספר אחד'
+        });
+    }
+    
+    return errors;
+}
+
+function isValidEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+}
+
+function isValidPassword(password) {
+    // Password must contain at least one letter and one number
+    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/;
+    return passwordRegex.test(password);
+}
+
+function checkEmailExists(email) {
+    // Check if email already exists in localStorage
+    const users = getStorageItem('all_users') || [];
+    return users.find(user => user.email.toLowerCase() === email.toLowerCase());
+}
+
+/**
+ * Form error handling
+ */
+function clearFormErrors() {
+    // Remove error styling from all form fields
+    document.querySelectorAll('.form-group input, .form-group textarea').forEach(field => {
+        field.classList.remove('error');
+        const errorMsg = field.parentNode.querySelector('.error-message');
+        if (errorMsg) {
+            errorMsg.remove();
+        }
+    });
+}
+
+function showFormErrors(errors) {
+    errors.forEach(error => {
+        const fieldName = error.field;
+        let fieldElement;
+        
+        // Map field names to elements
+        switch (fieldName) {
+            case 'name':
+                fieldElement = elements.registerName;
+                break;
+            case 'email':
+                fieldElement = appState.currentPage === 'auth' ? 
+                    (elements.loginForm.classList.contains('hidden') ? elements.registerEmail : elements.loginEmail) :
+                    elements.loginEmail;
+                break;
+            case 'password':
+                fieldElement = appState.currentPage === 'auth' ? 
+                    (elements.loginForm.classList.contains('hidden') ? elements.registerPassword : elements.loginPassword) :
+                    elements.loginPassword;
+                break;
+        }
+        
+        if (fieldElement) {
+            highlightFieldError(fieldElement);
+            showFieldError(fieldElement, error.message);
+        }
+    });
+    
+    // Show first error as notification
+    if (errors.length > 0) {
+        showNotification(errors[0].message, 'error');
+    }
+}
+
+function highlightFieldError(fieldElement) {
+    fieldElement.classList.add('error');
+    
+    // Remove error styling after 5 seconds
+    setTimeout(() => {
+        fieldElement.classList.remove('error');
+    }, 5000);
+}
+
+function showFieldError(fieldElement, message) {
+    // Remove existing error message
+    const existingError = fieldElement.parentNode.querySelector('.error-message');
+    if (existingError) {
+        existingError.remove();
+    }
+    
+    // Create new error message
+    const errorElement = document.createElement('div');
+    errorElement.className = 'error-message';
+    errorElement.textContent = message;
+    fieldElement.parentNode.appendChild(errorElement);
+    
+    // Remove error message after 5 seconds
+    setTimeout(() => {
+        if (errorElement.parentNode) {
+            errorElement.parentNode.removeChild(errorElement);
+        }
+    }, 5000);
 }
 
 /**
@@ -596,6 +872,75 @@ function setStorageItem(key, value) {
 function initializeModals() {
     // Modal system initialization
     console.log('Modal system initialized');
+    
+    // Close modals when clicking outside
+    document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal-overlay')) {
+            closeModal(e.target);
+        }
+    });
+    
+    // Close modals with Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const activeModal = document.querySelector('.modal-overlay.active');
+            if (activeModal) {
+                closeModal(activeModal);
+            }
+        }
+    });
+}
+
+/**
+ * Create modal element
+ */
+function createModal(title, content, buttons = []) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    
+    const buttonsHtml = buttons.map(btn => 
+        `<button class="btn ${btn.class || 'btn-primary'}" onclick="${btn.action === 'close' ? 'closeModal(this.closest(\'.modal-overlay\'))' : btn.action}">${btn.text}</button>`
+    ).join('');
+    
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">${title}</h3>
+                <button class="modal-close" onclick="closeModal(this.closest('.modal-overlay'))">&times;</button>
+            </div>
+            <div class="modal-body">
+                ${content}
+            </div>
+            ${buttons.length > 0 ? `<div class="modal-buttons">${buttonsHtml}</div>` : ''}
+        </div>
+    `;
+    
+    return modal;
+}
+
+/**
+ * Show modal
+ */
+function showModal(modal) {
+    elements.modalsContainer.appendChild(modal);
+    
+    // Trigger animation
+    setTimeout(() => {
+        modal.classList.add('active');
+    }, 10);
+}
+
+/**
+ * Close modal
+ */
+function closeModal(modal) {
+    modal.classList.remove('active');
+    
+    setTimeout(() => {
+        if (modal.parentNode) {
+            modal.parentNode.removeChild(modal);
+        }
+    }, 300);
 }
 
 function initializeTooltips() {
@@ -614,8 +959,63 @@ function showCreateProjectModal() {
 }
 
 function showUserMenu() {
-    // TODO: Implement user menu
-    console.log('User menu');
+    // Create user menu modal
+    const modal = createModal('תפריט משתמש', '', [
+        {
+            text: 'סגור',
+            class: 'btn-secondary',
+            action: 'close'
+        }
+    ]);
+    
+    // Add user menu content
+    const userInfo = document.createElement('div');
+    userInfo.className = 'user-menu-content';
+    userInfo.innerHTML = `
+        <div class="user-profile">
+            <div class="user-avatar">
+                ${appState.currentUser?.name?.charAt(0)?.toUpperCase() || 'U'}
+            </div>
+            <div class="user-details">
+                <h3>${appState.currentUser?.name || 'משתמש'}</h3>
+                <p>${appState.currentUser?.email || ''}</p>
+                <small>נרשם: ${appState.currentUser?.createdAt ? new Date(appState.currentUser.createdAt).toLocaleDateString('he-IL') : ''}</small>
+            </div>
+        </div>
+        
+        <div class="user-stats">
+            <div class="stat-item">
+                <span class="stat-value">${appState.projects.length}</span>
+                <span class="stat-label">פרויקטים</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">${appState.photos.length}</span>
+                <span class="stat-label">תמונות</span>
+            </div>
+        </div>
+        
+        <div class="user-actions">
+            <button class="btn btn-outline" onclick="editProfile()">
+                <span class="btn-icon">✏️</span>
+                ערוך פרופיל
+            </button>
+            <button class="btn btn-secondary" onclick="exportUserData()">
+                <span class="btn-icon">📁</span>
+                יצוא נתונים
+            </button>
+            <button class="btn btn-danger" onclick="logout()">
+                <span class="btn-icon">🚪</span>
+                התנתק
+            </button>
+        </div>
+    `;
+    
+    // Insert content before buttons
+    const modalBody = modal.querySelector('.modal-content');
+    const buttonContainer = modalBody.querySelector('.modal-buttons');
+    modalBody.insertBefore(userInfo, buttonContainer);
+    
+    showModal(modal);
 }
 
 function capturePhoto() {
@@ -661,6 +1061,78 @@ function saveAppState() {
     // Save app state before unload
     setStorageItem(STORAGE_KEYS.projects, appState.projects);
     setStorageItem(STORAGE_KEYS.photos, appState.photos);
+}
+
+/**
+ * User management functions
+ */
+function logout() {
+    const modal = createModal(
+        'התנתקות', 
+        'האם אתה בטוח שברצונך להתנתק?',
+        [
+            {
+                text: 'ביטול',
+                class: 'btn-secondary',
+                action: 'closeModal(this.closest(\'.modal-overlay\'))'
+            },
+            {
+                text: 'התנתק',
+                class: 'btn-danger',
+                action: 'confirmLogout()'
+            }
+        ]
+    );
+    
+    showModal(modal);
+}
+
+function confirmLogout() {
+    // Clear user data
+    appState.currentUser = null;
+    appState.isAuthenticated = false;
+    appState.currentProject = null;
+    
+    // Clear stored user data
+    localStorage.removeItem(APP_CONFIG.storagePrefix + STORAGE_KEYS.user);
+    
+    // Close any open modals
+    document.querySelectorAll('.modal-overlay').forEach(modal => {
+        closeModal(modal);
+    });
+    
+    // Show notification and redirect
+    showNotification('התנתקת בהצלחה', 'info');
+    navigateToPage('auth');
+}
+
+function editProfile() {
+    showNotification('תכונה זו תהיה זמינה בקרוב', 'info');
+    // TODO: Implement profile editing
+}
+
+function exportUserData() {
+    try {
+        const userData = {
+            user: appState.currentUser,
+            projects: appState.projects,
+            photos: appState.photos,
+            exportDate: new Date().toISOString()
+        };
+        
+        const dataStr = JSON.stringify(userData, null, 2);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(dataBlob);
+        link.download = `inspectort-backup-${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        
+        showNotification('הנתונים יוצאו בהצלחה', 'success');
+    } catch (error) {
+        console.error('Export error:', error);
+        showNotification('שגיאה ביצוא הנתונים', 'error');
+    }
 }
 
 // Add CSS animations for notifications
