@@ -2725,9 +2725,8 @@ async function exportToWord() {
         
         // Check if docx library is loaded
         if (!window.docx) {
-            showNotification('ספריית Word לא נטענה כראוי', 'error');
-            console.error('docx library not loaded');
-            return;
+            console.warn('docx library not available, using RTF fallback');
+            return exportToWordRTF();
         }
         
         const config = getExportConfig();
@@ -2853,7 +2852,76 @@ async function exportToWord() {
     } catch (error) {
         console.error('Error exporting to Word:', error);
         console.error('Error details:', error.message, error.stack);
-        showNotification(`שגיאה ביצירת דוח Word: ${error.message}`, 'error');
+        
+        // Fallback to RTF export
+        console.warn('Falling back to RTF export');
+        return exportToWordRTF();
+    }
+}
+
+// Backup method: Export as RTF (Rich Text Format) which Word can open
+async function exportToWordRTF() {
+    try {
+        showNotification('מכין דוח Word (RTF)...', 'info');
+        
+        const config = getExportConfig();
+        const project = appState.currentProject;
+        const projectPhotos = getPhotosByProject(project.id);
+        
+        if (projectPhotos.length === 0) {
+            showNotification('אין תמונות לייצוא', 'error');
+            return;
+        }
+        
+        // Create RTF content
+        let rtfContent = `{\\rtf1\\ansi\\deff0 {\\fonttbl {\\f0 Times New Roman;}}`;
+        
+        // Add header
+        rtfContent += `\\f0\\fs28\\qc\\b ${config.headerCompany || 'דוח בדיקה'}\\b0\\par`;
+        rtfContent += `\\fs24\\qc ${config.headerTitle || ''}\\par`;
+        rtfContent += `\\fs20\\qc פרויקט: ${project.name}\\par\\par`;
+        
+        // Add title
+        rtfContent += `\\fs32\\qc\\b דוח בדיקה - ${project.name}\\b0\\par`;
+        rtfContent += `\\fs24\\qc תאריך: ${new Date().toLocaleDateString('he-IL')}\\par\\par`;
+        
+        // Add photos information
+        for (let i = 0; i < projectPhotos.length; i++) {
+            const photo = projectPhotos[i];
+            rtfContent += `\\fs24\\b ${i + 1}. ${photo.name || 'ללא שם'}\\b0\\par`;
+            rtfContent += `\\fs20 ${photo.description || 'ללא תיאור'}\\par`;
+            rtfContent += `\\fs18 תאריך: ${new Date(photo.createdAt).toLocaleDateString('he-IL')}\\par\\par`;
+        }
+        
+        // Add footer
+        rtfContent += `\\fs20\\qc ${config.footerContact || ''}\\par`;
+        rtfContent += `\\fs18\\qc ${config.footerExtra || ''}\\par`;
+        
+        rtfContent += '}';
+        
+        // Create and download RTF file
+        const blob = new Blob([rtfContent], { type: 'application/rtf' });
+        const fileName = `${project.name}_דוח_${new Date().toISOString().split('T')[0]}.rtf`;
+        
+        // Download file
+        if (typeof saveAs !== 'function') {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } else {
+            saveAs(blob, fileName);
+        }
+        
+        showNotification('דוח Word נוצר בהצלחה! (פורמט RTF)', 'success');
+        
+    } catch (error) {
+        console.error('Error exporting to RTF:', error);
+        showNotification('שגיאה ביצירת דוח Word', 'error');
     }
 }
 

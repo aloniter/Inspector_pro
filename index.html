@@ -202,7 +202,43 @@
     </div>
 
     <!-- Export Libraries -->
-    <script src="https://cdn.jsdelivr.net/npm/docx@9.5.1/build/index.umd.js"></script>
+    <!-- Try multiple CDNs for docx library -->
+    <script>
+        // Function to load docx library with fallbacks
+        function loadDocxLibrary() {
+            const cdnUrls = [
+                'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js',
+                'https://unpkg.com/docx@8.5.0/build/index.umd.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.min.js'
+            ];
+            
+            let currentIndex = 0;
+            
+            function tryLoadScript() {
+                if (currentIndex >= cdnUrls.length) {
+                    console.error('Failed to load docx library from all CDNs');
+                    return;
+                }
+                
+                const script = document.createElement('script');
+                script.src = cdnUrls[currentIndex];
+                script.onload = function() {
+                    console.log('Successfully loaded docx from:', cdnUrls[currentIndex]);
+                };
+                script.onerror = function() {
+                    console.warn('Failed to load docx from:', cdnUrls[currentIndex]);
+                    currentIndex++;
+                    tryLoadScript();
+                };
+                document.head.appendChild(script);
+            }
+            
+            tryLoadScript();
+        }
+        
+        // Start loading immediately
+        loadDocxLibrary();
+    </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
