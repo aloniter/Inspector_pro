@@ -2927,7 +2927,7 @@ async function exportToWordRTF() {
 
 async function createWordContentSimple(photos, config) {
     const content = [];
-    const { Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, WidthType, ImageRun } = window.docx;
+    const { Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, WidthType, ImageRun, PageBreak } = window.docx;
     
     try {
         // Title page
@@ -2938,10 +2938,12 @@ async function createWordContentSimple(photos, config) {
                         text: `דוח בדיקה - ${appState.currentProject.name}`,
                         bold: true,
                         size: 32,
+                        rightToLeft: true,
                     }),
                 ],
                 alignment: AlignmentType.CENTER,
                 spacing: { after: 400 },
+                bidirectional: true,
             })
         );
         
@@ -2951,151 +2953,176 @@ async function createWordContentSimple(photos, config) {
                     new TextRun({
                         text: `תאריך: ${new Date().toLocaleDateString('he-IL')}`,
                         size: 24,
+                        rightToLeft: true,
                     }),
                 ],
                 alignment: AlignmentType.CENTER,
                 spacing: { after: 800 },
+                bidirectional: true,
             })
         );
 
-        // Process each photo with better error handling
-        for (let i = 0; i < photos.length; i++) {
-            const photo = photos[i];
-            console.log(`Processing photo ${i + 1}/${photos.length}:`, photo.name || 'unnamed');
+        // Add page break after title
+        content.push(new PageBreak());
+
+        // Process photos - 2 per page
+        for (let i = 0; i < photos.length; i += 2) {
+            const photosOnPage = photos.slice(i, i + 2);
             
-            try {
-                // Try to create image data
-                let imageBuffer = null;
+            // Process each photo on the current page
+            for (let j = 0; j < photosOnPage.length; j++) {
+                const photo = photosOnPage[j];
+                const photoIndex = i + j;
+                console.log(`Processing photo ${photoIndex + 1}/${photos.length}:`, photo.name || 'unnamed');
+                
                 try {
-                    let imageData;
-                    if (config.includeAnnotations && photo.annotations && photo.annotations.length > 0) {
-                        imageData = await renderPhotoWithAnnotations(photo, config.imageQuality);
-                    } else {
-                        imageData = photo.url;
+                    // Try to create high-resolution image data
+                    let imageBuffer = null;
+                    try {
+                        let imageData;
+                        if (config.includeAnnotations && photo.annotations && photo.annotations.length > 0) {
+                            // Use high quality for annotations
+                            imageData = await renderPhotoWithAnnotations(photo, 'high');
+                        } else {
+                            imageData = photo.url;
+                        }
+                        
+                        // Convert base64 to buffer
+                        const base64Data = imageData.split(',')[1];
+                        imageBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+                    } catch (imageError) {
+                        console.error('Error processing image:', imageError);
+                        imageBuffer = null;
                     }
                     
-                    // Convert base64 to buffer
-                    const base64Data = imageData.split(',')[1];
-                    imageBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-                } catch (imageError) {
-                    console.error('Error processing image:', imageError);
-                    imageBuffer = null;
-                }
-                
-                // Create table row content
-                const leftCellContent = [];
-                if (imageBuffer) {
-                    leftCellContent.push(
-                        new Paragraph({
-                            children: [
-                                new ImageRun({
-                                    data: imageBuffer,
-                                    transformation: {
-                                        width: 300,
-                                        height: 225,
-                                    },
-                                }),
-                            ],
-                            alignment: AlignmentType.CENTER,
-                        })
-                    );
-                } else {
-                    leftCellContent.push(
+                    // Create table for photo layout - Hebrew RTL
+                    const photoTable = new Table({
+                        width: {
+                            size: 100,
+                            type: WidthType.PERCENTAGE,
+                        },
+                        rows: [
+                            new TableRow({
+                                children: [
+                                    // Text cell (right side for RTL)
+                                    new TableCell({
+                                        children: [
+                                            new Paragraph({
+                                                children: [
+                                                    new TextRun({
+                                                        text: `${photoIndex + 1}. ${photo.name || 'ללא שם'}`,
+                                                        bold: true,
+                                                        size: 18, // Smaller text
+                                                        rightToLeft: true,
+                                                    }),
+                                                ],
+                                                spacing: { after: 150 },
+                                                bidirectional: true,
+                                                alignment: AlignmentType.RIGHT,
+                                            }),
+                                            new Paragraph({
+                                                children: [
+                                                    new TextRun({
+                                                        text: photo.description || 'ללא תיאור',
+                                                        size: 14, // Smaller text
+                                                        rightToLeft: true,
+                                                    }),
+                                                ],
+                                                spacing: { after: 150 },
+                                                bidirectional: true,
+                                                alignment: AlignmentType.RIGHT,
+                                            }),
+                                            new Paragraph({
+                                                children: [
+                                                    new TextRun({
+                                                        text: `תאריך: ${new Date(photo.createdAt).toLocaleDateString('he-IL')}`,
+                                                        size: 12, // Smaller text
+                                                        color: '666666',
+                                                        rightToLeft: true,
+                                                    }),
+                                                ],
+                                                bidirectional: true,
+                                                alignment: AlignmentType.RIGHT,
+                                            }),
+                                        ],
+                                        width: {
+                                            size: 30, // Smaller width for text
+                                            type: WidthType.PERCENTAGE,
+                                        },
+                                    }),
+                                    // Image cell (left side for RTL)
+                                    new TableCell({
+                                        children: imageBuffer ? [
+                                            new Paragraph({
+                                                children: [
+                                                    new ImageRun({
+                                                        data: imageBuffer,
+                                                        transformation: {
+                                                            width: 450, // Larger image
+                                                            height: 338, // Larger image (maintaining 4:3 ratio)
+                                                        },
+                                                    }),
+                                                ],
+                                                alignment: AlignmentType.CENTER,
+                                            })
+                                        ] : [
+                                            new Paragraph({
+                                                children: [
+                                                    new TextRun({
+                                                        text: 'שגיאה בטעינת תמונה',
+                                                        color: 'FF0000',
+                                                        rightToLeft: true,
+                                                    }),
+                                                ],
+                                                alignment: AlignmentType.CENTER,
+                                                bidirectional: true,
+                                            })
+                                        ],
+                                        width: {
+                                            size: 70, // Larger width for image
+                                            type: WidthType.PERCENTAGE,
+                                        },
+                                    }),
+                                ],
+                            }),
+                        ],
+                    });
+                    
+                    content.push(photoTable);
+                    
+                    // Add spacing between photos on the same page
+                    if (j < photosOnPage.length - 1) {
+                        content.push(
+                            new Paragraph({
+                                children: [new TextRun({ text: '' })],
+                                spacing: { after: 600 }, // More space between photos
+                            })
+                        );
+                    }
+                    
+                } catch (photoError) {
+                    console.error(`Error processing photo ${photoIndex + 1}:`, photoError);
+                    // Add error placeholder
+                    content.push(
                         new Paragraph({
                             children: [
                                 new TextRun({
-                                    text: 'שגיאה בטעינת תמונה',
+                                    text: `${photoIndex + 1}. שגיאה בעיבוד תמונה: ${photo.name || 'ללא שם'}`,
                                     color: 'FF0000',
+                                    rightToLeft: true,
                                 }),
                             ],
-                            alignment: AlignmentType.CENTER,
+                            spacing: { after: 400 },
+                            bidirectional: true,
+                            alignment: AlignmentType.RIGHT,
                         })
                     );
                 }
-                
-                const rightCellContent = [
-                    new Paragraph({
-                        children: [
-                            new TextRun({
-                                text: `${i + 1}. ${photo.name || 'ללא שם'}`,
-                                bold: true,
-                                size: 24,
-                            }),
-                        ],
-                        spacing: { after: 200 },
-                    }),
-                    new Paragraph({
-                        children: [
-                            new TextRun({
-                                text: photo.description || 'ללא תיאור',
-                                size: 22,
-                            }),
-                        ],
-                        spacing: { after: 200 },
-                    }),
-                    new Paragraph({
-                        children: [
-                            new TextRun({
-                                text: `תאריך: ${new Date(photo.createdAt).toLocaleDateString('he-IL')}`,
-                                size: 18,
-                                color: '666666',
-                            }),
-                        ],
-                    }),
-                ];
-                
-                // Create table for photo layout
-                const photoTable = new Table({
-                    width: {
-                        size: 100,
-                        type: WidthType.PERCENTAGE,
-                    },
-                    rows: [
-                        new TableRow({
-                            children: [
-                                new TableCell({
-                                    children: leftCellContent,
-                                    width: {
-                                        size: 50,
-                                        type: WidthType.PERCENTAGE,
-                                    },
-                                }),
-                                new TableCell({
-                                    children: rightCellContent,
-                                    width: {
-                                        size: 50,
-                                        type: WidthType.PERCENTAGE,
-                                    },
-                                }),
-                            ],
-                        }),
-                    ],
-                });
-                
-                content.push(photoTable);
-                
-                // Add spacing between photos
-                content.push(
-                    new Paragraph({
-                        children: [new TextRun({ text: '' })],
-                        spacing: { after: 400 },
-                    })
-                );
-                
-            } catch (photoError) {
-                console.error(`Error processing photo ${i + 1}:`, photoError);
-                // Add error placeholder
-                content.push(
-                    new Paragraph({
-                        children: [
-                            new TextRun({
-                                text: `${i + 1}. שגיאה בעיבוד תמונה: ${photo.name || 'ללא שם'}`,
-                                color: 'FF0000',
-                            }),
-                        ],
-                        spacing: { after: 400 },
-                    })
-                );
+            }
+            
+            // Add page break after every 2 photos (except for the last page)
+            if (i + 2 < photos.length) {
+                content.push(new PageBreak());
             }
         }
         
@@ -3108,8 +3135,11 @@ async function createWordContentSimple(photos, config) {
                     new TextRun({
                         text: 'שגיאה ביצירת תוכן הדוח',
                         color: 'FF0000',
+                        rightToLeft: true,
                     }),
                 ],
+                bidirectional: true,
+                alignment: AlignmentType.RIGHT,
             })
         );
     }
