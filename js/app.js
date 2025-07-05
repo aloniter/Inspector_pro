@@ -3126,17 +3126,35 @@ async function renderPhotoWithAnnotations(photo, quality) {
             
             img.onload = function() {
                 // Set canvas size based on quality
-                const scale = quality === 'high' ? 1 : quality === 'medium' ? 0.8 : 0.6;
-                canvas.width = img.width * scale;
-                canvas.height = img.height * scale;
+                const qualityScale = quality === 'high' ? 1 : quality === 'medium' ? 0.8 : 0.6;
+                canvas.width = img.width * qualityScale;
+                canvas.height = img.height * qualityScale;
                 
                 // Draw image
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 
-                // Draw annotations
+                // Draw annotations with proper scaling
                 if (photo.annotations && photo.annotations.length > 0) {
+                    // Calculate proper scale based on annotation canvas vs export canvas
+                    // Annotations are stored relative to the annotation canvas size
+                    // We need to scale them to match the export canvas size
+                    
+                    // Get the original annotation canvas dimensions if available
+                    const originalCanvasWidth = photo.annotationCanvasWidth || img.width;
+                    const originalCanvasHeight = photo.annotationCanvasHeight || img.height;
+                    
+                    // Calculate the scale factor from annotation canvas to export canvas
+                    const scaleX = canvas.width / originalCanvasWidth;
+                    const scaleY = canvas.height / originalCanvasHeight;
+                    
+                    console.log('Annotation scaling:', {
+                        originalCanvas: { width: originalCanvasWidth, height: originalCanvasHeight },
+                        exportCanvas: { width: canvas.width, height: canvas.height },
+                        scaleX, scaleY
+                    });
+                    
                     photo.annotations.forEach(annotation => {
-                        drawAnnotationOnCanvas(ctx, annotation, scale);
+                        drawAnnotationOnCanvas(ctx, annotation, scaleX, scaleY);
                     });
                 }
                 
@@ -3156,9 +3174,9 @@ async function renderPhotoWithAnnotations(photo, quality) {
     });
 }
 
-function drawAnnotationOnCanvas(ctx, annotation, scale) {
+function drawAnnotationOnCanvas(ctx, annotation, scaleX, scaleY) {
     ctx.strokeStyle = annotation.color || '#FF0000';
-    ctx.lineWidth = (annotation.strokeWidth || 3) * scale;
+    ctx.lineWidth = (annotation.strokeWidth || 3) * scaleX;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     
@@ -3166,9 +3184,9 @@ function drawAnnotationOnCanvas(ctx, annotation, scale) {
         case 'pen':
             if (annotation.points && annotation.points.length > 1) {
                 ctx.beginPath();
-                ctx.moveTo(annotation.points[0].x * scale, annotation.points[0].y * scale);
+                ctx.moveTo(annotation.points[0].x * scaleX, annotation.points[0].y * scaleY);
                 for (let i = 1; i < annotation.points.length; i++) {
-                    ctx.lineTo(annotation.points[i].x * scale, annotation.points[i].y * scale);
+                    ctx.lineTo(annotation.points[i].x * scaleX, annotation.points[i].y * scaleY);
                 }
                 ctx.stroke();
             }
@@ -3177,33 +3195,33 @@ function drawAnnotationOnCanvas(ctx, annotation, scale) {
         case 'arrow':
             if (annotation.start && annotation.end) {
                 drawArrowOnCanvas(ctx, 
-                    { x: annotation.start.x * scale, y: annotation.start.y * scale },
-                    { x: annotation.end.x * scale, y: annotation.end.y * scale }
+                    { x: annotation.start.x * scaleX, y: annotation.start.y * scaleY },
+                    { x: annotation.end.x * scaleX, y: annotation.end.y * scaleY }
                 );
             }
             break;
             
         case 'rectangle':
             if (annotation.start && annotation.end) {
-                const width = (annotation.end.x - annotation.start.x) * scale;
-                const height = (annotation.end.y - annotation.start.y) * scale;
-                ctx.strokeRect(annotation.start.x * scale, annotation.start.y * scale, width, height);
+                const width = (annotation.end.x - annotation.start.x) * scaleX;
+                const height = (annotation.end.y - annotation.start.y) * scaleY;
+                ctx.strokeRect(annotation.start.x * scaleX, annotation.start.y * scaleY, width, height);
             }
             break;
             
         case 'circle':
             if (annotation.center && annotation.radius) {
                 ctx.beginPath();
-                ctx.arc(annotation.center.x * scale, annotation.center.y * scale, annotation.radius * scale, 0, 2 * Math.PI);
+                ctx.arc(annotation.center.x * scaleX, annotation.center.y * scaleY, annotation.radius * scaleX, 0, 2 * Math.PI);
                 ctx.stroke();
             }
             break;
             
         case 'text':
             if (annotation.text && annotation.position) {
-                ctx.font = `${(annotation.fontSize || 16) * scale}px Arial`;
+                ctx.font = `${(annotation.fontSize || 16) * scaleX}px Arial`;
                 ctx.fillStyle = annotation.color || '#FF0000';
-                ctx.fillText(annotation.text, annotation.position.x * scale, annotation.position.y * scale);
+                ctx.fillText(annotation.text, annotation.position.x * scaleX, annotation.position.y * scaleY);
             }
             break;
     }
@@ -4005,12 +4023,24 @@ function savePhotoAnnotations(photoId) {
     
     const annotations = window.annotationState ? window.annotationState.annotations : [];
     
+    // Store the annotation canvas dimensions for proper scaling during export
+    const canvasWidth = window.annotationState?.canvas?.width || 0;
+    const canvasHeight = window.annotationState?.canvas?.height || 0;
+    
     const updates = {
         name: name,
         description: description,
         annotations: annotations,
+        annotationCanvasWidth: canvasWidth,
+        annotationCanvasHeight: canvasHeight,
         isAnnotated: description.length > 0 || annotations.length > 0
     };
+    
+    console.log('Saving annotations with canvas dimensions:', {
+        annotations: annotations.length,
+        canvasWidth,
+        canvasHeight
+    });
     
     const updatedPhoto = updatePhoto(photoId, updates);
     
