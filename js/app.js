@@ -4,6 +4,64 @@
  * RTL Hebrew Support | Mobile-First Design
  */
 
+// Add this test function at the top of the file for debugging
+window.testDocxLibrary = function() {
+    console.log('Testing docx library...');
+    
+    // Check if docx is available
+    if (!window.docx) {
+        console.error('❌ docx library not loaded');
+        return false;
+    }
+    
+    console.log('✅ docx library is loaded');
+    console.log('docx object:', window.docx);
+    console.log('Available exports:', Object.keys(window.docx));
+    
+    // Try to create a simple document
+    try {
+        const { Document, Packer, Paragraph, TextRun } = window.docx;
+        
+        if (!Document || !Packer || !Paragraph || !TextRun) {
+            console.error('❌ Required docx components missing');
+            return false;
+        }
+        
+        console.log('✅ All required docx components available');
+        
+        // Create a test document
+        const doc = new Document({
+            sections: [{
+                children: [
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: "Test document",
+                                bold: true
+                            })
+                        ]
+                    })
+                ]
+            }]
+        });
+        
+        console.log('✅ Test document created successfully');
+        
+        // Try to generate blob
+        Packer.toBlob(doc).then(blob => {
+            console.log('✅ Blob generation successful, size:', blob.size, 'bytes');
+            console.log('✅ docx library is fully functional!');
+        }).catch(error => {
+            console.error('❌ Blob generation failed:', error);
+        });
+        
+        return true;
+    } catch (error) {
+        console.error('❌ Error testing docx library:', error);
+        return false;
+    }
+};
+
 // App Configuration
 const APP_CONFIG = {
     name: 'Inspectort Pro',
