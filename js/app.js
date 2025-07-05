@@ -2941,10 +2941,10 @@ async function exportToWordRTF() {
 
 async function createWordContentSimple(photos, config) {
     const content = [];
-    const { Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, WidthType, ImageRun, PageBreak } = window.docx;
+    const { Paragraph, TextRun, AlignmentType, PageBreak } = window.docx;
     
     try {
-        // Title page
+        // Title
         content.push(
             new Paragraph({
                 children: [
@@ -2955,7 +2955,7 @@ async function createWordContentSimple(photos, config) {
                     }),
                 ],
                 alignment: AlignmentType.CENTER,
-                spacing: { after: 400 },
+                spacing: { after: 600 },
             })
         );
         
@@ -2975,156 +2975,149 @@ async function createWordContentSimple(photos, config) {
         // Add page break after title
         content.push(new PageBreak());
 
-        // Process photos - 2 per page
-        for (let i = 0; i < photos.length; i += 2) {
-            const photosOnPage = photos.slice(i, i + 2);
+        // Process photos with simple text-based layout
+        for (let i = 0; i < photos.length; i++) {
+            const photo = photos[i];
             
-            // Process each photo on the current page
-            for (let j = 0; j < photosOnPage.length; j++) {
-                const photo = photosOnPage[j];
-                const photoIndex = i + j;
-                console.log(`Processing photo ${photoIndex + 1}/${photos.length}:`, photo.name || 'unnamed');
-                
-                try {
-                    // Try to create high-resolution image data
-                    let imageBuffer = null;
-                    try {
-                        let imageData;
-                        if (config.includeAnnotations && photo.annotations && photo.annotations.length > 0) {
-                            // Use high quality for annotations
-                            imageData = await renderPhotoWithAnnotations(photo, 'high');
-                        } else {
-                            imageData = photo.url;
-                        }
-                        
-                        // Convert base64 to buffer
-                        const base64Data = imageData.split(',')[1];
-                        imageBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-                    } catch (imageError) {
-                        console.error('Error processing image:', imageError);
-                        imageBuffer = null;
-                    }
-                    
-                    // Create table for photo layout - simpler structure
-                    const photoTable = new Table({
-                        width: {
-                            size: 100,
-                            type: WidthType.PERCENTAGE,
-                        },
-                        rows: [
-                            new TableRow({
-                                children: [
-                                    // Text cell (right side)
-                                    new TableCell({
-                                        children: [
-                                            new Paragraph({
-                                                children: [
-                                                    new TextRun({
-                                                        text: `${photoIndex + 1}. ${photo.name || 'ללא שם'}`,
-                                                        bold: true,
-                                                        size: 18,
-                                                    }),
-                                                ],
-                                                spacing: { after: 150 },
-                                                alignment: AlignmentType.RIGHT,
-                                            }),
-                                            new Paragraph({
-                                                children: [
-                                                    new TextRun({
-                                                        text: photo.description || 'ללא תיאור',
-                                                        size: 14,
-                                                    }),
-                                                ],
-                                                spacing: { after: 150 },
-                                                alignment: AlignmentType.RIGHT,
-                                            }),
-                                            new Paragraph({
-                                                children: [
-                                                    new TextRun({
-                                                        text: `תאריך: ${new Date(photo.createdAt).toLocaleDateString('he-IL')}`,
-                                                        size: 12,
-                                                        color: '666666',
-                                                    }),
-                                                ],
-                                                alignment: AlignmentType.RIGHT,
-                                            }),
-                                        ],
-                                        width: {
-                                            size: 30,
-                                            type: WidthType.PERCENTAGE,
-                                        },
-                                    }),
-                                    // Image cell (left side)
-                                    new TableCell({
-                                        children: imageBuffer ? [
-                                            new Paragraph({
-                                                children: [
-                                                    new ImageRun({
-                                                        data: imageBuffer,
-                                                        transformation: {
-                                                            width: 450,
-                                                            height: 338,
-                                                        },
-                                                    }),
-                                                ],
-                                                alignment: AlignmentType.CENTER,
-                                            })
-                                        ] : [
-                                            new Paragraph({
-                                                children: [
-                                                    new TextRun({
-                                                        text: 'שגיאה בטעינת תמונה',
-                                                        color: 'FF0000',
-                                                    }),
-                                                ],
-                                                alignment: AlignmentType.CENTER,
-                                            })
-                                        ],
-                                        width: {
-                                            size: 70,
-                                            type: WidthType.PERCENTAGE,
-                                        },
-                                    }),
-                                ],
+            // Photo header
+            content.push(
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: `תמונה ${i + 1}: ${photo.name || 'ללא שם'}`,
+                            bold: true,
+                            size: 20,
+                        }),
+                    ],
+                    alignment: AlignmentType.RIGHT,
+                    spacing: { before: 400, after: 200 },
+                })
+            );
+            
+            // Photo description
+            if (photo.description) {
+                content.push(
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: `תיאור: ${photo.description}`,
+                                size: 16,
                             }),
                         ],
-                    });
-                    
-                    content.push(photoTable);
-                    
-                    // Add spacing between photos on the same page
-                    if (j < photosOnPage.length - 1) {
-                        content.push(
-                            new Paragraph({
-                                children: [new TextRun({ text: '' })],
-                                spacing: { after: 600 },
-                            })
-                        );
-                    }
-                    
-                } catch (photoError) {
-                    console.error(`Error processing photo ${photoIndex + 1}:`, photoError);
-                    // Add error placeholder
-                    content.push(
-                        new Paragraph({
-                            children: [
-                                new TextRun({
-                                    text: `${photoIndex + 1}. שגיאה בעיבוד תמונה: ${photo.name || 'ללא שם'}`,
-                                    color: 'FF0000',
-                                }),
-                            ],
-                            spacing: { after: 400 },
-                            alignment: AlignmentType.RIGHT,
-                        })
-                    );
-                }
+                        alignment: AlignmentType.RIGHT,
+                        spacing: { after: 200 },
+                    })
+                );
             }
             
-            // Add page break after every 2 photos (except for the last page)
-            if (i + 2 < photos.length) {
+            // Photo date
+            content.push(
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: `תאריך צילום: ${new Date(photo.createdAt).toLocaleDateString('he-IL')}`,
+                            size: 14,
+                            color: '666666',
+                        }),
+                    ],
+                    alignment: AlignmentType.RIGHT,
+                    spacing: { after: 300 },
+                })
+            );
+            
+            // Add annotations info if available
+            if (photo.annotations && photo.annotations.length > 0) {
+                content.push(
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: `הערות: נמצאו ${photo.annotations.length} הערות על התמונה`,
+                                size: 14,
+                                color: '0066cc',
+                            }),
+                        ],
+                        alignment: AlignmentType.RIGHT,
+                        spacing: { after: 400 },
+                    })
+                );
+            }
+            
+            // Add separator line
+            content.push(
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: '────────────────────────────────────────',
+                            size: 12,
+                            color: 'cccccc',
+                        }),
+                    ],
+                    alignment: AlignmentType.CENTER,
+                    spacing: { after: 400 },
+                })
+            );
+            
+            // Add page break every 3 photos
+            if ((i + 1) % 3 === 0 && i < photos.length - 1) {
                 content.push(new PageBreak());
             }
         }
+        
+        // Summary
+        content.push(new PageBreak());
+        content.push(
+            new Paragraph({
+                children: [
+                    new TextRun({
+                        text: 'סיכום הדוח',
+                        bold: true,
+                        size: 24,
+                    }),
+                ],
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 400 },
+            })
+        );
+        
+        content.push(
+            new Paragraph({
+                children: [
+                    new TextRun({
+                        text: `סך הכל תמונות: ${photos.length}`,
+                        size: 16,
+                    }),
+                ],
+                alignment: AlignmentType.RIGHT,
+                spacing: { after: 200 },
+            })
+        );
+        
+        content.push(
+            new Paragraph({
+                children: [
+                    new TextRun({
+                        text: `תמונות עם הערות: ${photos.filter(p => p.isAnnotated).length}`,
+                        size: 16,
+                    }),
+                ],
+                alignment: AlignmentType.RIGHT,
+                spacing: { after: 200 },
+            })
+        );
+        
+        content.push(
+            new Paragraph({
+                children: [
+                    new TextRun({
+                        text: `תאריך יצירת הדוח: ${new Date().toLocaleString('he-IL')}`,
+                        size: 14,
+                        color: '666666',
+                    }),
+                ],
+                alignment: AlignmentType.RIGHT,
+                spacing: { after: 400 },
+            })
+        );
         
     } catch (contentError) {
         console.error('Error creating content:', contentError);
@@ -3135,9 +3128,10 @@ async function createWordContentSimple(photos, config) {
                     new TextRun({
                         text: 'שגיאה ביצירת תוכן הדוח',
                         color: 'FF0000',
+                        size: 16,
                     }),
                 ],
-                alignment: AlignmentType.RIGHT,
+                alignment: AlignmentType.CENTER,
             })
         );
     }
