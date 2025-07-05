@@ -2151,7 +2151,7 @@ function savePhoto(photoData) {
         
         console.log('Total data size:', Math.round(dataSize / 1024 / 1024 * 100) / 100, 'MB');
         
-        if (dataSize > 4 * 1024 * 1024) { // 4MB limit for mobile safety
+        if (dataSize > 15 * 1024 * 1024) { // 15MB limit - allows for ~150-200 photos across all projects
             throw new Error('Data too large for localStorage');
         }
         
@@ -2162,6 +2162,14 @@ function savePhoto(photoData) {
         appState.photos.push(photoData);
         
         console.log('Photo saved successfully');
+        
+        // Log project storage info
+        if (photoData.projectId) {
+            const projectUsage = getProjectStorageUsage(photoData.projectId);
+            console.log(`Project storage: ${projectUsage.photoCount} photos, ${projectUsage.sizeInMB} MB, avg ${projectUsage.averagePhotoSize} KB per photo`);
+            console.log(`Estimated capacity: ~${projectUsage.estimatedMaxPhotos} photos max for this project`);
+        }
+        
         return photoData;
     } catch (error) {
         console.error('Error saving photo:', error);
@@ -2222,22 +2230,45 @@ function getStorageUsage() {
             photos: Math.round(photosSize / 1024 / 1024 * 100) / 100,
             projects: Math.round(projectsSize / 1024 / 1024 * 100) / 100,
             users: Math.round(usersSize / 1024 / 1024 * 100) / 100,
-            total: Math.round(totalSize / 1024 / 1024 * 100) / 100
+            total: Math.round(totalSize / 1024 / 1024 * 100) / 100,
+            limit: 15, // 15MB total limit
+            available: Math.round((15 - totalSize / 1024 / 1024) * 100) / 100
         };
     } catch (error) {
         console.error('Error calculating storage usage:', error);
-        return { photos: 0, projects: 0, users: 0, total: 0 };
+        return { photos: 0, projects: 0, users: 0, total: 0, limit: 15, available: 15 };
+    }
+}
+
+function getProjectStorageUsage(projectId) {
+    try {
+        const allPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
+        const projectPhotos = allPhotos.filter(photo => photo.projectId === projectId);
+        
+        const projectData = JSON.stringify(projectPhotos);
+        const projectSize = new Blob([projectData]).size;
+        
+        return {
+            photoCount: projectPhotos.length,
+            sizeInMB: Math.round(projectSize / 1024 / 1024 * 100) / 100,
+            averagePhotoSize: projectPhotos.length > 0 ? Math.round(projectSize / projectPhotos.length / 1024) : 0, // KB per photo
+            estimatedMaxPhotos: Math.round((15 * 1024 * 1024 * 0.8) / (projectSize / projectPhotos.length || 70000)) // Estimate max photos this project can hold (80% of total storage)
+        };
+    } catch (error) {
+        console.error('Error calculating project storage usage:', error);
+        return { photoCount: 0, sizeInMB: 0, averagePhotoSize: 0, estimatedMaxPhotos: 100 };
     }
 }
 
 function showStorageWarning() {
     const usage = getStorageUsage();
     
-    if (usage.total > 3) { // Show warning at 3MB
+    if (usage.total > 12) { // Show warning at 12MB (80% of 15MB limit)
         const modal = createModal(
             'אחסון מלא',
-            `<p>השימוש באחסון: <strong>${usage.total} MB</strong></p>
+            `<p>השימוש באחסון: <strong>${usage.total} MB / 15 MB</strong></p>
              <p>תמונות: ${usage.photos} MB</p>
+             <p>פרויקטים: ${usage.projects} MB</p>
              <p>האחסון כמעט מלא. מומלץ למחוק תמונות ישנות לפני הוספת תמונות חדשות.</p>
              <p>האם ברצונך לעבור לניהול התמונות?</p>`,
             [
