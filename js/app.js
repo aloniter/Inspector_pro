@@ -2743,132 +2743,118 @@ async function exportToWord() {
         
         console.log('Starting Word export with', projectPhotos.length, 'photos');
         
-        try {
-            // Create Word document with simpler, more compatible approach
-            const { Document, Packer, Paragraph, TextRun, Header, Footer, AlignmentType } = window.docx;
-            
-            // Create content first
-            console.log('Creating Word content...');
-            const content = await createWordContentSimple(projectPhotos, config);
-            console.log('Content created successfully, building document...');
-            
-            const doc = new Document({
-                sections: [{
-                    properties: {
-                        page: {
-                            margin: {
-                                top: 1440,
-                                right: 1440,
-                                bottom: 1440,
-                                left: 1440,
-                            },
+        // Create Word document with simpler approach
+        const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, Header, Footer, AlignmentType, WidthType, ImageRun } = window.docx;
+        
+        // Create content first
+        const content = await createWordContentSimple(projectPhotos, config);
+        
+        const doc = new Document({
+            sections: [{
+                properties: {
+                    page: {
+                        margin: {
+                            top: 1440,
+                            right: 1440,
+                            bottom: 1440,
+                            left: 1440,
                         },
                     },
-                    headers: {
-                        default: new Header({
-                            children: [
-                                new Paragraph({
-                                    children: [
-                                        new TextRun({
-                                            text: config.headerCompany || 'דוח בדיקה',
-                                            bold: true,
-                                            size: 28,
-                                        }),
-                                    ],
-                                    alignment: AlignmentType.CENTER,
-                                }),
-                                new Paragraph({
-                                    children: [
-                                        new TextRun({
-                                            text: config.headerTitle || '',
-                                            size: 24,
-                                        }),
-                                    ],
-                                    alignment: AlignmentType.CENTER,
-                                }),
-                                new Paragraph({
-                                    children: [
-                                        new TextRun({
-                                            text: `פרויקט: ${project.name}`,
-                                            size: 20,
-                                        }),
-                                    ],
-                                    alignment: AlignmentType.CENTER,
-                                }),
-                            ],
-                        }),
-                    },
-                    footers: {
-                        default: new Footer({
-                            children: [
-                                new Paragraph({
-                                    children: [
-                                        new TextRun({
-                                            text: config.footerContact || '',
-                                            size: 20,
-                                        }),
-                                    ],
-                                    alignment: AlignmentType.CENTER,
-                                }),
-                                new Paragraph({
-                                    children: [
-                                        new TextRun({
-                                            text: config.footerExtra || '',
-                                            size: 18,
-                                        }),
-                                    ],
-                                    alignment: AlignmentType.CENTER,
-                                }),
-                            ],
-                        }),
-                    },
-                    children: content,
-                }],
-            });
+                },
+                headers: {
+                    default: new Header({
+                        children: [
+                            new Paragraph({
+                                children: [
+                                    new TextRun({
+                                        text: config.headerCompany || 'דוח בדיקה',
+                                        bold: true,
+                                        size: 28,
+                                    }),
+                                ],
+                                alignment: AlignmentType.CENTER,
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({
+                                        text: config.headerTitle || '',
+                                        size: 24,
+                                    }),
+                                ],
+                                alignment: AlignmentType.CENTER,
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({
+                                        text: `פרויקט: ${project.name}`,
+                                        size: 20,
+                                    }),
+                                ],
+                                alignment: AlignmentType.CENTER,
+                            }),
+                        ],
+                    }),
+                },
+                footers: {
+                    default: new Footer({
+                        children: [
+                            new Paragraph({
+                                children: [
+                                    new TextRun({
+                                        text: config.footerContact || '',
+                                        size: 20,
+                                    }),
+                                ],
+                                alignment: AlignmentType.CENTER,
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({
+                                        text: config.footerExtra || '',
+                                        size: 18,
+                                    }),
+                                ],
+                                alignment: AlignmentType.CENTER,
+                            }),
+                        ],
+                    }),
+                },
+                children: content,
+            }],
+        });
 
-            console.log('Document created, generating blob...');
-            
-            // Generate and download
-            const blob = await Packer.toBlob(doc);
-            console.log('Blob generated successfully, size:', blob.size, 'bytes');
-            
-            const fileName = `${project.name}_דוח_${new Date().toISOString().split('T')[0]}.docx`;
-            
-            console.log('Saving file:', fileName);
-            
-            // Check if saveAs is available
-            if (typeof saveAs !== 'function') {
-                console.log('Using fallback download method');
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = fileName;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            } else {
-                saveAs(blob, fileName);
-            }
-            
-            showNotification('דוח Word נוצר בהצלחה!', 'success');
-            
-        } catch (docxError) {
-            console.error('DOCX generation failed:', docxError);
-            console.error('Error details:', docxError.message);
-            
-            // Show error to user and fallback to RTF
-            showNotification('שגיאה ביצירת קובץ Word, עובר לפורמט RTF...', 'warning');
-            return exportToWordRTF();
+        console.log('Document created, generating blob...');
+        
+        // Generate and download
+        const blob = await Packer.toBlob(doc);
+        const fileName = `${project.name}_דוח_${new Date().toISOString().split('T')[0]}.docx`;
+        
+        console.log('Blob generated, saving file...');
+        
+        // Check if saveAs is available
+        if (typeof saveAs !== 'function') {
+            console.error('saveAs function not available');
+            // Fallback download method
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } else {
+            saveAs(blob, fileName);
         }
         
+        showNotification('דוח Word נוצר בהצלחה!', 'success');
+        
     } catch (error) {
-        console.error('Error in Word export function:', error);
+        console.error('Error exporting to Word:', error);
         console.error('Error details:', error.message, error.stack);
         
-        // Final fallback to RTF export
-        console.warn('Final fallback to RTF export');
-        showNotification('שגיאה ביצירת דוח, עובר לפורמט RTF...', 'warning');
+        // Fallback to RTF export
+        console.warn('Falling back to RTF export');
         return exportToWordRTF();
     }
 }
