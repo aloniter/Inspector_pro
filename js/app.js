@@ -2054,6 +2054,21 @@ function processPhoto(file) {
     try {
         console.log('Processing photo:', file.name, 'Original size:', Math.round(file.size / 1024), 'KB');
         
+        // Check storage space before processing
+        const usage = getStorageUsage();
+        console.log('Storage check - Used:', usage.percentage + '%', 'Available:', usage.available + 'MB');
+        
+        if (usage.percentage > 90) { // If storage is over 90% full
+            showNotification('אחסון מלא! לא ניתן להוסיף תמונות נוספות', 'error');
+            showStorageManagementModal();
+            return;
+        } else if (usage.percentage > 75) { // If storage is over 75% full
+            showNotification('אחסון כמעט מלא! מומלץ לנקות תמונות ישנות', 'warning');
+        }
+        
+        // Show processing notification
+        showNotification('מעבד תמונה...', 'info', 2000);
+        
         // Check if image needs compression for mobile
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         const needsCompression = file.size > 1024 * 1024 || isMobile; // 1MB threshold or mobile
@@ -2061,7 +2076,11 @@ function processPhoto(file) {
         if (needsCompression) {
             console.log('Compressing image for mobile/size optimization');
             compressImage(file, (compressedFile) => {
-                processCompressedPhoto(compressedFile);
+                if (compressedFile) {
+                    processCompressedPhoto(compressedFile);
+                } else {
+                    showNotification('שגיאה בדחיסת התמונה', 'error');
+                }
             });
         } else {
             processCompressedPhoto(file);
@@ -2080,8 +2099,23 @@ function compressImage(file, callback) {
         const img = new Image();
         
         img.onload = function() {
-            // Calculate new dimensions (max 1200px width/height for mobile)
-            const maxSize = 1200;
+            // Get current storage usage to determine compression level
+            const usage = getStorageUsage();
+            let maxSize, quality;
+            
+            // Adjust compression based on available storage
+            if (usage.available < 2) { // Less than 2MB available
+                maxSize = 600; // Very aggressive compression
+                quality = 0.5; // 50% quality
+            } else if (usage.available < 5) { // Less than 5MB available
+                maxSize = 800; // Moderate compression
+                quality = 0.6; // 60% quality
+            } else {
+                maxSize = 1000; // Standard compression
+                quality = 0.7; // 70% quality
+            }
+            
+            // Calculate new dimensions
             let { width, height } = img;
             
             if (width > height) {
@@ -2104,6 +2138,12 @@ function compressImage(file, callback) {
             
             canvas.toBlob((blob) => {
                 if (blob) {
+                    // Check if compressed size is still too large
+                    if (blob.size > 200 * 1024) { // If still over 200KB, compress more
+                        compressImageAggressively(img, file.name, callback);
+                        return;
+                    }
+                    
                     // Create file-like object with iOS compatibility
                     let compressedFile;
                     try {
@@ -2129,7 +2169,7 @@ function compressImage(file, callback) {
                     console.error('Failed to compress image');
                     callback(file); // Fallback to original
                 }
-            }, 'image/jpeg', 0.8); // 80% quality
+            }, 'image/jpeg', quality);
         };
         
         img.onerror = function() {
@@ -2142,6 +2182,59 @@ function compressImage(file, callback) {
     } catch (error) {
         console.error('Error compressing image:', error);
         callback(file); // Fallback to original
+    }
+}
+
+function compressImageAggressively(img, fileName, callback) {
+    try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Very aggressive compression - max 500px, 40% quality
+        const maxSize = 500;
+        let { width, height } = img;
+        
+        if (width > height) {
+            if (width > maxSize) {
+                height = height * (maxSize / width);
+                width = maxSize;
+            }
+        } else {
+            if (height > maxSize) {
+                width = width * (maxSize / height);
+                height = maxSize;
+            }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        canvas.toBlob((blob) => {
+            if (blob) {
+                let compressedFile;
+                try {
+                    compressedFile = new File([blob], fileName, {
+                        type: 'image/jpeg',
+                        lastModified: Date.now()
+                    });
+                } catch (error) {
+                    compressedFile = blob;
+                    compressedFile.name = fileName;
+                    compressedFile.lastModified = Date.now();
+                }
+                
+                console.log('Image compressed aggressively:', Math.round(blob.size / 1024), 'KB');
+                callback(compressedFile);
+            } else {
+                console.error('Failed to compress image aggressively');
+                callback(null);
+            }
+        }, 'image/jpeg', 0.4); // 40% quality
+        
+    } catch (error) {
+        console.error('Error in aggressive compression:', error);
+        callback(null);
     }
 }
 
@@ -2215,24 +2308,57 @@ function savePhoto(photoData) {
             throw new Error('localStorage is not available');
         }
         
+        // Pre-check storage space
+        const usage = getStorageUsage();
+        console.log('Storage usage:', usage.total, 'MB /', usage.limit, 'MB');
+        
+        // Estimate photo size in storage (JSON overhead ~30%)
+        const estimatedSize = photoData.url ? new Blob([photoData.url]).size * 1.3 : photoData.size * 1.3;
+        const estimatedSizeMB = estimatedSize / 1024 / 1024;
+        
+        console.log('Estimated photo storage size:', Math.round(estimatedSizeMB * 100) / 100, 'MB');
+        
+        // Check if we have enough space
+        if (estimatedSizeMB > usage.available) {
+            console.log('Not enough storage space available');
+            
+            // Try to clean up old photos first
+            const cleanupSuccess = attemptAutomaticCleanup();
+            if (!cleanupSuccess) {
+                throw new Error('Not enough storage space. Available: ' + Math.round(usage.available * 100) / 100 + 'MB, Needed: ' + Math.round(estimatedSizeMB * 100) / 100 + 'MB');
+            }
+        }
+        
         // Get current photos
         const allPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
         
         // Add new photo
         allPhotos.push(photoData);
         
-        // Check if the data is too large for localStorage
-        const dataString = JSON.stringify(allPhotos);
-        const dataSize = new Blob([dataString]).size;
-        
-        console.log('Total data size:', Math.round(dataSize / 1024 / 1024 * 100) / 100, 'MB');
-        
-        if (dataSize > 15 * 1024 * 1024) { // 15MB limit - allows for ~150-200 photos across all projects
-            throw new Error('Data too large for localStorage');
+        // Try to save with error handling
+        try {
+            const dataString = JSON.stringify(allPhotos);
+            localStorage.setItem('inspectort_photos', dataString);
+            console.log('Photo saved successfully to localStorage');
+        } catch (saveError) {
+            if (saveError.name === 'QuotaExceededError') {
+                console.log('Storage quota exceeded, attempting cleanup...');
+                
+                // Try aggressive cleanup
+                const cleanupSuccess = attemptAutomaticCleanup(true);
+                if (cleanupSuccess) {
+                    // Try saving again after cleanup
+                    const cleanedPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
+                    cleanedPhotos.push(photoData);
+                    localStorage.setItem('inspectort_photos', JSON.stringify(cleanedPhotos));
+                    console.log('Photo saved after cleanup');
+                } else {
+                    throw saveError;
+                }
+            } else {
+                throw saveError;
+            }
         }
-        
-        // Save to localStorage
-        localStorage.setItem('inspectort_photos', dataString);
         
         // Update app state
         appState.photos.push(photoData);
@@ -2246,7 +2372,6 @@ function savePhoto(photoData) {
         if (photoData.projectId) {
             const projectUsage = getProjectStorageUsage(photoData.projectId);
             console.log(`Project storage: ${projectUsage.photoCount} photos, ${projectUsage.sizeInMB} MB, avg ${projectUsage.averagePhotoSize} KB per photo`);
-            console.log(`Estimated capacity: ~${projectUsage.estimatedMaxPhotos} photos max for this project`);
         }
         
         return photoData;
@@ -2254,22 +2379,69 @@ function savePhoto(photoData) {
         console.error('Error saving photo:', error);
         
         // Handle specific errors
-        if (error.name === 'QuotaExceededError' || error.message.includes('quota')) {
-            showNotification('שגיאה: אחסון מלא. מחק תמונות ישנות כדי לפנות מקום', 'error');
+        if (error.name === 'QuotaExceededError' || error.message.includes('quota') || error.message.includes('storage space')) {
+            showNotification('אחסון מלא! מחק תמונות ישנות כדי לפנות מקום', 'error');
             // Show storage management options
             setTimeout(() => {
-                showStorageWarning();
+                showStorageManagementModal();
             }, 2000);
         } else if (error.message.includes('too large')) {
-            showNotification('שגיאה: יותר מדי תמונות. מחק תמונות ישנות כדי לפנות מקום', 'error');
-            setTimeout(() => {
-                showStorageWarning();
-            }, 2000);
+            showNotification('התמונה גדולה מדי. נסה תמונה קטנה יותר', 'error');
         } else {
             showNotification('שגיאה בשמירת התמונה: ' + error.message, 'error');
         }
         
         return null;
+    }
+}
+
+function attemptAutomaticCleanup(aggressive = false) {
+    try {
+        const allPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
+        const currentUser = getCurrentUser();
+        
+        if (!currentUser || allPhotos.length === 0) {
+            return false;
+        }
+        
+        // Find photos that can be cleaned up
+        const userProjects = getAllProjects();
+        const userProjectIds = userProjects.map(p => p.id);
+        const userPhotos = allPhotos.filter(photo => userProjectIds.includes(photo.projectId));
+        
+        // Sort by date (oldest first)
+        userPhotos.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        
+        // Calculate how many photos to remove
+        const targetCleanup = aggressive ? Math.max(3, Math.floor(userPhotos.length * 0.2)) : Math.min(2, Math.floor(userPhotos.length * 0.1));
+        
+        if (targetCleanup === 0) {
+            return false;
+        }
+        
+        // Remove oldest photos
+        const photosToRemove = userPhotos.slice(0, targetCleanup);
+        const photoIdsToRemove = photosToRemove.map(p => p.id);
+        
+        // Filter out the photos to remove
+        const remainingPhotos = allPhotos.filter(photo => !photoIdsToRemove.includes(photo.id));
+        
+        // Save the cleaned up photos
+        localStorage.setItem('inspectort_photos', JSON.stringify(remainingPhotos));
+        
+        // Update app state
+        appState.photos = appState.photos.filter(photo => !photoIdsToRemove.includes(photo.id));
+        
+        console.log(`Automatically cleaned up ${photosToRemove.length} old photos`);
+        
+        if (aggressive) {
+            showNotification(`נוקו ${photosToRemove.length} תמונות ישנות אוטומטית`, 'info');
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('Error in automatic cleanup:', error);
+        return false;
     }
 }
 
@@ -2295,27 +2467,36 @@ function isStorageAvailable() {
 
 function getStorageUsage() {
     try {
+        // Get all localStorage items
         const photos = localStorage.getItem('inspectort_photos') || '[]';
         const projects = localStorage.getItem('inspectort_projects') || '[]';
         const users = localStorage.getItem('inspectort_users') || '[]';
+        const currentUser = localStorage.getItem('inspectort_currentUser') || '{}';
         
+        // Calculate sizes
         const photosSize = new Blob([photos]).size;
         const projectsSize = new Blob([projects]).size;
         const usersSize = new Blob([users]).size;
+        const currentUserSize = new Blob([currentUser]).size;
         
-        const totalSize = photosSize + projectsSize + usersSize;
+        const totalSize = photosSize + projectsSize + usersSize + currentUserSize;
+        
+        // Use more conservative limit for mobile devices
+        const storageLimit = 8 * 1024 * 1024; // 8MB limit for better mobile compatibility
         
         return {
             photos: Math.round(photosSize / 1024 / 1024 * 100) / 100,
             projects: Math.round(projectsSize / 1024 / 1024 * 100) / 100,
             users: Math.round(usersSize / 1024 / 1024 * 100) / 100,
+            currentUser: Math.round(currentUserSize / 1024 / 1024 * 100) / 100,
             total: Math.round(totalSize / 1024 / 1024 * 100) / 100,
-            limit: 15, // 15MB total limit
-            available: Math.round((15 - totalSize / 1024 / 1024) * 100) / 100
+            limit: 8, // 8MB total limit for mobile compatibility
+            available: Math.max(0, Math.round((storageLimit - totalSize) / 1024 / 1024 * 100) / 100),
+            percentage: Math.round((totalSize / storageLimit) * 100)
         };
     } catch (error) {
         console.error('Error calculating storage usage:', error);
-        return { photos: 0, projects: 0, users: 0, total: 0, limit: 15, available: 15 };
+        return { photos: 0, projects: 0, users: 0, currentUser: 0, total: 0, limit: 8, available: 8, percentage: 0 };
     }
 }
 
@@ -2339,33 +2520,271 @@ function getProjectStorageUsage(projectId) {
     }
 }
 
-function showStorageWarning() {
+function showStorageManagementModal() {
     const usage = getStorageUsage();
+    const userPhotos = getAllPhotos();
     
-    if (usage.total > 12) { // Show warning at 12MB (80% of 15MB limit)
-        const modal = createModal(
-            'אחסון מלא',
-            `<p>השימוש באחסון: <strong>${usage.total} MB / 15 MB</strong></p>
-             <p>תמונות: ${usage.photos} MB</p>
-             <p>פרויקטים: ${usage.projects} MB</p>
-             <p>האחסון כמעט מלא. מומלץ למחוק תמונות ישנות לפני הוספת תמונות חדשות.</p>
-             <p>האם ברצונך לעבור לניהול התמונות?</p>`,
-            [
-                {
-                    text: 'ביטול',
-                    class: 'btn-secondary',
-                    action: 'closeModal(this.closest(\'.modal-overlay\'))'
-                },
-                {
-                    text: 'נהל תמונות',
-                    class: 'btn-primary',
-                    action: 'navigateToPhotoManagement()'
-                }
-            ]
-        );
-        
-        showModal(modal);
+    // Sort photos by date (oldest first)
+    userPhotos.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    
+    const oldestPhotos = userPhotos.slice(0, 5); // Show 5 oldest photos
+    
+    let oldestPhotosHtml = '';
+    if (oldestPhotos.length > 0) {
+        oldestPhotosHtml = `
+            <div class="storage-oldest-photos">
+                <h4>תמונות הכי ישנות (מועמדות למחיקה):</h4>
+                <div class="oldest-photos-list">
+                    ${oldestPhotos.map(photo => `
+                        <div class="oldest-photo-item" data-photo-id="${photo.id}">
+                            <img src="${photo.url}" alt="${photo.name || 'תמונה'}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;">
+                            <div class="photo-details">
+                                <div class="photo-name">${photo.name || photo.originalName || 'ללא שם'}</div>
+                                <div class="photo-date">${new Date(photo.createdAt).toLocaleDateString('he-IL')}</div>
+                                <div class="photo-size">${Math.round(photo.size / 1024)} KB</div>
+                            </div>
+                            <button class="btn btn-sm btn-danger delete-old-photo" onclick="deletePhotoFromStorage('${photo.id}')">מחק</button>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
     }
+    
+    const modal = createModal(
+        'ניהול אחסון - אחסון מלא!',
+        `<div class="storage-management-content">
+            <div class="storage-usage-details">
+                <h3>שימוש באחסון: ${usage.total} MB / ${usage.limit} MB (${usage.percentage}%)</h3>
+                <div class="storage-progress">
+                    <div class="storage-bar">
+                        <div class="storage-fill" style="width: ${Math.min(usage.percentage, 100)}%; background-color: ${usage.percentage > 90 ? '#dc3545' : usage.percentage > 70 ? '#ffc107' : '#28a745'}"></div>
+                    </div>
+                </div>
+                <div class="storage-breakdown">
+                    <div class="storage-item">📷 תמונות: ${usage.photos} MB</div>
+                    <div class="storage-item">📁 פרויקטים: ${usage.projects} MB</div>
+                    <div class="storage-item">👤 משתמשים: ${usage.users} MB</div>
+                </div>
+            </div>
+            
+            <div class="storage-actions">
+                <h4>פעולות לניקוי אחסון:</h4>
+                <div class="cleanup-options">
+                    <button class="btn btn-warning" onclick="cleanupOldPhotos(5)">
+                        🗑️ מחק 5 תמונות הכי ישנות
+                    </button>
+                    <button class="btn btn-warning" onclick="cleanupOldPhotos(10)">
+                        🗑️ מחק 10 תמונות הכי ישנות
+                    </button>
+                    <button class="btn btn-outline" onclick="compressAllPhotos()">
+                        🗜️ דחס את כל התמונות (איטי)
+                    </button>
+                </div>
+            </div>
+            
+            ${oldestPhotosHtml}
+            
+            <div class="storage-tips">
+                <h4>💡 טיפים לחיסכון באחסון:</h4>
+                <ul>
+                    <li>צלם תמונות באיכות נמוכה יותר במכשיר</li>
+                    <li>מחק תמונות שלא רלוונטיות מיד אחרי הצילום</li>
+                    <li>השתמש בייצוא לקבצי Word/PDF ואז מחק תמונות ישנות</li>
+                    <li>נקה פרויקטים שהושלמו</li>
+                </ul>
+            </div>
+        </div>`,
+        [
+            {
+                text: 'סגור',
+                class: 'btn-secondary',
+                action: 'closeModal(this.closest(\'.modal-overlay\'))'
+            },
+            {
+                text: 'רענן נתונים',
+                class: 'btn-primary',
+                action: 'refreshStorageData()'
+            }
+        ]
+    );
+    
+    showModal(modal);
+}
+
+function cleanupOldPhotos(count) {
+    const userPhotos = getAllPhotos();
+    
+    if (userPhotos.length === 0) {
+        showNotification('אין תמונות למחיקה', 'info');
+        return;
+    }
+    
+    // Sort by date (oldest first)
+    userPhotos.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    
+    const photosToDelete = userPhotos.slice(0, Math.min(count, userPhotos.length));
+    
+    if (photosToDelete.length === 0) {
+        showNotification('אין תמונות למחיקה', 'info');
+        return;
+    }
+    
+    // Confirm deletion
+    const confirmModal = createModal(
+        'אישור מחיקה',
+        `האם אתה בטוח שברצונך למחוק ${photosToDelete.length} תמונות הכי ישנות?<br>
+         <small>פעולה זו לא ניתנת לביטול!</small>`,
+        [
+            {
+                text: 'ביטול',
+                class: 'btn-secondary',
+                action: 'closeModal(this.closest(\'.modal-overlay\'))'
+            },
+            {
+                text: 'מחק',
+                class: 'btn-danger',
+                action: `confirmCleanupOldPhotos(${count})`
+            }
+        ]
+    );
+    
+    showModal(confirmModal);
+}
+
+function confirmCleanupOldPhotos(count) {
+    try {
+        const userPhotos = getAllPhotos();
+        userPhotos.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        const photosToDelete = userPhotos.slice(0, Math.min(count, userPhotos.length));
+        
+        // Delete each photo
+        let deletedCount = 0;
+        photosToDelete.forEach(photo => {
+            const success = deletePhoto(photo.id);
+            if (success) {
+                deletedCount++;
+            }
+        });
+        
+        // Close modal and show result
+        closeModal(document.querySelector('.modal-overlay'));
+        
+        if (deletedCount > 0) {
+            showNotification(`נמחקו ${deletedCount} תמונות בהצלחה`, 'success');
+            
+            // Update photo counts for all projects
+            const projects = getAllProjects();
+            projects.forEach(project => {
+                updateProjectPhotoCount(project.id);
+            });
+            
+            // Refresh UI
+            if (appState.currentPage === 'project') {
+                updatePhotosGrid();
+            }
+            updateUserStats();
+            
+            // Show updated storage info
+            setTimeout(() => {
+                const usage = getStorageUsage();
+                showNotification(`אחסון פנוי: ${usage.available} MB`, 'info');
+            }, 1000);
+        } else {
+            showNotification('לא ניתן למחוק תמונות', 'error');
+        }
+    } catch (error) {
+        console.error('Error cleaning up photos:', error);
+        showNotification('שגיאה במחיקת תמונות', 'error');
+    }
+}
+
+function deletePhotoFromStorage(photoId) {
+    const success = deletePhoto(photoId);
+    if (success) {
+        // Remove the photo item from the modal
+        const photoItem = document.querySelector(`[data-photo-id="${photoId}"]`);
+        if (photoItem) {
+            photoItem.remove();
+        }
+        
+        showNotification('תמונה נמחקה', 'success');
+        
+        // Update storage display
+        setTimeout(() => {
+            refreshStorageData();
+        }, 500);
+    } else {
+        showNotification('שגיאה במחיקת התמונה', 'error');
+    }
+}
+
+function refreshStorageData() {
+    // Close current modal and reopen with updated data
+    closeModal(document.querySelector('.modal-overlay'));
+    setTimeout(() => {
+        showStorageManagementModal();
+    }, 300);
+}
+
+async function compressAllPhotos() {
+    const userPhotos = getAllPhotos();
+    
+    if (userPhotos.length === 0) {
+        showNotification('אין תמונות לדחיסה', 'info');
+        return;
+    }
+    
+    showNotification('מתחיל דחיסה... זה יכול לקחת זמן', 'info');
+    
+    // Close modal during compression
+    closeModal(document.querySelector('.modal-overlay'));
+    
+    let compressedCount = 0;
+    const totalPhotos = userPhotos.length;
+    
+    for (let i = 0; i < totalPhotos; i++) {
+        const photo = userPhotos[i];
+        
+        try {
+            // Show progress
+            showNotification(`דוחס תמונה ${i + 1}/${totalPhotos}...`, 'info', 1000);
+            
+            // Create a blob from the photo URL and compress it
+            const response = await fetch(photo.url);
+            const blob = await response.blob();
+            
+            // Create a file object
+            const file = new File([blob], photo.originalName || 'photo.jpg', { type: 'image/jpeg' });
+            
+            // Compress the file
+            const compressedFile = await new Promise((resolve) => {
+                compressImageAggressively(new Image(), file.name, resolve);
+            });
+            
+            if (compressedFile && compressedFile.size < file.size) {
+                // Update the photo with compressed data
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    updatePhoto(photo.id, {
+                        url: e.target.result,
+                        size: compressedFile.size
+                    });
+                };
+                reader.readAsDataURL(compressedFile);
+                
+                compressedCount++;
+            }
+            
+            // Small delay to prevent browser freezing
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+        } catch (error) {
+            console.error('Error compressing photo:', photo.id, error);
+        }
+    }
+    
+    showNotification(`דחיסה הושלמה! ${compressedCount}/${totalPhotos} תמונות נדחסו`, 'success');
 }
 
 function navigateToPhotoManagement() {
