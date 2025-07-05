@@ -268,10 +268,16 @@ class InspectortApp {
     // Photo Management
     async capturePhoto() {
         try {
+            // Check if camera is available
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                this.showError('Camera not supported on this device. Please use the upload option.');
+                return;
+            }
+            
             this.showCameraModal();
         } catch (error) {
             console.error('Camera initialization error:', error);
-            this.showError('Failed to initialize camera. Please use the upload option.');
+            this.showCameraPermissionModal();
         }
     }
 
@@ -292,7 +298,7 @@ class InspectortApp {
                         <div style="width: 24px;"></div>
                     </div>
                     <div class="camera-preview">
-                        <video id="cameraVideoModal" autoplay playsinline></video>
+                        <video id="cameraVideoModal" autoplay playsinline muted webkit-playsinline></video>
                         <canvas id="cameraCanvasModal" style="display: none;"></canvas>
                     </div>
                     <div class="camera-controls">
@@ -307,45 +313,136 @@ class InspectortApp {
             
             document.body.appendChild(modal);
             
-            // Get camera stream
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { 
+            // iOS Safari specific camera stream settings
+            const constraints = {
+                video: {
                     facingMode: 'environment',
-                    width: { ideal: 1920 },
-                    height: { ideal: 1080 }
-                } 
-            });
+                    width: { ideal: 1920, max: 1920 },
+                    height: { ideal: 1080, max: 1080 }
+                },
+                audio: false
+            };
+            
+            // Get camera stream with iOS compatibility
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
             
             this.cameraStream = stream;
             const video = document.getElementById('cameraVideoModal');
             video.srcObject = stream;
             
-            // Wait for video to be ready
-            await new Promise((resolve) => {
+            // iOS Safari requires explicit play call
+            video.setAttribute('autoplay', '');
+            video.setAttribute('playsinline', '');
+            video.setAttribute('webkit-playsinline', '');
+            video.muted = true;
+            
+            // Wait for video to be ready with iOS-specific handling
+            await new Promise((resolve, reject) => {
                 video.onloadedmetadata = () => {
-                    video.play();
-                    resolve();
+                    video.play().then(() => {
+                        resolve();
+                    }).catch(reject);
                 };
+                video.onerror = reject;
             });
             
             // Show modal with animation
             setTimeout(() => modal.classList.add('visible'), 10);
             
-            // Setup event listeners
-            document.getElementById('closeCameraModal').onclick = () => this.closeCameraModal();
-            document.getElementById('cameraCaptureBtn').onclick = () => this.capturePhotoFromModal();
+            // Setup event listeners with iOS-specific handling
+            document.getElementById('closeCameraModal').addEventListener('click', () => this.closeCameraModal());
+            document.getElementById('cameraCaptureBtn').addEventListener('click', () => this.capturePhotoFromModal());
             
             // Handle modal background click
-            modal.onclick = (e) => {
+            modal.addEventListener('click', (e) => {
                 if (e.target === modal) {
                     this.closeCameraModal();
                 }
-            };
+            });
+            
+            // Prevent iOS zoom on double tap
+            modal.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+            });
             
         } catch (error) {
             console.error('Camera access denied:', error);
-            this.showError('Camera access denied. Please check permissions and try again.');
             this.closeCameraModal();
+            this.showCameraPermissionModal();
+        }
+    }
+
+    showCameraPermissionModal() {
+        const modal = document.createElement('div');
+        modal.className = 'camera-modal';
+        modal.innerHTML = `
+            <div class="camera-modal-content permission-modal">
+                <div class="camera-header">
+                    <button class="camera-close-btn" id="closePermissionModal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                    </button>
+                    <h3>Camera Access Required</h3>
+                    <div style="width: 24px;"></div>
+                </div>
+                <div class="permission-content">
+                    <div class="permission-icon">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2"/>
+                            <circle cx="12" cy="13" r="4" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <h4>Enable Camera Access</h4>
+                    <p>To take photos, please allow camera access in your browser settings.</p>
+                    
+                    <div class="permission-instructions">
+                        <strong>How to enable camera access:</strong>
+                        <ol>
+                            <li>Look for the camera icon in your browser's address bar</li>
+                            <li>Click on it and select "Allow"</li>
+                            <li>Or go to your browser settings and enable camera for this site</li>
+                            <li>Refresh the page and try again</li>
+                        </ol>
+                    </div>
+                    
+                    <div class="permission-buttons">
+                        <button class="btn btn-secondary" id="useUploadInstead">Use Upload Instead</button>
+                        <button class="btn btn-primary" id="retryCamera">Try Again</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Show modal with animation
+        setTimeout(() => modal.classList.add('visible'), 10);
+        
+        // Setup event listeners
+        document.getElementById('closePermissionModal').onclick = () => this.closePermissionModal();
+        document.getElementById('useUploadInstead').onclick = () => {
+            this.closePermissionModal();
+            document.getElementById('fileInput').click();
+        };
+        document.getElementById('retryCamera').onclick = () => {
+            this.closePermissionModal();
+            setTimeout(() => this.capturePhoto(), 100);
+        };
+        
+        // Handle modal background click
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                this.closePermissionModal();
+            }
+        };
+    }
+
+    closePermissionModal() {
+        const modal = document.querySelector('.camera-modal');
+        if (modal) {
+            modal.classList.remove('visible');
+            setTimeout(() => modal.remove(), 300);
         }
     }
 
@@ -375,9 +472,32 @@ class InspectortApp {
             // Convert to blob and process
             canvas.toBlob(async (blob) => {
                 if (blob) {
-                    await this.processPhoto(blob);
-                    this.closeCameraModal();
-                    this.showSuccess('Photo captured successfully!');
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        // Generate unique ID
+                        let photoId = Date.now();
+                        while (this.currentProject.photos.find(p => p.id === photoId)) {
+                            photoId++;
+                        }
+                        
+                        const photo = {
+                            id: photoId,
+                            url: e.target.result,
+                            name: `Photo ${this.currentProject.photos.length + 1}`,
+                            description: '',
+                            annotations: [],
+                            createdAt: new Date().toISOString(),
+                            type: 'captured'
+                        };
+
+                        this.currentProject.photos.push(photo);
+                        this.currentProject.updatedAt = new Date().toISOString();
+                        this.saveDataToStorage();
+                        this.updatePhotosList();
+                        this.closeCameraModal();
+                        this.showSuccess('Photo captured successfully!');
+                    };
+                    reader.readAsDataURL(blob);
                 } else {
                     this.showError('Failed to capture photo. Please try again.');
                 }
@@ -405,75 +525,130 @@ class InspectortApp {
     }
 
     async handleFileUpload(files) {
-        if (!files || files.length === 0) {
-            return;
-        }
+        if (!files || files.length === 0) return;
 
-        let validFiles = 0;
-        let processedFiles = 0;
-        
-        for (const file of files) {
-            if (file.type.startsWith('image/')) {
-                validFiles++;
-                try {
-                    await this.processPhoto(file);
-                    processedFiles++;
-                } catch (error) {
-                    console.error('Failed to process file:', file.name, error);
-                    this.showError(`Failed to process ${file.name}. Please try again.`);
+        this.showLoading(`Processing ${files.length} photo${files.length > 1 ? 's' : ''}...`);
+
+        try {
+            const processedPhotos = [];
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                
+                // Validate file type
+                if (!file.type.startsWith('image/')) {
+                    console.warn('Skipping non-image file:', file.name);
+                    continue;
                 }
-            } else {
-                console.warn('Skipped non-image file:', file.name);
+
+                // iOS-specific file size check
+                if (file.size > 50 * 1024 * 1024) { // 50MB limit for iOS
+                    this.showError(`File ${file.name} is too large. Maximum size is 50MB.`);
+                    continue;
+                }
+
+                try {
+                    const processedPhoto = await this.processPhoto(file);
+                    if (processedPhoto) {
+                        processedPhotos.push(processedPhoto);
+                    }
+                } catch (error) {
+                    console.error('Error processing photo:', error);
+                    this.showError(`Failed to process ${file.name}`);
+                }
             }
-        }
 
-        if (validFiles === 0) {
-            this.showError('Please select valid image files.');
-        } else if (processedFiles > 0) {
-            this.showSuccess(`${processedFiles} photo${processedFiles !== 1 ? 's' : ''} added successfully!`);
+            if (processedPhotos.length > 0) {
+                this.currentProject.photos.push(...processedPhotos);
+                this.currentProject.updatedAt = new Date().toISOString();
+                this.saveDataToStorage();
+                this.updatePhotosList();
+                this.showSuccess(`Successfully added ${processedPhotos.length} photo${processedPhotos.length > 1 ? 's' : ''}!`);
+            } else {
+                this.showError('No valid photos were processed');
+            }
+        } catch (error) {
+            console.error('File upload error:', error);
+            this.showError('Failed to upload photos. Please try again.');
+        } finally {
+            this.hideLoading();
         }
-
-        // Reset file input
-        const fileInput = document.getElementById('fileInput');
-        fileInput.value = '';
     }
 
     async processPhoto(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
+            
             reader.onload = (e) => {
                 try {
-                    // Generate a unique ID using timestamp and random number, but ensure it's an integer
-                    const photoId = Math.floor(Date.now() + Math.random() * 1000);
+                    // Generate unique ID with iOS compatibility
+                    let photoId = Date.now() + Math.random();
+                    while (this.currentProject.photos.find(p => p.id === photoId)) {
+                        photoId = Date.now() + Math.random();
+                    }
                     
-                    const photo = {
-                        id: photoId,
-                        url: e.target.result,
-                        name: `Photo ${this.currentProject.photos.length + 1}`,
-                        description: '',
-                        annotations: [],
-                        createdAt: new Date().toISOString(),
-                        type: file instanceof File ? 'uploaded' : 'captured'
+                    // Create image element for iOS-specific processing
+                    const img = new Image();
+                    img.onload = () => {
+                        try {
+                            // Create canvas for iOS-specific image processing
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            
+                            // Set canvas size (iOS Safari has limits)
+                            const maxWidth = 1920;
+                            const maxHeight = 1080;
+                            let { width, height } = img;
+                            
+                            if (width > maxWidth || height > maxHeight) {
+                                const ratio = Math.min(maxWidth / width, maxHeight / height);
+                                width *= ratio;
+                                height *= ratio;
+                            }
+                            
+                            canvas.width = width;
+                            canvas.height = height;
+                            
+                            // Draw image with iOS-specific handling
+                            ctx.drawImage(img, 0, 0, width, height);
+                            
+                            // Convert to data URL with iOS-optimized quality
+                            const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+                            
+                            const photo = {
+                                id: parseInt(photoId),
+                                url: dataURL,
+                                name: file.name || `Photo ${this.currentProject.photos.length + 1}`,
+                                description: '',
+                                annotations: [],
+                                createdAt: new Date().toISOString(),
+                                type: 'uploaded',
+                                fileSize: file.size,
+                                originalName: file.name
+                            };
+                            
+                            resolve(photo);
+                        } catch (error) {
+                            console.error('Canvas processing error:', error);
+                            reject(error);
+                        }
                     };
-
-                    this.currentProject.photos.push(photo);
-                    this.currentProject.updatedAt = new Date().toISOString();
-                    this.saveDataToStorage();
-                    this.updatePhotosList();
                     
-                    console.log('Photo processed successfully:', photo.id, photo.type);
-                    resolve(photo);
+                    img.onerror = () => {
+                        reject(new Error('Failed to load image'));
+                    };
+                    
+                    img.src = e.target.result;
                 } catch (error) {
-                    console.error('Error processing photo:', error);
                     reject(error);
                 }
             };
             
-            reader.onerror = (error) => {
-                console.error('Failed to read file:', error);
-                reject(error);
+            reader.onerror = () => {
+                reject(new Error('Failed to read file'));
             };
             
+            // Start reading the file
             reader.readAsDataURL(file);
         });
     }
@@ -585,31 +760,64 @@ class InspectortApp {
         
         const ctx = newCanvas.getContext('2d');
 
+        // Mouse events for desktop
         newCanvas.addEventListener('mousedown', (e) => this.startDrawing(e, ctx));
         newCanvas.addEventListener('mousemove', (e) => this.draw(e, ctx));
         newCanvas.addEventListener('mouseup', () => this.stopDrawing());
         newCanvas.addEventListener('mouseout', () => this.stopDrawing());
 
-        // Touch events for mobile
+        // Touch events for mobile with iOS-specific handling
         newCanvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            this.startDrawing(e.touches[0], ctx);
-        });
+            e.stopPropagation();
+            if (e.touches.length === 1) {
+                const touch = e.touches[0];
+                this.startDrawing(touch, ctx);
+            }
+        }, { passive: false });
 
         newCanvas.addEventListener('touchmove', (e) => {
             e.preventDefault();
-            this.draw(e.touches[0], ctx);
-        });
+            e.stopPropagation();
+            if (e.touches.length === 1) {
+                const touch = e.touches[0];
+                this.draw(touch, ctx);
+            }
+        }, { passive: false });
 
         newCanvas.addEventListener('touchend', (e) => {
             e.preventDefault();
+            e.stopPropagation();
             this.stopDrawing();
-        });
+        }, { passive: false });
 
-        // Prevent context menu on long press (mobile)
+        newCanvas.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.stopDrawing();
+        }, { passive: false });
+
+        // Prevent context menu and iOS-specific behaviors
         newCanvas.addEventListener('contextmenu', (e) => {
             e.preventDefault();
         });
+
+        // Prevent iOS zoom and other gestures
+        newCanvas.addEventListener('gesturestart', (e) => {
+            e.preventDefault();
+        });
+
+        newCanvas.addEventListener('gesturechange', (e) => {
+            e.preventDefault();
+        });
+
+        newCanvas.addEventListener('gestureend', (e) => {
+            e.preventDefault();
+        });
+
+        // Prevent scroll on touch
+        newCanvas.style.touchAction = 'none';
+        newCanvas.style.msTouchAction = 'none';
     }
 
     getCanvasCoordinates(e, canvas) {
@@ -617,9 +825,34 @@ class InspectortApp {
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
         
+        let clientX, clientY;
+        
+        // Handle both mouse and touch events
+        if (e.touches && e.touches.length > 0) {
+            // Touch event
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else if (e.clientX !== undefined) {
+            // Mouse event
+            clientX = e.clientX;
+            clientY = e.clientY;
+        } else {
+            // Touch event passed as touch object
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+        
+        // Get viewport offset for iOS Safari
+        const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+        const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+        
+        // Calculate coordinates with iOS-specific adjustments
+        const x = (clientX - rect.left) * scaleX;
+        const y = (clientY - rect.top) * scaleY;
+        
         return {
-            x: (e.clientX - rect.left) * scaleX,
-            y: (e.clientY - rect.top) * scaleY
+            x: Math.max(0, Math.min(canvas.width, x)),
+            y: Math.max(0, Math.min(canvas.height, y))
         };
     }
 
