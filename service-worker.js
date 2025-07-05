@@ -13,7 +13,9 @@ const CACHE_URLS = [
     '/Inspector_pro/css/styles.css',
     '/Inspector_pro/js/app.js',
     '/Inspector_pro/manifest.json',
-    '/Inspector_pro/assets/icons/inspector_icon.png',
+    '/Inspector_pro/assets/icons/favicon.svg',
+    '/Inspector_pro/assets/icons/icon-192x192.svg',
+    '/Inspector_pro/assets/icons/icon-512x512.svg',
     // Add more static assets as needed
 ];
 
@@ -134,20 +136,20 @@ self.addEventListener('push', event => {
     
     const options = {
         body: event.data ? event.data.text() : 'התקבלה הודעה חדשה',
-        icon: '/Inspector_pro/assets/icons/inspector_icon.png',
-        badge: '/Inspector_pro/assets/icons/inspector_icon.png',
+        icon: '/Inspector_pro/assets/icons/icon-192x192.svg',
+        badge: '/Inspector_pro/assets/icons/favicon.svg',
         tag: 'inspectort-notification',
         requireInteraction: true,
         actions: [
             {
                 action: 'open',
                 title: 'פתח אפליקציה',
-                icon: '/Inspector_pro/assets/icons/inspector_icon.png'
+                icon: '/Inspector_pro/assets/icons/icon-192x192.svg'
             },
             {
                 action: 'close',
                 title: 'סגור',
-                icon: '/Inspector_pro/assets/icons/inspector_icon.png'
+                icon: '/Inspector_pro/assets/icons/favicon.svg'
             }
         ]
     };
