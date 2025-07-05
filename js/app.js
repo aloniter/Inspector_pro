@@ -87,7 +87,10 @@ let appState = {
     currentPage: 'auth',
     isAuthenticated: false,
     projects: [],
-    photos: []
+    photos: [],
+    isOnline: navigator.onLine,
+    lastSyncTime: null,
+    isSyncing: false
 };
 
 // DOM Elements
@@ -271,6 +274,10 @@ function setupEventListeners() {
     window.addEventListener('resize', handleResize);
     window.addEventListener('beforeunload', saveAppState);
     document.addEventListener('keydown', handleKeyboardShortcuts);
+    
+    // Network status events
+    window.addEventListener('online', handleOnlineStatus);
+    window.addEventListener('offline', handleOfflineStatus);
 }
 
 /**
@@ -299,8 +306,41 @@ async function handleLogin(e) {
     submitBtn.disabled = true;
     
     try {
-        // Simulate authentication (replace with real API call)
-        const userData = await authenticateUser(email, password);
+        let userData = null;
+        
+        // Try cloud authentication first
+        if (window.FirebaseSync && window.FirebaseSync.isEnabled()) {
+            try {
+                submitBtn.textContent = 'מתחבר לענן...';
+                const cloudUser = await window.FirebaseSync.signIn(email, password);
+                userData = {
+                    id: cloudUser.uid,
+                    email: cloudUser.email,
+                    name: cloudUser.displayName || email.split('@')[0],
+                    cloudSync: true,
+                    createdAt: new Date().toISOString()
+                };
+                console.log('Logged in with cloud sync:', userData.email);
+                
+                // Sync data from cloud
+                submitBtn.textContent = 'מסנכרן נתונים...';
+                await performDataSync();
+                
+            } catch (cloudError) {
+                console.log('Cloud login failed, trying offline:', cloudError.message);
+                // Fall back to local authentication
+                userData = await authenticateUser(email, password);
+                if (userData) {
+                    userData.cloudSync = false;
+                }
+            }
+        } else {
+            // Use local authentication only
+            userData = await authenticateUser(email, password);
+            if (userData) {
+                userData.cloudSync = false;
+            }
+        }
         
         if (userData) {
             appState.currentUser = userData;
@@ -309,7 +349,8 @@ async function handleLogin(e) {
             // Save user data
             setStorageItem(STORAGE_KEYS.user, userData);
             
-            showNotification(`ברוך הבא, ${userData.name}!`, 'success');
+            const syncStatus = userData.cloudSync ? ' (מסונכרן בענן ☁️)' : ' (אופליין 📱)';
+            showNotification(`ברוך הבא, ${userData.name}!` + syncStatus, 'success');
             navigateToPage('dashboard');
         } else {
             showNotification('כתובת אימייל או סיסמה שגויים', 'error');
@@ -361,8 +402,36 @@ async function handleRegister(e) {
             return;
         }
         
-        // Simulate registration (replace with real API call)
-        const userData = await registerUser(name, email, password);
+        let userData = null;
+        
+        // Try cloud registration first
+        if (window.FirebaseSync && window.FirebaseSync.isEnabled()) {
+            try {
+                submitBtn.textContent = 'נרשם בענן...';
+                const cloudUser = await window.FirebaseSync.signUp(email, password, name);
+                userData = {
+                    id: cloudUser.uid,
+                    email: cloudUser.email,
+                    name: name,
+                    cloudSync: true,
+                    createdAt: new Date().toISOString()
+                };
+                console.log('Registered with cloud sync:', userData.email);
+            } catch (cloudError) {
+                console.log('Cloud registration failed, using offline:', cloudError.message);
+                // Fall back to local registration
+                userData = await registerUser(name, email, password);
+                if (userData) {
+                    userData.cloudSync = false;
+                }
+            }
+        } else {
+            // Use local registration only
+            userData = await registerUser(name, email, password);
+            if (userData) {
+                userData.cloudSync = false;
+            }
+        }
         
         if (userData) {
             appState.currentUser = userData;
@@ -371,7 +440,8 @@ async function handleRegister(e) {
             // Save user data
             setStorageItem(STORAGE_KEYS.user, userData);
             
-            showNotification(`ברוך הבא, ${userData.name}! נרשמת בהצלחה.`, 'success');
+            const syncStatus = userData.cloudSync ? ' (מסונכרן בענן ☁️)' : ' (אופליין 📱)';
+            showNotification(`ברוך הבא, ${userData.name}! נרשמת בהצלחה.` + syncStatus, 'success');
             navigateToPage('dashboard');
         } else {
             showNotification('שגיאה בהרשמה. אנא נסה שוב.', 'error');
@@ -447,6 +517,9 @@ function updateDashboardContent() {
     
     // Update user info in header
     updateUserInfo();
+    
+    // Add sync status to dashboard header
+    addSyncStatusToUI();
     
     // Clear existing content
     projectsGrid.innerHTML = '';
@@ -1484,6 +1557,9 @@ function createProject(projectData) {
         // Update app state
         appState.projects.push(project);
 
+        // Auto-sync if cloud is enabled
+        autoSyncData();
+
         return project;
     } catch (error) {
         console.error('Error creating project:', error);
@@ -2160,6 +2236,9 @@ function savePhoto(photoData) {
         
         // Update app state
         appState.photos.push(photoData);
+        
+        // Auto-sync if cloud is enabled
+        autoSyncData();
         
         console.log('Photo saved successfully');
         
@@ -4311,11 +4390,22 @@ function logout() {
     showModal(modal);
 }
 
-function confirmLogout() {
+async function confirmLogout() {
+    // Sign out from Firebase if connected
+    if (appState.currentUser?.cloudSync && window.FirebaseSync) {
+        try {
+            await window.FirebaseSync.signOut();
+            console.log('Signed out from Firebase');
+        } catch (error) {
+            console.error('Firebase signout error:', error);
+        }
+    }
+    
     // Clear user data
     appState.currentUser = null;
     appState.isAuthenticated = false;
     appState.currentProject = null;
+    appState.lastSyncTime = null;
     
     // Clear stored user data
     localStorage.removeItem(APP_CONFIG.storagePrefix + STORAGE_KEYS.user);
@@ -4357,6 +4447,147 @@ function exportUserData() {
         console.error('Export error:', error);
         showNotification('שגיאה ביצוא הנתונים', 'error');
     }
+}
+
+/**
+ * Cloud Sync Functions
+ */
+async function performDataSync() {
+    if (!window.FirebaseSync || !window.FirebaseSync.isEnabled()) {
+        console.log('Firebase not available for sync');
+        return { success: false, message: 'Cloud sync not available' };
+    }
+    
+    if (appState.isSyncing) {
+        console.log('Sync already in progress');
+        return { success: false, message: 'Sync already in progress' };
+    }
+    
+    try {
+        appState.isSyncing = true;
+        console.log('Starting data sync...');
+        
+        const syncResult = await window.FirebaseSync.performFullSync();
+        
+        if (syncResult.success) {
+            appState.lastSyncTime = new Date().toISOString();
+            
+            // Reload data after sync
+            await loadSavedData();
+            
+            // Update UI
+            if (appState.currentPage === 'dashboard') {
+                updateDashboardContent();
+            } else if (appState.currentPage === 'project') {
+                updateProjectContent();
+            }
+            
+            console.log('Data sync completed successfully');
+            showNotification(`סנכרון הושלם: ${syncResult.projects} פרויקטים, ${syncResult.photos} תמונות`, 'success');
+        } else {
+            showNotification('שגיאה בסנכרון: ' + syncResult.message, 'error');
+        }
+        
+        return syncResult;
+    } catch (error) {
+        console.error('Data sync failed:', error);
+        showNotification('שגיאה בסנכרון: ' + error.message, 'error');
+        return { success: false, message: error.message };
+    } finally {
+        appState.isSyncing = false;
+    }
+}
+
+/**
+ * Auto-sync when projects or photos are created/updated
+ */
+async function autoSyncData() {
+    if (!window.FirebaseSync || !window.FirebaseSync.isEnabled() || !appState.currentUser?.cloudSync) {
+        return;
+    }
+    
+    if (appState.isSyncing) {
+        return;
+    }
+    
+    try {
+        console.log('Auto-syncing data...');
+        await window.FirebaseSync.syncProjects(appState.projects);
+        await window.FirebaseSync.syncPhotos(appState.photos);
+        appState.lastSyncTime = new Date().toISOString();
+        console.log('Auto-sync completed');
+    } catch (error) {
+        console.error('Auto-sync failed:', error);
+    }
+}
+
+/**
+ * Network status handlers
+ */
+function handleOnlineStatus() {
+    appState.isOnline = true;
+    console.log('Network: Online');
+    showNotification('חזרת לאינטרנט ☁️', 'success', 2000);
+    
+    if (appState.currentUser?.cloudSync) {
+        // Auto-sync when coming back online
+        setTimeout(() => {
+            performDataSync();
+        }, 1000);
+    }
+}
+
+function handleOfflineStatus() {
+    appState.isOnline = false;
+    console.log('Network: Offline');
+    showNotification('עבדת אופליין 📱', 'info', 2000);
+}
+
+/**
+ * Add sync status to dashboard UI
+ */
+function addSyncStatusToUI() {
+    const dashboardHeader = document.querySelector('.dashboard-header');
+    if (!dashboardHeader) return;
+    
+    // Remove existing sync status
+    const existingSyncStatus = dashboardHeader.querySelector('.sync-status');
+    if (existingSyncStatus) {
+        existingSyncStatus.remove();
+    }
+    
+    // Only show sync status if user is cloud-enabled
+    if (!appState.currentUser?.cloudSync) {
+        return;
+    }
+    
+    const syncStatus = document.createElement('div');
+    syncStatus.className = 'sync-status';
+    
+    const lastSync = appState.lastSyncTime ? 
+        new Date(appState.lastSyncTime).toLocaleString('he-IL', {
+            hour: '2-digit',
+            minute: '2-digit',
+            day: '2-digit',
+            month: '2-digit'
+        }) : 
+        'מעולם לא';
+    
+    const status = appState.isSyncing ? 
+        '🔄 מסנכרן...' : 
+        appState.isOnline ? 
+            `☁️ מסונכרן (${lastSync})` : 
+            '📱 אופליין';
+    
+    syncStatus.innerHTML = `
+        <div class="sync-indicator">
+            <span class="sync-text">${status}</span>
+            ${appState.currentUser?.cloudSync && !appState.isSyncing && appState.isOnline ? 
+                '<button class="sync-btn" onclick="performDataSync()" title="סנכרן עכשיו">🔄</button>' : ''}
+        </div>
+    `;
+    
+    dashboardHeader.appendChild(syncStatus);
 }
 
 // Add CSS animations for notifications
