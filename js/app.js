@@ -1594,71 +1594,87 @@ function showUserMenu() {
 }
 
 function capturePhoto() {
-    if (!appState.currentProject) {
-        showNotification('יש לבחור פרויקט תחילה', 'error');
-        return;
+    try {
+        if (!appState.currentProject) {
+            showNotification('יש לבחור פרויקט תחילה', 'error');
+            return;
+        }
+        
+        console.log('Starting photo capture');
+        
+        // Create camera modal
+        const modalContent = `
+            <div class="camera-container">
+                <div class="camera-view">
+                    <video id="cameraVideo" autoplay playsinline></video>
+                    <canvas id="cameraCanvas" style="display: none;"></canvas>
+                </div>
+                <div class="camera-controls">
+                    <button id="takePictureBtn" class="btn btn-primary camera-btn">
+                        <span class="btn-icon">📸</span>
+                        צלם
+                    </button>
+                    <button id="switchCameraBtn" class="btn btn-secondary camera-btn">
+                        <span class="btn-icon">🔄</span>
+                        החלף מצלמה
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const modal = createModal(
+            'צילום תמונה',
+            modalContent,
+            [
+                {
+                    text: 'ביטול',
+                    class: 'btn-secondary',
+                    action: 'stopCamera(); closeModal(this.closest(\'.modal-overlay\'))'
+                }
+            ]
+        );
+
+        showModal(modal);
+        
+        // Initialize camera
+        initializeCamera();
+    } catch (error) {
+        console.error('Error in capturePhoto:', error);
+        showNotification('שגיאה בפתיחת המצלמה', 'error');
     }
-    
-    // Create camera modal
-    const modalContent = `
-        <div class="camera-container">
-            <div class="camera-view">
-                <video id="cameraVideo" autoplay playsinline></video>
-                <canvas id="cameraCanvas" style="display: none;"></canvas>
-            </div>
-            <div class="camera-controls">
-                <button id="takePictureBtn" class="btn btn-primary camera-btn">
-                    <span class="btn-icon">📸</span>
-                    צלם
-                </button>
-                <button id="switchCameraBtn" class="btn btn-secondary camera-btn">
-                    <span class="btn-icon">🔄</span>
-                    החלף מצלמה
-                </button>
-            </div>
-        </div>
-    `;
-
-    const modal = createModal(
-        'צילום תמונה',
-        modalContent,
-        [
-            {
-                text: 'ביטול',
-                class: 'btn-secondary',
-                action: 'stopCamera(); closeModal(this.closest(\'.modal-overlay\'))'
-            }
-        ]
-    );
-
-    showModal(modal);
-    
-    // Initialize camera
-    initializeCamera();
 }
 
 function uploadPhoto() {
-    if (!appState.currentProject) {
-        showNotification('יש לבחור פרויקט תחילה', 'error');
-        return;
+    try {
+        if (!appState.currentProject) {
+            showNotification('יש לבחור פרויקט תחילה', 'error');
+            return;
+        }
+        
+        console.log('Starting photo upload');
+        
+        // Create file input
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.multiple = true;
+        fileInput.style.display = 'none';
+        
+        fileInput.addEventListener('change', handlePhotoUpload);
+        
+        document.body.appendChild(fileInput);
+        fileInput.click();
+        
+        // Clean up
+        setTimeout(() => {
+            if (document.body.contains(fileInput)) {
+                document.body.removeChild(fileInput);
+            }
+        }, 1000);
+    } catch (error) {
+        console.error('Error in uploadPhoto:', error);
+        showNotification('שגיאה בפתיחת בוחר הקבצים', 'error');
     }
-    
-    // Create file input
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = 'image/*';
-    fileInput.multiple = true;
-    fileInput.style.display = 'none';
-    
-    fileInput.addEventListener('change', handlePhotoUpload);
-    
-    document.body.appendChild(fileInput);
-    fileInput.click();
-    
-    // Clean up
-    setTimeout(() => {
-        document.body.removeChild(fileInput);
-    }, 1000);
 }
 
 async function initializeCamera() {
@@ -1782,68 +1798,108 @@ function stopCamera() {
 }
 
 function handlePhotoUpload(event) {
-    const files = Array.from(event.target.files);
-    
-    if (files.length === 0) return;
-    
-    // Validate files
-    const validFiles = files.filter(file => {
-        if (!file.type.startsWith('image/')) {
-            showNotification(`הקובץ ${file.name} אינו תמונה`, 'error');
-            return false;
-        }
+    try {
+        const files = Array.from(event.target.files);
         
-        if (file.size > 10 * 1024 * 1024) { // 10MB limit
-            showNotification(`הקובץ ${file.name} גדול מדי (מעל 10MB)`, 'error');
-            return false;
-        }
+        if (files.length === 0) return;
         
-        return true;
-    });
-    
-    if (validFiles.length === 0) return;
-    
-    // Process each valid file
-    validFiles.forEach(file => {
-        processPhoto(file);
-    });
-    
-    showNotification(`הועלו ${validFiles.length} תמונות בהצלחה`, 'success');
+        console.log('Uploading files:', files.length);
+        
+        // Validate files
+        const validFiles = files.filter(file => {
+            if (!file.type.startsWith('image/')) {
+                showNotification(`הקובץ ${file.name} אינו תמונה`, 'error');
+                return false;
+            }
+            
+            if (file.size > 10 * 1024 * 1024) { // 10MB limit
+                showNotification(`הקובץ ${file.name} גדול מדי (מעל 10MB)`, 'error');
+                return false;
+            }
+            
+            return true;
+        });
+        
+        if (validFiles.length === 0) return;
+        
+        console.log('Valid files:', validFiles.length);
+        
+        // Process each valid file
+        validFiles.forEach(file => {
+            processPhoto(file);
+        });
+        
+        // Show success message only for multiple files
+        if (validFiles.length > 1) {
+            showNotification(`הועלו ${validFiles.length} תמונות בהצלחה`, 'success');
+        }
+    } catch (error) {
+        console.error('Error handling photo upload:', error);
+        showNotification('שגיאה בהעלאת התמונות', 'error');
+    }
 }
 
 function processPhoto(file) {
-    const reader = new FileReader();
-    
-    reader.onload = function(e) {
-        const photoData = {
-            id: generateId(),
-            name: file.name,
-            originalName: file.name,
-            url: e.target.result,
-            type: file.type,
-            size: file.size,
-            projectId: appState.currentProject.id,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            description: '',
-            annotations: [],
-            isAnnotated: false
+    try {
+        console.log('Processing photo:', file.name);
+        
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            try {
+                const photoData = {
+                    id: generateId(),
+                    name: file.name,
+                    originalName: file.name,
+                    url: e.target.result,
+                    type: file.type,
+                    size: file.size,
+                    projectId: appState.currentProject.id,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    description: '',
+                    annotations: [],
+                    isAnnotated: false
+                };
+                
+                console.log('Photo data created:', photoData);
+                
+                // Save photo
+                const savedPhoto = savePhoto(photoData);
+                
+                if (savedPhoto) {
+                    console.log('Photo saved successfully');
+                    
+                    // Update project statistics
+                    updateProjectPhotoCount(appState.currentProject.id);
+                    
+                    // Refresh photos grid
+                    updatePhotosGrid();
+                    
+                    // Update project stats
+                    updateUserStats();
+                    
+                    showNotification('תמונה הועלתה בהצלחה!', 'success');
+                } else {
+                    console.error('Failed to save photo');
+                    showNotification('שגיאה בשמירת התמונה', 'error');
+                }
+            } catch (error) {
+                console.error('Error processing photo data:', error);
+                showNotification('שגיאה בעיבוד התמונה', 'error');
+            }
         };
         
-        // Save photo
-        savePhoto(photoData);
+        reader.onerror = function(error) {
+            console.error('File reader error:', error);
+            showNotification('שגיאה בקריאת קובץ התמונה', 'error');
+        };
         
-        // Update project statistics
-        updateProjectPhotoCount(appState.currentProject.id);
-        
-        // Refresh photos grid
-        updatePhotosGrid();
-        
-        // Update project stats
-        updateUserStats();
-    };
-    
-    reader.readAsDataURL(file);
+        reader.readAsDataURL(file);
+    } catch (error) {
+        console.error('Error in processPhoto:', error);
+        showNotification('שגיאה בעיבוד התמונה', 'error');
+    }
 }
 
 function savePhoto(photoData) {
@@ -2277,65 +2333,84 @@ function openPhotoAnnotation(photo) {
 }
 
 function initializeAnnotationSystem(photo) {
-    const image = document.getElementById('annotationImage');
-    const canvas = document.getElementById('annotationCanvas');
-    const colorPicker = document.getElementById('annotationColor');
-    const strokeSlider = document.getElementById('strokeWidth');
-    const strokeValue = document.getElementById('strokeWidthValue');
-    
-    if (!image || !canvas) return;
-    
-    // Initialize annotation state
-    window.annotationState = {
-        currentTool: 'view',
-        currentColor: '#FF0000',
-        currentStrokeWidth: 3,
-        isDrawing: false,
-        startPoint: null,
-        annotations: [...(photo.annotations || [])],
-        history: [],
-        historyIndex: -1,
-        canvas: canvas,
-        ctx: canvas.getContext('2d'),
-        image: image
-    };
-    
-    // Setup canvas
-    setupAnnotationCanvas();
-    
-    // Load existing annotations
-    loadAnnotations(photo.annotations || []);
-    
-    // Setup event listeners
-    setupAnnotationEventListeners();
-    
-    // Setup toolbar
-    setupAnnotationToolbar();
+    try {
+        const image = document.getElementById('annotationImage');
+        const canvas = document.getElementById('annotationCanvas');
+        
+        if (!image || !canvas) {
+            console.log('Annotation elements not found');
+            return;
+        }
+        
+        // Initialize annotation state
+        window.annotationState = {
+            currentTool: 'view',
+            currentColor: '#FF0000',
+            currentStrokeWidth: 3,
+            isDrawing: false,
+            startPoint: null,
+            annotations: [...(photo.annotations || [])],
+            history: [],
+            historyIndex: -1,
+            canvas: canvas,
+            ctx: canvas.getContext('2d'),
+            image: image
+        };
+        
+        // Setup canvas
+        setupAnnotationCanvas();
+        
+        // Load existing annotations
+        loadAnnotations(photo.annotations || []);
+        
+        // Setup event listeners
+        setupAnnotationEventListeners();
+        
+        // Setup toolbar
+        setupAnnotationToolbar();
+    } catch (error) {
+        console.error('Error initializing annotation system:', error);
+    }
 }
 
 function setupAnnotationCanvas() {
-    const { canvas, ctx, image } = window.annotationState;
-    
-    // Wait for image to load
-    if (image.complete) {
-        resizeCanvas();
-    } else {
-        image.addEventListener('load', resizeCanvas);
-    }
-    
-    function resizeCanvas() {
-        const rect = image.getBoundingClientRect();
-        canvas.width = rect.width;
-        canvas.height = rect.height;
-        canvas.style.width = rect.width + 'px';
-        canvas.style.height = rect.height + 'px';
+    try {
+        if (!window.annotationState) return;
         
-        // Redraw annotations
-        redrawAnnotations();
+        const { canvas, ctx, image } = window.annotationState;
+        
+        if (!canvas || !ctx || !image) {
+            console.log('Canvas elements not available');
+            return;
+        }
+        
+        // Wait for image to load
+        if (image.complete) {
+            resizeCanvas();
+        } else {
+            image.addEventListener('load', resizeCanvas);
+        }
+        
+        function resizeCanvas() {
+            try {
+                const rect = image.getBoundingClientRect();
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+                canvas.style.width = rect.width + 'px';
+                canvas.style.height = rect.height + 'px';
+                
+                // Redraw annotations
+                redrawAnnotations();
+            } catch (error) {
+                console.error('Error resizing canvas:', error);
+            }
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', resizeCanvas);
+    } catch (error) {
+        console.error('Error setting up annotation canvas:', error);
     }
-    
-    // Handle window resize
-    window.addEventListener('resize', resizeCanvas);
 }
 
 function setupAnnotationEventListeners() {
@@ -2358,48 +2433,52 @@ function setupAnnotationEventListeners() {
 }
 
 function setupAnnotationToolbar() {
-    // Tool buttons
-    document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            selectTool(btn.dataset.tool);
+    try {
+        // Tool buttons
+        document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                selectTool(btn.dataset.tool);
+            });
         });
-    });
-    
-    // Color picker
-    const colorPicker = document.getElementById('annotationColor');
-    if (colorPicker) {
-        colorPicker.addEventListener('change', (e) => {
-            window.annotationState.currentColor = e.target.value;
+        
+        // Color picker
+        const colorPicker = document.getElementById('annotationColor');
+        if (colorPicker) {
+            colorPicker.addEventListener('change', (e) => {
+                window.annotationState.currentColor = e.target.value;
+            });
+        }
+        
+        // Color presets
+        document.querySelectorAll('.color-preset').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const color = btn.dataset.color;
+                window.annotationState.currentColor = color;
+                if (colorPicker) colorPicker.value = color;
+            });
         });
+        
+        // Stroke width
+        const strokeSlider = document.getElementById('strokeWidth');
+        const strokeValue = document.getElementById('strokeWidthValue');
+        if (strokeSlider && strokeValue) {
+            strokeSlider.addEventListener('input', (e) => {
+                window.annotationState.currentStrokeWidth = parseInt(e.target.value);
+                strokeValue.textContent = e.target.value;
+            });
+        }
+        
+        // Action buttons
+        const undoBtn = document.getElementById('undoBtn');
+        const redoBtn = document.getElementById('redoBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        
+        if (undoBtn) undoBtn.addEventListener('click', undoAnnotation);
+        if (redoBtn) redoBtn.addEventListener('click', redoAnnotation);
+        if (clearBtn) clearBtn.addEventListener('click', clearAllAnnotations);
+    } catch (error) {
+        console.error('Error setting up annotation toolbar:', error);
     }
-    
-    // Color presets
-    document.querySelectorAll('.color-preset').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const color = btn.dataset.color;
-            window.annotationState.currentColor = color;
-            colorPicker.value = color;
-        });
-    });
-    
-    // Stroke width
-    const strokeSlider = document.getElementById('strokeWidth');
-    const strokeValue = document.getElementById('strokeWidthValue');
-    if (strokeSlider && strokeValue) {
-        strokeSlider.addEventListener('input', (e) => {
-            window.annotationState.currentStrokeWidth = parseInt(e.target.value);
-            strokeValue.textContent = e.target.value;
-        });
-    }
-    
-    // Action buttons
-    const undoBtn = document.getElementById('undoBtn');
-    const redoBtn = document.getElementById('redoBtn');
-    const clearBtn = document.getElementById('clearBtn');
-    
-    if (undoBtn) undoBtn.addEventListener('click', undoAnnotation);
-    if (redoBtn) redoBtn.addEventListener('click', redoAnnotation);
-    if (clearBtn) clearBtn.addEventListener('click', clearAllAnnotations);
 }
 
 function selectTool(toolName) {
