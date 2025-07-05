@@ -1600,6 +1600,14 @@ function capturePhoto() {
             return;
         }
         
+        // Check storage before starting capture
+        const usage = getStorageUsage();
+        if (usage.total > 4) {
+            showNotification('אחסון מלא! מחק תמונות ישנות לפני צילום חדש', 'error');
+            showStorageWarning();
+            return;
+        }
+        
         console.log('Starting photo capture');
         
         // Create camera modal
@@ -1648,6 +1656,14 @@ function uploadPhoto() {
     try {
         if (!appState.currentProject) {
             showNotification('יש לבחור פרויקט תחילה', 'error');
+            return;
+        }
+        
+        // Check storage before starting upload
+        const usage = getStorageUsage();
+        if (usage.total > 4) {
+            showNotification('אחסון מלא! מחק תמונות ישנות לפני העלאת חדשות', 'error');
+            showStorageWarning();
             return;
         }
         
@@ -1705,14 +1721,18 @@ async function initializeCamera() {
                     stream.getTracks().forEach(track => track.stop());
                 }
                 
+                // Mobile-optimized camera constraints
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
                 const constraints = {
                     video: {
                         facingMode: deviceId ? undefined : 'environment',
                         deviceId: deviceId ? { exact: deviceId } : undefined,
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 }
+                        width: { ideal: isMobile ? 1280 : 1920 },
+                        height: { ideal: isMobile ? 720 : 1080 }
                     }
                 };
+                
+                console.log('Starting camera with constraints:', constraints);
                 
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
@@ -1722,8 +1742,33 @@ async function initializeCamera() {
                     switchCameraBtn.style.display = videoDevices.length > 1 ? 'block' : 'none';
                 }
                 
+                console.log('Camera started successfully');
+                
             } catch (error) {
                 console.error('Camera error:', error);
+                
+                // Try with fallback constraints for mobile
+                if (isMobile && !deviceId) {
+                    try {
+                        console.log('Trying fallback camera constraints for mobile');
+                        const fallbackConstraints = {
+                            video: {
+                                facingMode: 'environment',
+                                width: { ideal: 640 },
+                                height: { ideal: 480 }
+                            }
+                        };
+                        
+                        stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+                        video.srcObject = stream;
+                        
+                        console.log('Fallback camera started');
+                        return;
+                    } catch (fallbackError) {
+                        console.error('Fallback camera error:', fallbackError);
+                    }
+                }
+                
                 showNotification('שגיאה בגישה למצלמה: ' + error.message, 'error');
             }
         }
@@ -1760,20 +1805,49 @@ function takePicture(video) {
         const canvas = document.getElementById('cameraCanvas');
         const context = canvas.getContext('2d');
         
-        // Set canvas size to match video
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        // Determine optimal canvas size for mobile
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const maxWidth = isMobile ? 1200 : 1920;
+        const maxHeight = isMobile ? 1200 : 1080;
+        
+        let canvasWidth = video.videoWidth;
+        let canvasHeight = video.videoHeight;
+        
+        // Scale down for mobile if needed
+        if (canvasWidth > maxWidth || canvasHeight > maxHeight) {
+            const scale = Math.min(maxWidth / canvasWidth, maxHeight / canvasHeight);
+            canvasWidth = Math.round(canvasWidth * scale);
+            canvasHeight = Math.round(canvasHeight * scale);
+        }
+        
+        // Set canvas size
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+        
+        console.log('Taking picture:', canvasWidth + 'x' + canvasHeight);
         
         // Draw video frame to canvas
-        context.drawImage(video, 0, 0);
+        context.drawImage(video, 0, 0, canvasWidth, canvasHeight);
         
-        // Convert to blob
+        // Convert to blob with mobile-optimized quality
+        const quality = isMobile ? 0.7 : 0.9;
         canvas.toBlob((blob) => {
             if (blob) {
-                // Create file object
+                console.log('Picture captured, size:', Math.round(blob.size / 1024), 'KB');
+                
+                // Create file object with iOS compatibility
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
                 const fileName = `photo-${timestamp}.jpg`;
-                const file = new File([blob], fileName, { type: 'image/jpeg' });
+                
+                let file;
+                try {
+                    file = new File([blob], fileName, { type: 'image/jpeg' });
+                } catch (error) {
+                    // Fallback for older iOS versions
+                    file = blob;
+                    file.name = fileName;
+                    file.lastModified = Date.now();
+                }
                 
                 // Process the captured photo
                 processPhoto(file);
@@ -1781,8 +1855,11 @@ function takePicture(video) {
                 // Close camera modal
                 stopCamera();
                 closeModal(document.querySelector('.modal-overlay'));
+            } else {
+                console.error('Failed to create blob from canvas');
+                showNotification('שגיאה בהמרת התמונה', 'error');
             }
-        }, 'image/jpeg', 0.9);
+        }, 'image/jpeg', quality);
         
     } catch (error) {
         console.error('Take picture error:', error);
@@ -1841,8 +1918,101 @@ function handlePhotoUpload(event) {
 
 function processPhoto(file) {
     try {
-        console.log('Processing photo:', file.name);
+        console.log('Processing photo:', file.name, 'Original size:', Math.round(file.size / 1024), 'KB');
         
+        // Check if image needs compression for mobile
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const needsCompression = file.size > 1024 * 1024 || isMobile; // 1MB threshold or mobile
+        
+        if (needsCompression) {
+            console.log('Compressing image for mobile/size optimization');
+            compressImage(file, (compressedFile) => {
+                processCompressedPhoto(compressedFile);
+            });
+        } else {
+            processCompressedPhoto(file);
+        }
+        
+    } catch (error) {
+        console.error('Error in processPhoto:', error);
+        showNotification('שגיאה בעיבוד התמונה', 'error');
+    }
+}
+
+function compressImage(file, callback) {
+    try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        
+        img.onload = function() {
+            // Calculate new dimensions (max 1200px width/height for mobile)
+            const maxSize = 1200;
+            let { width, height } = img;
+            
+            if (width > height) {
+                if (width > maxSize) {
+                    height = height * (maxSize / width);
+                    width = maxSize;
+                }
+            } else {
+                if (height > maxSize) {
+                    width = width * (maxSize / height);
+                    height = maxSize;
+                }
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            // Draw and compress
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    // Create file-like object with iOS compatibility
+                    let compressedFile;
+                    try {
+                        compressedFile = new File([blob], file.name, {
+                            type: 'image/jpeg',
+                            lastModified: Date.now()
+                        });
+                    } catch (error) {
+                        // Fallback for older iOS versions
+                        compressedFile = blob;
+                        compressedFile.name = file.name;
+                        compressedFile.lastModified = Date.now();
+                    }
+                    
+                    console.log('Image compressed:', 
+                        Math.round(file.size / 1024), 'KB →', 
+                        Math.round(compressedFile.size / 1024), 'KB',
+                        '(' + Math.round((1 - compressedFile.size / file.size) * 100) + '% reduction)'
+                    );
+                    
+                    callback(compressedFile);
+                } else {
+                    console.error('Failed to compress image');
+                    callback(file); // Fallback to original
+                }
+            }, 'image/jpeg', 0.8); // 80% quality
+        };
+        
+        img.onerror = function() {
+            console.error('Failed to load image for compression');
+            callback(file); // Fallback to original
+        };
+        
+        img.src = URL.createObjectURL(file);
+        
+    } catch (error) {
+        console.error('Error compressing image:', error);
+        callback(file); // Fallback to original
+    }
+}
+
+function processCompressedPhoto(file) {
+    try {
         const reader = new FileReader();
         
         reader.onload = function(e) {
@@ -1862,7 +2032,7 @@ function processPhoto(file) {
                     isAnnotated: false
                 };
                 
-                console.log('Photo data created:', photoData);
+                console.log('Photo data created:', photoData.name, 'Final size:', Math.round(photoData.size / 1024), 'KB');
                 
                 // Save photo
                 const savedPhoto = savePhoto(photoData);
@@ -1897,31 +2067,144 @@ function processPhoto(file) {
         
         reader.readAsDataURL(file);
     } catch (error) {
-        console.error('Error in processPhoto:', error);
+        console.error('Error in processCompressedPhoto:', error);
         showNotification('שגיאה בעיבוד התמונה', 'error');
     }
 }
 
 function savePhoto(photoData) {
     try {
+        console.log('Attempting to save photo:', photoData.name, 'Size:', photoData.size);
+        
+        // Check localStorage availability and space
+        if (!isStorageAvailable()) {
+            throw new Error('localStorage is not available');
+        }
+        
         // Get current photos
         const allPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
         
         // Add new photo
         allPhotos.push(photoData);
         
+        // Check if the data is too large for localStorage
+        const dataString = JSON.stringify(allPhotos);
+        const dataSize = new Blob([dataString]).size;
+        
+        console.log('Total data size:', Math.round(dataSize / 1024 / 1024 * 100) / 100, 'MB');
+        
+        if (dataSize > 4 * 1024 * 1024) { // 4MB limit for mobile safety
+            throw new Error('Data too large for localStorage');
+        }
+        
         // Save to localStorage
-        localStorage.setItem('inspectort_photos', JSON.stringify(allPhotos));
+        localStorage.setItem('inspectort_photos', dataString);
         
         // Update app state
         appState.photos.push(photoData);
         
+        console.log('Photo saved successfully');
         return photoData;
     } catch (error) {
         console.error('Error saving photo:', error);
-        showNotification('שגיאה בשמירת התמונה', 'error');
+        
+        // Handle specific errors
+        if (error.name === 'QuotaExceededError' || error.message.includes('quota')) {
+            showNotification('שגיאה: אחסון מלא. מחק תמונות ישנות כדי לפנות מקום', 'error');
+            // Show storage management options
+            setTimeout(() => {
+                showStorageWarning();
+            }, 2000);
+        } else if (error.message.includes('too large')) {
+            showNotification('שגיאה: יותר מדי תמונות. מחק תמונות ישנות כדי לפנות מקום', 'error');
+            setTimeout(() => {
+                showStorageWarning();
+            }, 2000);
+        } else {
+            showNotification('שגיאה בשמירת התמונה: ' + error.message, 'error');
+        }
+        
         return null;
     }
+}
+
+function isStorageAvailable() {
+    try {
+        const test = '__storage_test__';
+        localStorage.setItem(test, test);
+        localStorage.removeItem(test);
+        return true;
+    } catch (e) {
+        console.error('localStorage not available:', e.message);
+        
+        // Check for private browsing mode
+        if (e.name === 'QuotaExceededError' && localStorage.length === 0) {
+            showNotification('אנא צא ממצב גלישה פרטית כדי לשמור תמונות', 'error');
+        } else {
+            showNotification('שגיאה באחסון המכשיר', 'error');
+        }
+        
+        return false;
+    }
+}
+
+function getStorageUsage() {
+    try {
+        const photos = localStorage.getItem('inspectort_photos') || '[]';
+        const projects = localStorage.getItem('inspectort_projects') || '[]';
+        const users = localStorage.getItem('inspectort_users') || '[]';
+        
+        const photosSize = new Blob([photos]).size;
+        const projectsSize = new Blob([projects]).size;
+        const usersSize = new Blob([users]).size;
+        
+        const totalSize = photosSize + projectsSize + usersSize;
+        
+        return {
+            photos: Math.round(photosSize / 1024 / 1024 * 100) / 100,
+            projects: Math.round(projectsSize / 1024 / 1024 * 100) / 100,
+            users: Math.round(usersSize / 1024 / 1024 * 100) / 100,
+            total: Math.round(totalSize / 1024 / 1024 * 100) / 100
+        };
+    } catch (error) {
+        console.error('Error calculating storage usage:', error);
+        return { photos: 0, projects: 0, users: 0, total: 0 };
+    }
+}
+
+function showStorageWarning() {
+    const usage = getStorageUsage();
+    
+    if (usage.total > 3) { // Show warning at 3MB
+        const modal = createModal(
+            'אחסון מלא',
+            `<p>השימוש באחסון: <strong>${usage.total} MB</strong></p>
+             <p>תמונות: ${usage.photos} MB</p>
+             <p>האחסון כמעט מלא. מומלץ למחוק תמונות ישנות לפני הוספת תמונות חדשות.</p>
+             <p>האם ברצונך לעבור לניהול התמונות?</p>`,
+            [
+                {
+                    text: 'ביטול',
+                    class: 'btn-secondary',
+                    action: 'closeModal(this.closest(\'.modal-overlay\'))'
+                },
+                {
+                    text: 'נהל תמונות',
+                    class: 'btn-primary',
+                    action: 'navigateToPhotoManagement()'
+                }
+            ]
+        );
+        
+        showModal(modal);
+    }
+}
+
+function navigateToPhotoManagement() {
+    closeModal(document.querySelector('.modal-overlay'));
+    // This would navigate to a photo management page
+    // For now, just show a message
+    showNotification('גלול למטה לראות את כל התמונות ולמחוק ישנות', 'info', 5000);
 }
 
 function getAllPhotos() {
