@@ -3264,86 +3264,78 @@ async function exportToPDF() {
         // Close the config modal
         closeModal(document.querySelector('.modal-overlay'));
         
-        // Create PDF
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF('p', 'mm', 'a4');
+        // Create HTML template for PDF
+        const htmlContent = await createPDFHTMLContent(project, projectPhotos, config);
         
-        // Add title page
-        doc.setFontSize(20);
-        doc.text(`דוח בדיקה - ${project.name}`, 105, 50, { align: 'center' });
-        doc.setFontSize(14);
-        doc.text(`תאריך: ${new Date().toLocaleDateString('he-IL')}`, 105, 70, { align: 'center' });
+        // Create temporary div to hold the content
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+        tempDiv.style.position = 'absolute';
+        tempDiv.style.left = '-9999px';
+        tempDiv.style.top = '-9999px';
+        tempDiv.style.width = '210mm'; // A4 width
+        tempDiv.style.background = 'white';
+        tempDiv.style.fontFamily = 'Arial, sans-serif';
+        tempDiv.style.direction = 'rtl';
+        document.body.appendChild(tempDiv);
         
-        // Add header and footer function
-        const addHeaderFooter = (pageNum, totalPages) => {
-            // Header
-            doc.setFontSize(12);
-            doc.setFont(undefined, 'bold');
-            doc.text(config.headerCompany, 105, 15, { align: 'center' });
-            doc.setFont(undefined, 'normal');
-            doc.text(config.headerTitle, 105, 25, { align: 'center' });
-            
-            // Footer
-            doc.setFontSize(10);
-            doc.text(config.footerContact, 105, 280, { align: 'center' });
-            doc.text(config.footerExtra, 105, 290, { align: 'center' });
-            doc.text(`עמוד ${pageNum} מתוך ${totalPages}`, 105, 297, { align: 'center' });
-        };
-        
-        // Process photos
-        for (let i = 0; i < projectPhotos.length; i++) {
-            const photo = projectPhotos[i];
-            
-            if (i > 0) {
-                doc.addPage();
-            }
-            
-            try {
-                // Render photo with annotations
-                let imageData;
-                if (config.includeAnnotations && photo.annotations && photo.annotations.length > 0) {
-                    imageData = await renderPhotoWithAnnotations(photo, config.imageQuality);
+        // Wait for images to load
+        const images = tempDiv.querySelectorAll('img');
+        const imagePromises = Array.from(images).map(img => {
+            return new Promise((resolve) => {
+                if (img.complete) {
+                    resolve();
                 } else {
-                    imageData = photo.url;
+                    img.onload = resolve;
+                    img.onerror = resolve;
                 }
-                
-                // Add image to PDF
-                doc.addImage(imageData, 'JPEG', 20, 40, 80, 60);
-                
-                // Add photo details
-                doc.setFontSize(14);
-                doc.setFont(undefined, 'bold');
-                doc.text(`${i + 1}. ${photo.name || 'ללא שם'}`, 110, 50, { align: 'right' });
-                
-                doc.setFontSize(12);
-                doc.setFont(undefined, 'normal');
-                const description = photo.description || 'ללא תיאור';
-                const splitDescription = doc.splitTextToSize(description, 80);
-                doc.text(splitDescription, 110, 65, { align: 'right' });
-                
-                doc.setFontSize(10);
-                doc.text(`תאריך: ${new Date(photo.createdAt).toLocaleDateString('he-IL')}`, 110, 95, { align: 'right' });
-                
-            } catch (error) {
-                console.error('Error processing photo for PDF:', error);
-                // Add error text
-                doc.setFontSize(12);
-                doc.setTextColor(255, 0, 0);
-                doc.text(`${i + 1}. שגיאה בטעינת תמונה: ${photo.name || 'ללא שם'}`, 110, 50, { align: 'right' });
-                doc.setTextColor(0, 0, 0);
-            }
+            });
+        });
+        
+        await Promise.all(imagePromises);
+        
+        // Generate PDF using html2canvas + jsPDF
+        const { jsPDF } = window.jspdf;
+        const canvas = await html2canvas(tempDiv, {
+            useCORS: true,
+            scale: 2,
+            scrollX: 0,
+            scrollY: 0,
+            backgroundColor: '#ffffff'
+        });
+        
+        // Remove temporary div
+        document.body.removeChild(tempDiv);
+        
+        // Create PDF
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        
+        // Calculate dimensions to fit page
+        const canvasWidth = canvas.width;
+        const canvasHeight = canvas.height;
+        const ratio = canvasWidth / canvasHeight;
+        
+        let imgWidth = pageWidth;
+        let imgHeight = pageWidth / ratio;
+        
+        if (imgHeight > pageHeight) {
+            imgHeight = pageHeight;
+            imgWidth = pageHeight * ratio;
         }
         
-        // Add headers and footers to all pages
-        const totalPages = doc.internal.getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
-            doc.setPage(i);
-            addHeaderFooter(i, totalPages);
-        }
+        // Center the image on the page
+        const x = (pageWidth - imgWidth) / 2;
+        const y = (pageHeight - imgHeight) / 2;
+        
+        pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
         
         // Save PDF
         const fileName = `${project.name}_דוח_${new Date().toISOString().split('T')[0]}.pdf`;
-        doc.save(fileName);
+        pdf.save(fileName);
         
         showNotification('דוח PDF נוצר בהצלחה!', 'success');
         
@@ -3351,6 +3343,131 @@ async function exportToPDF() {
         console.error('Error exporting to PDF:', error);
         showNotification('שגיאה ביצירת דוח PDF', 'error');
     }
+}
+
+async function createPDFHTMLContent(project, photos, config) {
+    let htmlContent = `
+        <div style="padding: 20px; font-family: Arial, sans-serif; direction: rtl; background: white;">
+            <!-- Header -->
+            <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #2563eb; padding-bottom: 20px;">
+                <h1 style="color: #2563eb; margin: 0; font-size: 24px; font-weight: bold;">
+                    ${config.headerCompany || 'דוח בדיקה מקצועי'}
+                </h1>
+                <h2 style="color: #64748b; margin: 5px 0; font-size: 18px;">
+                    ${config.headerTitle || 'מסמך טכני'}
+                </h2>
+                <div style="margin: 15px 0; font-size: 16px; color: #374151;">
+                    <strong>פרויקט:</strong> ${project.name}
+                </div>
+                <div style="font-size: 14px; color: #6b7280;">
+                    <strong>תאריך:</strong> ${new Date().toLocaleDateString('he-IL')}
+                </div>
+            </div>
+            
+            <!-- Project Summary -->
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+                <h3 style="color: #374151; margin-top: 0; font-size: 18px; border-bottom: 1px solid #d1d5db; padding-bottom: 10px;">
+                    סיכום הפרויקט
+                </h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 14px;">
+                    <div><strong>מספר תמונות:</strong> ${photos.length}</div>
+                    <div><strong>תמונות עם הערות:</strong> ${photos.filter(p => p.isAnnotated).length}</div>
+                    <div><strong>תאריך יצירה:</strong> ${new Date(project.createdAt).toLocaleDateString('he-IL')}</div>
+                    <div><strong>מיקום:</strong> ${project.location || 'לא צוין'}</div>
+                </div>
+                ${project.description ? `<div style="margin-top: 15px;"><strong>תיאור:</strong> ${project.description}</div>` : ''}
+            </div>
+            
+            <!-- Photos Table -->
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 14px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    <thead>
+                        <tr style="background: #2563eb; color: white;">
+                            <th style="padding: 15px; text-align: center; border: 1px solid #1e40af; font-weight: bold;">מס'</th>
+                            <th style="padding: 15px; text-align: center; border: 1px solid #1e40af; font-weight: bold;">תמונה</th>
+                            <th style="padding: 15px; text-align: center; border: 1px solid #1e40af; font-weight: bold;">שם התמונה</th>
+                            <th style="padding: 15px; text-align: center; border: 1px solid #1e40af; font-weight: bold;">תיאור</th>
+                            <th style="padding: 15px; text-align: center; border: 1px solid #1e40af; font-weight: bold;">תאריך</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+    
+    for (let i = 0; i < photos.length; i++) {
+        const photo = photos[i];
+        const rowColor = i % 2 === 0 ? '#ffffff' : '#f8fafc';
+        
+        try {
+            // Render photo with annotations
+            let imageData;
+            if (config.includeAnnotations && photo.annotations && photo.annotations.length > 0) {
+                imageData = await renderPhotoWithAnnotations(photo, config.imageQuality);
+            } else {
+                imageData = photo.url;
+            }
+            
+            htmlContent += `
+                <tr style="background: ${rowColor}; border-bottom: 1px solid #e5e7eb;">
+                    <td style="padding: 15px; text-align: center; border: 1px solid #d1d5db; font-weight: bold; font-size: 16px; color: #2563eb;">
+                        ${i + 1}
+                    </td>
+                    <td style="padding: 10px; text-align: center; border: 1px solid #d1d5db;">
+                        <img src="${imageData}" 
+                             style="max-width: 200px; max-height: 150px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);"
+                             alt="תמונה ${i + 1}">
+                    </td>
+                    <td style="padding: 15px; text-align: center; border: 1px solid #d1d5db; font-weight: bold; color: #374151;">
+                        ${photo.name || 'ללא שם'}
+                    </td>
+                    <td style="padding: 15px; text-align: right; border: 1px solid #d1d5db; color: #4b5563; line-height: 1.5;">
+                        ${photo.description || 'ללא תיאור'}
+                    </td>
+                    <td style="padding: 15px; text-align: center; border: 1px solid #d1d5db; color: #6b7280; font-size: 12px;">
+                        ${new Date(photo.createdAt).toLocaleDateString('he-IL')}
+                    </td>
+                </tr>`;
+        } catch (error) {
+            console.error('Error processing photo for PDF:', error);
+            htmlContent += `
+                <tr style="background: ${rowColor}; border-bottom: 1px solid #e5e7eb;">
+                    <td style="padding: 15px; text-align: center; border: 1px solid #d1d5db; font-weight: bold; color: #ef4444;">
+                        ${i + 1}
+                    </td>
+                    <td style="padding: 15px; text-align: center; border: 1px solid #d1d5db; color: #ef4444;">
+                        שגיאה בטעינת תמונה
+                    </td>
+                    <td style="padding: 15px; text-align: center; border: 1px solid #d1d5db; color: #ef4444;">
+                        ${photo.name || 'ללא שם'}
+                    </td>
+                    <td style="padding: 15px; text-align: right; border: 1px solid #d1d5db; color: #ef4444;">
+                        שגיאה בעיבוד התמונה
+                    </td>
+                    <td style="padding: 15px; text-align: center; border: 1px solid #d1d5db; color: #ef4444;">
+                        ${new Date(photo.createdAt).toLocaleDateString('he-IL')}
+                    </td>
+                </tr>`;
+        }
+    }
+    
+    htmlContent += `
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Footer -->
+            <div style="margin-top: 40px; text-align: center; border-top: 2px solid #2563eb; padding-top: 20px; color: #6b7280; font-size: 12px;">
+                <div style="margin-bottom: 10px;">
+                    <strong>${config.footerContact || 'פרטי קשר'}</strong>
+                </div>
+                <div>
+                    ${config.footerExtra || 'מסמך זה נוצר באמצעות מערכת Inspectort Pro'}
+                </div>
+                <div style="margin-top: 10px; font-size: 10px; color: #9ca3af;">
+                    תאריך יצירת הדוח: ${new Date().toLocaleString('he-IL')}
+                </div>
+            </div>
+        </div>`;
+    
+    return htmlContent;
 }
 
 function openPhotoAnnotation(photo) {
