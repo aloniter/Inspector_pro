@@ -1,303 +1,207 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Inspectort Pro - אפליקציית בדיקות מקצועית</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#2563eb">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Inspectort Pro">
-    <meta name="theme-color" content="#007AFF">
+    <meta name="application-name" content="Inspectort Pro">
+    
+    <!-- iOS Specific Meta Tags -->
+    <meta name="apple-touch-fullscreen" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    <title>Inspectort Pro</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSI+CjxyZWN0IHdpZHRoPSI4MCIgaGVpZ2h0PSI4MCIgcng9IjE2IiBmaWxsPSIjMDA3QUZGIi8+CjxwYXRoIGQ9Ik00MCAyMEw2MCAzNVY2NUgyMFYzNUw0MCAyMFoiIGZpbGw9IndoaXRlIi8+CjxjaXJjbGUgY3g9IjQwIiBjeT0iNDAiIHI9IjgiIGZpbGw9IiMwMDdBRkYiLz4KPC9zdmc+">
+    
+    <!-- Manifest -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png">
+    
+    <!-- Preload Hebrew Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/styles.css">
+    
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(function(registration) {
+                        console.log('ServiceWorker registration successful');
+                    })
+                    .catch(function(err) {
+                        console.log('ServiceWorker registration failed');
+                    });
+            });
+        }
+    </script>
 </head>
 <body>
-    <div class="app-container">
-        <!-- Navigation Bar -->
-        <nav class="nav-bar" id="navBar">
-            <div class="nav-content">
-                <button class="nav-btn back-btn" id="backBtn">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                        <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                </button>
-                <h1 class="nav-title" id="navTitle">Inspectort Pro</h1>
-                <button class="nav-btn action-btn" id="actionBtn"></button>
+    <!-- App Loading Screen -->
+    <div id="loading" class="loading-screen">
+        <div class="loading-content">
+            <div class="loading-logo">
+                <div class="logo-icon">📋</div>
+                <h1>Inspectort Pro</h1>
             </div>
-        </nav>
-
-        <!-- Page 1: Authentication -->
-        <div class="page active" id="authPage">
-            <div class="auth-container">
-                <div class="logo-section">
-                    <div class="app-logo">
-                        <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
-                            <rect width="80" height="80" rx="16" fill="#007AFF"/>
-                            <path d="M40 20L60 35V65H20V35L40 20Z" fill="white"/>
-                            <circle cx="40" cy="40" r="8" fill="#007AFF"/>
-                        </svg>
-                    </div>
-                    <h2 class="app-name">Inspectort Pro</h2>
-                    <p class="app-tagline">Professional Inspection Reports</p>
-                </div>
-
-                <div class="auth-forms">
-                    <!-- Login Form -->
-                    <div class="auth-form" id="loginForm">
-                        <div class="form-group">
-                            <label for="loginEmail">Email</label>
-                            <input type="email" id="loginEmail" placeholder="Enter your email" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="loginPassword">Password</label>
-                            <input type="password" id="loginPassword" placeholder="Enter your password" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary" id="loginBtn">Sign In</button>
-                        <p class="auth-switch">
-                            Don't have an account? 
-                            <button class="link-btn" id="showRegister">Sign Up</button>
-                        </p>
-                    </div>
-
-                    <!-- Register Form -->
-                    <div class="auth-form hidden" id="registerForm">
-                        <div class="form-group">
-                            <label for="registerName">Full Name</label>
-                            <input type="text" id="registerName" placeholder="Enter your full name" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="registerEmail">Email</label>
-                            <input type="email" id="registerEmail" placeholder="Enter your email" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="registerPassword">Password</label>
-                            <input type="password" id="registerPassword" placeholder="Create a password" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="confirmPassword">Confirm Password</label>
-                            <input type="password" id="confirmPassword" placeholder="Confirm your password" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary" id="registerBtn">Create Account</button>
-                        <p class="auth-switch">
-                            Already have an account? 
-                            <button class="link-btn" id="showLogin">Sign In</button>
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Page 2: Dashboard -->
-        <div class="page" id="dashboardPage">
-            <div class="dashboard-header">
-                <div class="welcome-section">
-                    <h2 class="welcome-text">Welcome back</h2>
-                    <p class="user-name" id="userName">Inspector</p>
-                </div>
-                <button class="btn btn-primary" id="newProjectBtn">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                        <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
-                    New Project
-                </button>
-            </div>
-
-            <div class="projects-section">
-                <div class="section-header">
-                    <h3>Your Projects</h3>
-                    <span class="project-count" id="projectCount">0 projects</span>
-                </div>
-                <div class="projects-grid" id="projectsGrid">
-                    <!-- Projects will be populated here -->
-                </div>
-            </div>
-
-            <!-- Empty state -->
-            <div class="empty-state" id="emptyState">
-                <div class="empty-icon">
-                    <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
-                        <rect width="80" height="80" rx="16" fill="#F2F2F7"/>
-                        <path d="M40 20L60 35V65H20V35L40 20Z" fill="#C7C7CC"/>
-                    </svg>
-                </div>
-                <h3>No Projects Yet</h3>
-                <p>Create your first inspection project to get started</p>
-                <button class="btn btn-primary" id="createFirstProject">Create Project</button>
-            </div>
-        </div>
-
-        <!-- Page 3: Project Details -->
-        <div class="page" id="projectPage">
-            <div class="project-header">
-                <div class="project-info">
-                    <h2 class="project-title" id="projectTitle">Project Name</h2>
-                    <p class="project-date" id="projectDate">Created today</p>
-                    <input type="text" class="project-title-edit hidden" id="projectTitleEdit">
-                </div>
-                <button class="btn btn-secondary" id="editProjectBtn">Edit</button>
-            </div>
-
-            <div class="project-content">
-                <div class="capture-section">
-                    <div class="capture-buttons">
-                        <button class="btn btn-primary" id="captureBtn">
-                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                                <circle cx="10" cy="10" r="3" stroke="currentColor" stroke-width="2"/>
-                                <path d="M10 1V3M10 17V19M1 10H3M17 10H19" stroke="currentColor" stroke-width="2"/>
-                            </svg>
-                            Take Photo
-                        </button>
-                        <button class="btn btn-secondary" id="uploadBtn">
-                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                                <path d="M7 14L10 11L13 14M10 11V19M19 15V19A2 2 0 0117 21H3A2 2 0 011 19V15" stroke="currentColor" stroke-width="2"/>
-                            </svg>
-                            Upload
-                        </button>
-                    </div>
-                    <input type="file" accept="image/*" multiple class="hidden" id="fileInput">
-                </div>
-
-                <div class="photos-section">
-                    <div class="section-header">
-                        <h3>Photos</h3>
-                        <span class="photo-count" id="photoCount">0 photos</span>
-                    </div>
-                    <div class="photos-grid" id="photosGrid">
-                        <!-- Photos will be populated here -->
-                    </div>
-                </div>
-
-                <div class="export-section">
-                    <button class="btn btn-primary btn-full" id="exportBtn">
-                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                            <path d="M6 2L3 6V18A2 2 0 005 20H15A2 2 0 0017 18V6L14 2H6Z" stroke="currentColor" stroke-width="2"/>
-                            <path d="M14 2V8H6V2" stroke="currentColor" stroke-width="2"/>
-                        </svg>
-                        Generate Report
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Page 4: Export & Reports -->
-        <div class="page" id="exportPage">
-            <div class="export-header">
-                <h2>Export Report</h2>
-                <p class="export-subtitle">Generate and share your inspection report</p>
-            </div>
-
-            <div class="export-content">
-                <div class="report-preview">
-                    <h3>Report Preview</h3>
-                    <div class="preview-container" id="reportPreview">
-                        <div class="preview-header">
-                            <h4 id="previewTitle">Inspection Report</h4>
-                            <p id="previewDate">Generated on: <span class="current-date"></span></p>
-                            <p id="previewInspector">Inspector: <span class="inspector-name"></span></p>
-                        </div>
-                        <div class="preview-content" id="previewContent">
-                            <!-- Report content will be populated here -->
-                        </div>
-                    </div>
-                </div>
-
-                <div class="export-options">
-                    <h3>Export Options</h3>
-                    <div class="export-buttons">
-                        <button class="btn btn-primary" id="exportWordBtn">
-                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                                <path d="M6 2L3 6V18A2 2 0 005 20H15A2 2 0 0017 18V6L14 2H6Z" stroke="currentColor" stroke-width="2"/>
-                                <path d="M14 2V8H6V2" stroke="currentColor" stroke-width="2"/>
-                            </svg>
-                            Export as Word
-                        </button>
-                        <button class="btn btn-secondary" id="exportPdfBtn">
-                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                                <path d="M6 2L3 6V18A2 2 0 005 20H15A2 2 0 0017 18V6L14 2H6Z" stroke="currentColor" stroke-width="2"/>
-                                <path d="M8 11H12M8 15H10M8 7H12" stroke="currentColor" stroke-width="2"/>
-                            </svg>
-                            Export as PDF
-                        </button>
-                    </div>
-                </div>
-
-                <div class="sharing-section">
-                    <h3>Share Report</h3>
-                    <div class="sharing-buttons">
-                        <button class="btn btn-outline" id="shareEmailBtn">
-                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                                <path d="M3 4L10 11L17 4" stroke="currentColor" stroke-width="2"/>
-                                <path d="M17 4H3V16H17V4Z" stroke="currentColor" stroke-width="2"/>
-                            </svg>
-                            Email Report
-                        </button>
-                        <button class="btn btn-outline" id="shareDownloadBtn">
-                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                                <path d="M7 14L10 17L13 14M10 17V3" stroke="currentColor" stroke-width="2"/>
-                            </svg>
-                            Download
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Photo Annotation Modal -->
-        <div class="modal" id="annotationModal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>Annotate Photo</h3>
-                    <button class="close-btn" id="closeAnnotation">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                            <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2"/>
-                        </svg>
-                    </button>
-                </div>
-                <div class="annotation-tools">
-                    <div class="tool-group">
-                        <button class="tool-btn active" data-tool="arrow">
-                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                                <path d="M5 12L10 7L15 12" stroke="currentColor" stroke-width="2"/>
-                            </svg>
-                        </button>
-                        <button class="tool-btn" data-tool="text">
-                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                                <path d="M4 7V4H16V7M12 4V16M8 4V16" stroke="currentColor" stroke-width="2"/>
-                            </svg>
-                        </button>
-                    </div>
-                    <div class="color-group">
-                        <button class="color-btn active" data-color="#FF3B30"></button>
-                        <button class="color-btn" data-color="#007AFF"></button>
-                        <button class="color-btn" data-color="#34C759"></button>
-                        <button class="color-btn" data-color="#FF9500"></button>
-                        <button class="color-btn" data-color="#5856D6"></button>
-                    </div>
-                </div>
-                <div class="annotation-canvas-container">
-                    <canvas id="annotationCanvas"></canvas>
-                </div>
-                <div class="description-section">
-                    <textarea id="photoDescription" placeholder="Add description for this photo..."></textarea>
-                </div>
-                <div class="modal-actions">
-                    <button class="btn btn-secondary" id="cancelAnnotation">Cancel</button>
-                    <button class="btn btn-primary" id="saveAnnotation">Save</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Loading Overlay -->
-        <div class="loading-overlay hidden" id="loadingOverlay">
             <div class="loading-spinner"></div>
-            <p class="loading-text">Processing...</p>
+            <p>טוען אפליקציה...</p>
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <!-- App Container -->
+    <div id="app" class="app-container hidden">
+        <!-- Navigation Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <button class="menu-toggle" id="menuToggle">
+                    <span class="menu-icon"></span>
+                </button>
+                <h1 class="app-title">Inspectort Pro</h1>
+                <div class="header-actions">
+                    <button class="user-menu-btn" id="userMenuBtn">
+                        <span class="user-icon">👤</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="app-main">
+            <!-- Page: Authentication -->
+            <section class="page active" id="authPage">
+                <div class="auth-container">
+                    <div class="auth-header">
+                        <div class="auth-logo">
+                            <div class="logo-icon">📋</div>
+                            <h1>Inspectort Pro</h1>
+                            <p>אפליקציית בדיקות מקצועית</p>
+                        </div>
+                    </div>
+                    
+                    <div class="auth-forms">
+                        <!-- Login Form -->
+                        <form class="auth-form" id="loginForm">
+                            <h2>התחברות</h2>
+                            <div class="form-group">
+                                <label for="loginEmail">כתובת אימייל</label>
+                                <input type="email" id="loginEmail" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="loginPassword">סיסמה</label>
+                                <input type="password" id="loginPassword" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">התחבר</button>
+                            <p class="auth-switch">
+                                אין לך חשבון? <a href="#" id="showRegister">הרשם כאן</a>
+                            </p>
+                        </form>
+                        
+                        <!-- Registration Form -->
+                        <form class="auth-form hidden" id="registerForm">
+                            <h2>הרשמה</h2>
+                            <div class="form-group">
+                                <label for="registerName">שם מלא</label>
+                                <input type="text" id="registerName" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="registerEmail">כתובת אימייל</label>
+                                <input type="email" id="registerEmail" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="registerPassword">סיסמה</label>
+                                <input type="password" id="registerPassword" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">הרשם</button>
+                            <p class="auth-switch">
+                                יש לך חשבון? <a href="#" id="showLogin">התחבר כאן</a>
+                            </p>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Page: Dashboard -->
+            <section class="page" id="dashboardPage">
+                <div class="dashboard-container">
+                    <div class="dashboard-header">
+                        <h2>הפרויקטים שלי</h2>
+                        <button class="btn btn-primary" id="createProjectBtn">
+                            <span class="btn-icon">+</span>
+                            פרויקט חדש
+                        </button>
+                    </div>
+                    
+                    <div class="projects-grid" id="projectsGrid">
+                        <!-- Projects will be populated dynamically -->
+                        <div class="empty-state">
+                            <div class="empty-icon">📁</div>
+                            <h3>אין עדיין פרויקטים</h3>
+                            <p>צור פרויקט חדש כדי להתחיל</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Page: Project Details -->
+            <section class="page" id="projectPage">
+                <div class="project-container">
+                    <div class="project-header">
+                        <button class="btn btn-secondary" id="backToDashboard">
+                            <span class="btn-icon">←</span>
+                            חזור לדף הבית
+                        </button>
+                        <h2 id="projectTitle">פרויקט</h2>
+                        <button class="btn btn-primary" id="exportReportBtn">
+                            <span class="btn-icon">📄</span>
+                            יצוא דוח
+                        </button>
+                    </div>
+                    
+                    <div class="project-content">
+                        <div class="project-actions">
+                            <button class="action-btn" id="capturePhotoBtn">
+                                <span class="btn-icon">📷</span>
+                                צלם תמונה
+                            </button>
+                            <button class="action-btn" id="uploadPhotoBtn">
+                                <span class="btn-icon">📁</span>
+                                העלה תמונה
+                            </button>
+                        </div>
+                        
+                        <div class="photos-grid" id="photosGrid">
+                            <!-- Photos will be populated dynamically -->
+                            <div class="empty-state">
+                                <div class="empty-icon">📷</div>
+                                <h3>אין עדיין תמונות</h3>
+                                <p>צלם או העלה תמונות כדי להתחיל</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modals Container -->
+    <div class="modals-container" id="modalsContainer">
+        <!-- Modals will be populated dynamically -->
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/app.js"></script>
 </body>
 </html> 

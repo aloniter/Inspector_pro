@@ -1,0 +1,144 @@
+{
+  "name": "Inspectort Pro - אפליקציית בדיקות מקצועית",
+  "short_name": "Inspectort Pro",
+  "description": "אפליקציית בדיקות מקצועית לניהול פרויקטים, צילום תמונות, הוספת הערות ויצוא דוחות",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#2563eb",
+  "background_color": "#f8fafc",
+  "lang": "he",
+  "dir": "rtl",
+  "scope": "/",
+  "categories": ["productivity", "business", "utilities"],
+  "icons": [
+    {
+      "src": "assets/icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "assets/screenshots/mobile-login.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "מסך התחברות"
+    },
+    {
+      "src": "assets/screenshots/mobile-dashboard.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "דף הבית - פרויקטים"
+    },
+    {
+      "src": "assets/screenshots/mobile-project.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "מסך פרויקט"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "פרויקט חדש",
+      "short_name": "פרויקט חדש",
+      "description": "יצירת פרויקט בדיקה חדש",
+      "url": "/?action=new-project",
+      "icons": [
+        {
+          "src": "assets/icons/shortcut-new-project.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "צילום מהיר",
+      "short_name": "צילום",
+      "description": "צילום תמונה מהיר",
+      "url": "/?action=quick-capture",
+      "icons": [
+        {
+          "src": "assets/icons/shortcut-camera.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
+  "file_handlers": [
+    {
+      "action": "/?action=open-file",
+      "accept": {
+        "image/*": [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"],
+        "application/pdf": [".pdf"]
+      }
+    }
+  ],
+  "protocol_handlers": [
+    {
+      "protocol": "web+inspectort",
+      "url": "/?protocol=%s"
+    }
+  ]
+} 
