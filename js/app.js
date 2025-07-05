@@ -2175,6 +2175,60 @@ function exportReport() {
 function openPhotoAnnotation(photo) {
     const modalContent = `
         <div class="photo-annotation-container">
+            <div class="annotation-toolbar">
+                <div class="tool-group">
+                    <button class="tool-btn active" data-tool="view" title="צפייה">
+                        <span class="tool-icon">👁️</span>
+                    </button>
+                    <button class="tool-btn" data-tool="pen" title="עט">
+                        <span class="tool-icon">✏️</span>
+                    </button>
+                    <button class="tool-btn" data-tool="arrow" title="חץ">
+                        <span class="tool-icon">↗️</span>
+                    </button>
+                    <button class="tool-btn" data-tool="rectangle" title="מלבן">
+                        <span class="tool-icon">▭</span>
+                    </button>
+                    <button class="tool-btn" data-tool="circle" title="עיגול">
+                        <span class="tool-icon">⭕</span>
+                    </button>
+                    <button class="tool-btn" data-tool="text" title="טקסט">
+                        <span class="tool-icon">📝</span>
+                    </button>
+                </div>
+                
+                <div class="tool-group">
+                    <div class="color-picker-container">
+                        <input type="color" id="annotationColor" class="color-picker" value="#FF0000" title="צבע">
+                        <div class="color-presets">
+                            <button class="color-preset" data-color="#FF0000" style="background: #FF0000" title="אדום"></button>
+                            <button class="color-preset" data-color="#00FF00" style="background: #00FF00" title="ירוק"></button>
+                            <button class="color-preset" data-color="#0000FF" style="background: #0000FF" title="כחול"></button>
+                            <button class="color-preset" data-color="#FFFF00" style="background: #FFFF00" title="צהוב"></button>
+                            <button class="color-preset" data-color="#FF8000" style="background: #FF8000" title="כתום"></button>
+                        </div>
+                    </div>
+                    
+                    <div class="stroke-width-container">
+                        <label for="strokeWidth">עובי:</label>
+                        <input type="range" id="strokeWidth" min="1" max="10" value="3" class="stroke-slider">
+                        <span id="strokeWidthValue">3</span>
+                    </div>
+                </div>
+                
+                <div class="tool-group">
+                    <button class="tool-btn" id="undoBtn" title="בטל">
+                        <span class="tool-icon">↶</span>
+                    </button>
+                    <button class="tool-btn" id="redoBtn" title="חזור">
+                        <span class="tool-icon">↷</span>
+                    </button>
+                    <button class="tool-btn" id="clearBtn" title="נקה הכל">
+                        <span class="tool-icon">🗑️</span>
+                    </button>
+                </div>
+            </div>
+            
             <div class="annotation-image-container">
                 <img src="${photo.url}" alt="${photo.name}" class="annotation-image" id="annotationImage">
                 <canvas id="annotationCanvas" class="annotation-canvas"></canvas>
@@ -2198,32 +2252,558 @@ function openPhotoAnnotation(photo) {
     `;
 
     const modal = createModal(
-        'צפה בתמונה',
+        'הוסף הערות לתמונה',
         modalContent,
         [
             {
                 text: 'ביטול',
                 class: 'btn-secondary',
-                action: 'closeModal(this.closest(\'.modal-overlay\'))'
+                action: 'closeAnnotationModal()'
             },
             {
-                text: 'שמור תיאור',
+                text: 'שמור הערות',
                 class: 'btn-primary',
-                action: `savePhotoDescription('${photo.id}')`
+                action: `savePhotoAnnotations('${photo.id}')`
             }
         ]
     );
 
     showModal(modal);
     
-    // Focus on description field
+    // Initialize annotation system
     setTimeout(() => {
-        const textArea = document.getElementById('annotationText');
-        if (textArea) {
-            textArea.focus();
-            textArea.setSelectionRange(textArea.value.length, textArea.value.length);
-        }
+        initializeAnnotationSystem(photo);
     }, 100);
+}
+
+function initializeAnnotationSystem(photo) {
+    const image = document.getElementById('annotationImage');
+    const canvas = document.getElementById('annotationCanvas');
+    const colorPicker = document.getElementById('annotationColor');
+    const strokeSlider = document.getElementById('strokeWidth');
+    const strokeValue = document.getElementById('strokeWidthValue');
+    
+    if (!image || !canvas) return;
+    
+    // Initialize annotation state
+    window.annotationState = {
+        currentTool: 'view',
+        currentColor: '#FF0000',
+        currentStrokeWidth: 3,
+        isDrawing: false,
+        startPoint: null,
+        annotations: [...(photo.annotations || [])],
+        history: [],
+        historyIndex: -1,
+        canvas: canvas,
+        ctx: canvas.getContext('2d'),
+        image: image
+    };
+    
+    // Setup canvas
+    setupAnnotationCanvas();
+    
+    // Load existing annotations
+    loadAnnotations(photo.annotations || []);
+    
+    // Setup event listeners
+    setupAnnotationEventListeners();
+    
+    // Setup toolbar
+    setupAnnotationToolbar();
+}
+
+function setupAnnotationCanvas() {
+    const { canvas, ctx, image } = window.annotationState;
+    
+    // Wait for image to load
+    if (image.complete) {
+        resizeCanvas();
+    } else {
+        image.addEventListener('load', resizeCanvas);
+    }
+    
+    function resizeCanvas() {
+        const rect = image.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+        
+        // Redraw annotations
+        redrawAnnotations();
+    }
+    
+    // Handle window resize
+    window.addEventListener('resize', resizeCanvas);
+}
+
+function setupAnnotationEventListeners() {
+    const { canvas } = window.annotationState;
+    
+    // Mouse events
+    canvas.addEventListener('mousedown', handleAnnotationStart);
+    canvas.addEventListener('mousemove', handleAnnotationMove);
+    canvas.addEventListener('mouseup', handleAnnotationEnd);
+    canvas.addEventListener('mouseout', handleAnnotationEnd);
+    
+    // Touch events for mobile
+    canvas.addEventListener('touchstart', handleTouchStart);
+    canvas.addEventListener('touchmove', handleTouchMove);
+    canvas.addEventListener('touchend', handleTouchEnd);
+    
+    // Prevent default touch behavior
+    canvas.addEventListener('touchstart', (e) => e.preventDefault());
+    canvas.addEventListener('touchmove', (e) => e.preventDefault());
+}
+
+function setupAnnotationToolbar() {
+    // Tool buttons
+    document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            selectTool(btn.dataset.tool);
+        });
+    });
+    
+    // Color picker
+    const colorPicker = document.getElementById('annotationColor');
+    if (colorPicker) {
+        colorPicker.addEventListener('change', (e) => {
+            window.annotationState.currentColor = e.target.value;
+        });
+    }
+    
+    // Color presets
+    document.querySelectorAll('.color-preset').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const color = btn.dataset.color;
+            window.annotationState.currentColor = color;
+            colorPicker.value = color;
+        });
+    });
+    
+    // Stroke width
+    const strokeSlider = document.getElementById('strokeWidth');
+    const strokeValue = document.getElementById('strokeWidthValue');
+    if (strokeSlider && strokeValue) {
+        strokeSlider.addEventListener('input', (e) => {
+            window.annotationState.currentStrokeWidth = parseInt(e.target.value);
+            strokeValue.textContent = e.target.value;
+        });
+    }
+    
+    // Action buttons
+    const undoBtn = document.getElementById('undoBtn');
+    const redoBtn = document.getElementById('redoBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    
+    if (undoBtn) undoBtn.addEventListener('click', undoAnnotation);
+    if (redoBtn) redoBtn.addEventListener('click', redoAnnotation);
+    if (clearBtn) clearBtn.addEventListener('click', clearAllAnnotations);
+}
+
+function selectTool(toolName) {
+    window.annotationState.currentTool = toolName;
+    
+    // Update toolbar UI
+    document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    document.querySelector(`[data-tool="${toolName}"]`).classList.add('active');
+    
+    // Update cursor
+    const canvas = window.annotationState.canvas;
+    canvas.style.cursor = toolName === 'view' ? 'default' : 'crosshair';
+}
+
+function getCanvasCoordinates(event) {
+    const canvas = window.annotationState.canvas;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    return {
+        x: (event.clientX - rect.left) * scaleX,
+        y: (event.clientY - rect.top) * scaleY
+    };
+}
+
+function handleAnnotationStart(event) {
+    const { currentTool } = window.annotationState;
+    
+    if (currentTool === 'view') return;
+    
+    window.annotationState.isDrawing = true;
+    window.annotationState.startPoint = getCanvasCoordinates(event);
+    
+    if (currentTool === 'pen') {
+        startPenDrawing(window.annotationState.startPoint);
+    } else if (currentTool === 'text') {
+        addTextAnnotation(window.annotationState.startPoint);
+    }
+}
+
+function handleAnnotationMove(event) {
+    const { currentTool, isDrawing, startPoint } = window.annotationState;
+    
+    if (!isDrawing || currentTool === 'view' || currentTool === 'text') return;
+    
+    const currentPoint = getCanvasCoordinates(event);
+    
+    if (currentTool === 'pen') {
+        continuePenDrawing(currentPoint);
+    } else {
+        // For shapes, show preview
+        redrawAnnotations();
+        drawPreviewShape(startPoint, currentPoint);
+    }
+}
+
+function handleAnnotationEnd(event) {
+    const { currentTool, isDrawing, startPoint } = window.annotationState;
+    
+    if (!isDrawing || currentTool === 'view' || currentTool === 'text') return;
+    
+    const endPoint = getCanvasCoordinates(event);
+    
+    if (currentTool === 'pen') {
+        finishPenDrawing();
+    } else if (currentTool === 'arrow') {
+        addArrowAnnotation(startPoint, endPoint);
+    } else if (currentTool === 'rectangle') {
+        addRectangleAnnotation(startPoint, endPoint);
+    } else if (currentTool === 'circle') {
+        addCircleAnnotation(startPoint, endPoint);
+    }
+    
+    window.annotationState.isDrawing = false;
+    window.annotationState.startPoint = null;
+    
+    saveAnnotationState();
+}
+
+function handleTouchStart(event) {
+    event.preventDefault();
+    const touch = event.touches[0];
+    handleAnnotationStart(touch);
+}
+
+function handleTouchMove(event) {
+    event.preventDefault();
+    const touch = event.touches[0];
+    handleAnnotationMove(touch);
+}
+
+function handleTouchEnd(event) {
+    event.preventDefault();
+    handleAnnotationEnd(event.changedTouches[0] || event.touches[0]);
+}
+
+function startPenDrawing(point) {
+    const { currentColor, currentStrokeWidth } = window.annotationState;
+    
+    window.annotationState.currentPath = {
+        type: 'pen',
+        points: [point],
+        color: currentColor,
+        strokeWidth: currentStrokeWidth,
+        timestamp: Date.now()
+    };
+}
+
+function continuePenDrawing(point) {
+    if (!window.annotationState.currentPath) return;
+    
+    window.annotationState.currentPath.points.push(point);
+    
+    // Draw the line segment
+    const { ctx } = window.annotationState;
+    const path = window.annotationState.currentPath;
+    const points = path.points;
+    
+    if (points.length >= 2) {
+        const prevPoint = points[points.length - 2];
+        
+        ctx.strokeStyle = path.color;
+        ctx.lineWidth = path.strokeWidth;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        
+        ctx.beginPath();
+        ctx.moveTo(prevPoint.x, prevPoint.y);
+        ctx.lineTo(point.x, point.y);
+        ctx.stroke();
+    }
+}
+
+function finishPenDrawing() {
+    if (window.annotationState.currentPath) {
+        window.annotationState.annotations.push(window.annotationState.currentPath);
+        window.annotationState.currentPath = null;
+    }
+}
+
+function addArrowAnnotation(start, end) {
+    const { currentColor, currentStrokeWidth } = window.annotationState;
+    
+    const annotation = {
+        type: 'arrow',
+        start: start,
+        end: end,
+        color: currentColor,
+        strokeWidth: currentStrokeWidth,
+        timestamp: Date.now()
+    };
+    
+    window.annotationState.annotations.push(annotation);
+    redrawAnnotations();
+}
+
+function addRectangleAnnotation(start, end) {
+    const { currentColor, currentStrokeWidth } = window.annotationState;
+    
+    const annotation = {
+        type: 'rectangle',
+        start: start,
+        end: end,
+        color: currentColor,
+        strokeWidth: currentStrokeWidth,
+        timestamp: Date.now()
+    };
+    
+    window.annotationState.annotations.push(annotation);
+    redrawAnnotations();
+}
+
+function addCircleAnnotation(start, end) {
+    const { currentColor, currentStrokeWidth } = window.annotationState;
+    
+    const centerX = (start.x + end.x) / 2;
+    const centerY = (start.y + end.y) / 2;
+    const radius = Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2)) / 2;
+    
+    const annotation = {
+        type: 'circle',
+        center: { x: centerX, y: centerY },
+        radius: radius,
+        color: currentColor,
+        strokeWidth: currentStrokeWidth,
+        timestamp: Date.now()
+    };
+    
+    window.annotationState.annotations.push(annotation);
+    redrawAnnotations();
+}
+
+function addTextAnnotation(point) {
+    const text = prompt('הכנס טקסט:');
+    if (!text || !text.trim()) return;
+    
+    const { currentColor, currentStrokeWidth } = window.annotationState;
+    
+    const annotation = {
+        type: 'text',
+        position: point,
+        text: text.trim(),
+        color: currentColor,
+        fontSize: Math.max(16, currentStrokeWidth * 4),
+        timestamp: Date.now()
+    };
+    
+    window.annotationState.annotations.push(annotation);
+    redrawAnnotations();
+    saveAnnotationState();
+}
+
+function drawPreviewShape(start, end) {
+    const { ctx, currentTool, currentColor, currentStrokeWidth } = window.annotationState;
+    
+    ctx.strokeStyle = currentColor;
+    ctx.lineWidth = currentStrokeWidth;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = 0.7;
+    
+    ctx.beginPath();
+    
+    if (currentTool === 'arrow') {
+        drawArrow(ctx, start, end);
+    } else if (currentTool === 'rectangle') {
+        ctx.rect(start.x, start.y, end.x - start.x, end.y - start.y);
+    } else if (currentTool === 'circle') {
+        const centerX = (start.x + end.x) / 2;
+        const centerY = (start.y + end.y) / 2;
+        const radius = Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2)) / 2;
+        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+    }
+    
+    ctx.stroke();
+    ctx.globalAlpha = 1.0;
+}
+
+function drawArrow(ctx, start, end) {
+    const headLength = 20;
+    const headAngle = Math.PI / 6;
+    
+    // Draw line
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    
+    // Calculate arrow head
+    const angle = Math.atan2(end.y - start.y, end.x - start.x);
+    
+    // Draw arrow head
+    ctx.moveTo(end.x, end.y);
+    ctx.lineTo(
+        end.x - headLength * Math.cos(angle - headAngle),
+        end.y - headLength * Math.sin(angle - headAngle)
+    );
+    
+    ctx.moveTo(end.x, end.y);
+    ctx.lineTo(
+        end.x - headLength * Math.cos(angle + headAngle),
+        end.y - headLength * Math.sin(angle + headAngle)
+    );
+}
+
+function redrawAnnotations() {
+    const { ctx, canvas } = window.annotationState;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw all annotations
+    window.annotationState.annotations.forEach(annotation => {
+        drawAnnotation(ctx, annotation);
+    });
+}
+
+function drawAnnotation(ctx, annotation) {
+    ctx.strokeStyle = annotation.color;
+    ctx.fillStyle = annotation.color;
+    ctx.lineWidth = annotation.strokeWidth || 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    ctx.beginPath();
+    
+    switch (annotation.type) {
+        case 'pen':
+            if (annotation.points && annotation.points.length > 1) {
+                ctx.moveTo(annotation.points[0].x, annotation.points[0].y);
+                for (let i = 1; i < annotation.points.length; i++) {
+                    ctx.lineTo(annotation.points[i].x, annotation.points[i].y);
+                }
+                ctx.stroke();
+            }
+            break;
+            
+        case 'arrow':
+            drawArrow(ctx, annotation.start, annotation.end);
+            ctx.stroke();
+            break;
+            
+        case 'rectangle':
+            ctx.rect(
+                annotation.start.x,
+                annotation.start.y,
+                annotation.end.x - annotation.start.x,
+                annotation.end.y - annotation.start.y
+            );
+            ctx.stroke();
+            break;
+            
+        case 'circle':
+            ctx.arc(annotation.center.x, annotation.center.y, annotation.radius, 0, 2 * Math.PI);
+            ctx.stroke();
+            break;
+            
+        case 'text':
+            ctx.font = `${annotation.fontSize || 16}px Arial`;
+            ctx.fillText(annotation.text, annotation.position.x, annotation.position.y);
+            break;
+    }
+}
+
+function loadAnnotations(annotations) {
+    window.annotationState.annotations = [...annotations];
+    redrawAnnotations();
+}
+
+function saveAnnotationState() {
+    const { annotations, history, historyIndex } = window.annotationState;
+    
+    // Add current state to history
+    history.splice(historyIndex + 1);
+    history.push([...annotations]);
+    window.annotationState.historyIndex = history.length - 1;
+    
+    // Limit history size
+    if (history.length > 50) {
+        history.shift();
+        window.annotationState.historyIndex--;
+    }
+}
+
+function undoAnnotation() {
+    const { history, historyIndex } = window.annotationState;
+    
+    if (historyIndex > 0) {
+        window.annotationState.historyIndex--;
+        window.annotationState.annotations = [...history[window.annotationState.historyIndex]];
+        redrawAnnotations();
+    }
+}
+
+function redoAnnotation() {
+    const { history, historyIndex } = window.annotationState;
+    
+    if (historyIndex < history.length - 1) {
+        window.annotationState.historyIndex++;
+        window.annotationState.annotations = [...history[window.annotationState.historyIndex]];
+        redrawAnnotations();
+    }
+}
+
+function clearAllAnnotations() {
+    if (confirm('האם אתה בטוח שברצונך למחוק את כל ההערות?')) {
+        window.annotationState.annotations = [];
+        redrawAnnotations();
+        saveAnnotationState();
+    }
+}
+
+function closeAnnotationModal() {
+    // Clean up event listeners
+    if (window.annotationState) {
+        window.removeEventListener('resize', setupAnnotationCanvas);
+        window.annotationState = null;
+    }
+    
+    closeModal(document.querySelector('.modal-overlay'));
+}
+
+function savePhotoAnnotations(photoId) {
+    const textArea = document.getElementById('annotationText');
+    const description = textArea ? textArea.value.trim() : '';
+    
+    const annotations = window.annotationState ? window.annotationState.annotations : [];
+    
+    const updates = {
+        description: description,
+        annotations: annotations,
+        isAnnotated: description.length > 0 || annotations.length > 0
+    };
+    
+    const updatedPhoto = updatePhoto(photoId, updates);
+    
+    if (updatedPhoto) {
+        closeAnnotationModal();
+        showNotification('הערות התמונה נשמרו בהצלחה!', 'success');
+        updatePhotosGrid();
+        updateProjectPhotoCount(updatedPhoto.projectId);
+    }
 }
 
 function savePhotoDescription(photoId) {

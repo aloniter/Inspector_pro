@@ -1363,8 +1363,166 @@ p {
 
 /* Photo Annotation Interface */
 .photo-annotation-container {
-    max-width: 800px;
+    max-width: 1000px;
     margin: 0 auto;
+}
+
+/* Annotation Toolbar */
+.annotation-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-lg);
+    padding: var(--spacing-md);
+    background: var(--surface-alt);
+    border-radius: var(--border-radius-md);
+    margin-bottom: var(--spacing-lg);
+    border: 1px solid var(--border-color);
+}
+
+.tool-group {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-xs);
+    background: var(--background-color);
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--border-color);
+}
+
+.tool-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: var(--border-radius-sm);
+    background: var(--background-color);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.tool-btn:hover {
+    background: var(--surface-alt);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.tool-btn.active {
+    background: var(--primary-color);
+    color: white;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.tool-btn.active:hover {
+    background: var(--primary-color);
+    transform: translateY(-2px);
+}
+
+.tool-icon {
+    font-size: var(--font-size-lg);
+    user-select: none;
+}
+
+/* Color Picker */
+.color-picker-container {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.color-picker {
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    background: none;
+    padding: 0;
+    overflow: hidden;
+}
+
+.color-picker::-webkit-color-swatch-wrapper {
+    padding: 0;
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+}
+
+.color-picker::-webkit-color-swatch {
+    border: none;
+    border-radius: calc(var(--border-radius-sm) - 2px);
+}
+
+.color-presets {
+    display: flex;
+    gap: var(--spacing-xs);
+}
+
+.color-preset {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--border-color);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.color-preset:hover {
+    transform: scale(1.2);
+    border-color: var(--text-primary);
+}
+
+/* Stroke Width Control */
+.stroke-width-container {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.stroke-width-container label {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.stroke-slider {
+    width: 80px;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--border-color);
+    outline: none;
+    cursor: pointer;
+}
+
+.stroke-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.stroke-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+#strokeWidthValue {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--text-primary);
+    min-width: 20px;
+    text-align: center;
 }
 
 .annotation-image-container {
@@ -1374,20 +1532,25 @@ p {
     background: var(--surface-alt);
     border-radius: var(--border-radius-md);
     overflow: hidden;
+    display: inline-block;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .annotation-image {
     max-width: 100%;
-    max-height: 500px;
+    max-height: 600px;
     display: block;
-    margin: 0 auto;
+    user-select: none;
+    -webkit-user-drag: none;
 }
 
 .annotation-canvas {
     position: absolute;
     top: 0;
     left: 0;
-    pointer-events: none;
+    pointer-events: auto;
+    cursor: crosshair;
+    z-index: 10;
 }
 
 .annotation-info {
@@ -1460,6 +1623,58 @@ p {
 
 .empty-state .btn {
     margin: var(--spacing-sm) var(--spacing-xs);
+}
+
+/* Responsive annotation design */
+@media (max-width: 768px) {
+    .annotation-toolbar {
+        flex-direction: column;
+        gap: var(--spacing-md);
+        padding: var(--spacing-sm);
+    }
+    
+    .tool-group {
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    .color-picker-container {
+        flex-direction: column;
+        align-items: center;
+        gap: var(--spacing-xs);
+    }
+    
+    .color-presets {
+        gap: var(--spacing-sm);
+    }
+    
+    .color-preset {
+        width: 32px;
+        height: 32px;
+    }
+    
+    .stroke-width-container {
+        flex-direction: column;
+        align-items: center;
+        gap: var(--spacing-xs);
+    }
+    
+    .stroke-slider {
+        width: 120px;
+    }
+    
+    .annotation-image {
+        max-height: 400px;
+    }
+    
+    .tool-btn {
+        width: 48px;
+        height: 48px;
+    }
+    
+    .tool-icon {
+        font-size: 1.2em;
+    }
 }
 
 /* Responsive photo layout */
