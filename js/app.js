@@ -2743,118 +2743,132 @@ async function exportToWord() {
         
         console.log('Starting Word export with', projectPhotos.length, 'photos');
         
-        // Create Word document with simpler approach
-        const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, Header, Footer, AlignmentType, WidthType, ImageRun } = window.docx;
-        
-        // Create content first
-        const content = await createWordContentSimple(projectPhotos, config);
-        
-        const doc = new Document({
-            sections: [{
-                properties: {
-                    page: {
-                        margin: {
-                            top: 1440,
-                            right: 1440,
-                            bottom: 1440,
-                            left: 1440,
+        try {
+            // Create Word document with simpler, more compatible approach
+            const { Document, Packer, Paragraph, TextRun, Header, Footer, AlignmentType } = window.docx;
+            
+            // Create content first
+            console.log('Creating Word content...');
+            const content = await createWordContentSimple(projectPhotos, config);
+            console.log('Content created successfully, building document...');
+            
+            const doc = new Document({
+                sections: [{
+                    properties: {
+                        page: {
+                            margin: {
+                                top: 1440,
+                                right: 1440,
+                                bottom: 1440,
+                                left: 1440,
+                            },
                         },
                     },
-                },
-                headers: {
-                    default: new Header({
-                        children: [
-                            new Paragraph({
-                                children: [
-                                    new TextRun({
-                                        text: config.headerCompany || 'דוח בדיקה',
-                                        bold: true,
-                                        size: 28,
-                                    }),
-                                ],
-                                alignment: AlignmentType.CENTER,
-                            }),
-                            new Paragraph({
-                                children: [
-                                    new TextRun({
-                                        text: config.headerTitle || '',
-                                        size: 24,
-                                    }),
-                                ],
-                                alignment: AlignmentType.CENTER,
-                            }),
-                            new Paragraph({
-                                children: [
-                                    new TextRun({
-                                        text: `פרויקט: ${project.name}`,
-                                        size: 20,
-                                    }),
-                                ],
-                                alignment: AlignmentType.CENTER,
-                            }),
-                        ],
-                    }),
-                },
-                footers: {
-                    default: new Footer({
-                        children: [
-                            new Paragraph({
-                                children: [
-                                    new TextRun({
-                                        text: config.footerContact || '',
-                                        size: 20,
-                                    }),
-                                ],
-                                alignment: AlignmentType.CENTER,
-                            }),
-                            new Paragraph({
-                                children: [
-                                    new TextRun({
-                                        text: config.footerExtra || '',
-                                        size: 18,
-                                    }),
-                                ],
-                                alignment: AlignmentType.CENTER,
-                            }),
-                        ],
-                    }),
-                },
-                children: content,
-            }],
-        });
+                    headers: {
+                        default: new Header({
+                            children: [
+                                new Paragraph({
+                                    children: [
+                                        new TextRun({
+                                            text: config.headerCompany || 'דוח בדיקה',
+                                            bold: true,
+                                            size: 28,
+                                        }),
+                                    ],
+                                    alignment: AlignmentType.CENTER,
+                                }),
+                                new Paragraph({
+                                    children: [
+                                        new TextRun({
+                                            text: config.headerTitle || '',
+                                            size: 24,
+                                        }),
+                                    ],
+                                    alignment: AlignmentType.CENTER,
+                                }),
+                                new Paragraph({
+                                    children: [
+                                        new TextRun({
+                                            text: `פרויקט: ${project.name}`,
+                                            size: 20,
+                                        }),
+                                    ],
+                                    alignment: AlignmentType.CENTER,
+                                }),
+                            ],
+                        }),
+                    },
+                    footers: {
+                        default: new Footer({
+                            children: [
+                                new Paragraph({
+                                    children: [
+                                        new TextRun({
+                                            text: config.footerContact || '',
+                                            size: 20,
+                                        }),
+                                    ],
+                                    alignment: AlignmentType.CENTER,
+                                }),
+                                new Paragraph({
+                                    children: [
+                                        new TextRun({
+                                            text: config.footerExtra || '',
+                                            size: 18,
+                                        }),
+                                    ],
+                                    alignment: AlignmentType.CENTER,
+                                }),
+                            ],
+                        }),
+                    },
+                    children: content,
+                }],
+            });
 
-        console.log('Document created, generating blob...');
-        
-        // Generate and download
-        const blob = await Packer.toBlob(doc);
-        const fileName = `${project.name}_דוח_${new Date().toISOString().split('T')[0]}.docx`;
-        
-        console.log('Blob generated, saving file...');
-        
-        // Check if saveAs is available
-        if (typeof saveAs !== 'function') {
-            console.error('saveAs function not available');
-            // Fallback download method
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        } else {
-            saveAs(blob, fileName);
+            console.log('Document created, generating blob...');
+            
+            // Generate and download
+            const blob = await Packer.toBlob(doc);
+            console.log('Blob generated successfully, size:', blob.size, 'bytes');
+            
+            const fileName = `${project.name}_דוח_${new Date().toISOString().split('T')[0]}.docx`;
+            
+            console.log('Saving file:', fileName);
+            
+            // Check if saveAs is available
+            if (typeof saveAs !== 'function') {
+                console.log('Using fallback download method');
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } else {
+                saveAs(blob, fileName);
+            }
+            
+            showNotification('דוח Word נוצר בהצלחה!', 'success');
+            
+        } catch (docxError) {
+            console.error('DOCX generation failed:', docxError);
+            console.error('Error details:', docxError.message);
+            
+            // Show error to user and fallback to RTF
+            showNotification('שגיאה ביצירת קובץ Word, עובר לפורמט RTF...', 'warning');
+            return exportToWordRTF();
         }
         
-        showNotification('דוח Word נוצר בהצלחה!', 'success');
-        
     } catch (error) {
-        console.error('Error exporting to Word:', error);
+        console.error('Error in Word export function:', error);
         console.error('Error details:', error.message, error.stack);
         
-        // Fallback to RTF export
-        console.warn('Falling back to RTF export');
+        // Final fallback to RTF export
+        console.warn('Final fallback to RTF export');
+        showNotification('שגיאה ביצירת דוח, עובר לפורמט RTF...', 'warning');
         return exportToWordRTF();
     }
 }
@@ -2938,12 +2952,10 @@ async function createWordContentSimple(photos, config) {
                         text: `דוח בדיקה - ${appState.currentProject.name}`,
                         bold: true,
                         size: 32,
-                        rightToLeft: true,
                     }),
                 ],
                 alignment: AlignmentType.CENTER,
                 spacing: { after: 400 },
-                bidirectional: true,
             })
         );
         
@@ -2953,12 +2965,10 @@ async function createWordContentSimple(photos, config) {
                     new TextRun({
                         text: `תאריך: ${new Date().toLocaleDateString('he-IL')}`,
                         size: 24,
-                        rightToLeft: true,
                     }),
                 ],
                 alignment: AlignmentType.CENTER,
                 spacing: { after: 800 },
-                bidirectional: true,
             })
         );
 
@@ -2995,7 +3005,7 @@ async function createWordContentSimple(photos, config) {
                         imageBuffer = null;
                     }
                     
-                    // Create table for photo layout - Hebrew RTL
+                    // Create table for photo layout - simpler structure
                     const photoTable = new Table({
                         width: {
                             size: 100,
@@ -3004,7 +3014,7 @@ async function createWordContentSimple(photos, config) {
                         rows: [
                             new TableRow({
                                 children: [
-                                    // Text cell (right side for RTL)
+                                    // Text cell (right side)
                                     new TableCell({
                                         children: [
                                             new Paragraph({
@@ -3012,45 +3022,39 @@ async function createWordContentSimple(photos, config) {
                                                     new TextRun({
                                                         text: `${photoIndex + 1}. ${photo.name || 'ללא שם'}`,
                                                         bold: true,
-                                                        size: 18, // Smaller text
-                                                        rightToLeft: true,
+                                                        size: 18,
                                                     }),
                                                 ],
                                                 spacing: { after: 150 },
-                                                bidirectional: true,
                                                 alignment: AlignmentType.RIGHT,
                                             }),
                                             new Paragraph({
                                                 children: [
                                                     new TextRun({
                                                         text: photo.description || 'ללא תיאור',
-                                                        size: 14, // Smaller text
-                                                        rightToLeft: true,
+                                                        size: 14,
                                                     }),
                                                 ],
                                                 spacing: { after: 150 },
-                                                bidirectional: true,
                                                 alignment: AlignmentType.RIGHT,
                                             }),
                                             new Paragraph({
                                                 children: [
                                                     new TextRun({
                                                         text: `תאריך: ${new Date(photo.createdAt).toLocaleDateString('he-IL')}`,
-                                                        size: 12, // Smaller text
+                                                        size: 12,
                                                         color: '666666',
-                                                        rightToLeft: true,
                                                     }),
                                                 ],
-                                                bidirectional: true,
                                                 alignment: AlignmentType.RIGHT,
                                             }),
                                         ],
                                         width: {
-                                            size: 30, // Smaller width for text
+                                            size: 30,
                                             type: WidthType.PERCENTAGE,
                                         },
                                     }),
-                                    // Image cell (left side for RTL)
+                                    // Image cell (left side)
                                     new TableCell({
                                         children: imageBuffer ? [
                                             new Paragraph({
@@ -3058,8 +3062,8 @@ async function createWordContentSimple(photos, config) {
                                                     new ImageRun({
                                                         data: imageBuffer,
                                                         transformation: {
-                                                            width: 450, // Larger image
-                                                            height: 338, // Larger image (maintaining 4:3 ratio)
+                                                            width: 450,
+                                                            height: 338,
                                                         },
                                                     }),
                                                 ],
@@ -3071,15 +3075,13 @@ async function createWordContentSimple(photos, config) {
                                                     new TextRun({
                                                         text: 'שגיאה בטעינת תמונה',
                                                         color: 'FF0000',
-                                                        rightToLeft: true,
                                                     }),
                                                 ],
                                                 alignment: AlignmentType.CENTER,
-                                                bidirectional: true,
                                             })
                                         ],
                                         width: {
-                                            size: 70, // Larger width for image
+                                            size: 70,
                                             type: WidthType.PERCENTAGE,
                                         },
                                     }),
@@ -3095,7 +3097,7 @@ async function createWordContentSimple(photos, config) {
                         content.push(
                             new Paragraph({
                                 children: [new TextRun({ text: '' })],
-                                spacing: { after: 600 }, // More space between photos
+                                spacing: { after: 600 },
                             })
                         );
                     }
@@ -3109,11 +3111,9 @@ async function createWordContentSimple(photos, config) {
                                 new TextRun({
                                     text: `${photoIndex + 1}. שגיאה בעיבוד תמונה: ${photo.name || 'ללא שם'}`,
                                     color: 'FF0000',
-                                    rightToLeft: true,
                                 }),
                             ],
                             spacing: { after: 400 },
-                            bidirectional: true,
                             alignment: AlignmentType.RIGHT,
                         })
                     );
@@ -3135,10 +3135,8 @@ async function createWordContentSimple(photos, config) {
                     new TextRun({
                         text: 'שגיאה ביצירת תוכן הדוח',
                         color: 'FF0000',
-                        rightToLeft: true,
                     }),
                 ],
-                bidirectional: true,
                 alignment: AlignmentType.RIGHT,
             })
         );
