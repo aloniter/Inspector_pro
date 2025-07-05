@@ -945,4 +945,223 @@ p {
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
     }
+}
+
+/* Project Form Styles */
+.project-form {
+    padding: 0;
+}
+
+.project-form .form-group {
+    margin-bottom: var(--spacing-lg);
+}
+
+.project-form .form-row {
+    display: flex;
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+}
+
+.project-form .form-row .form-group {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.project-form label {
+    display: block;
+    margin-bottom: var(--spacing-sm);
+    color: var(--text-primary);
+    font-weight: 500;
+    font-size: var(--font-size-sm);
+}
+
+.project-form input,
+.project-form select,
+.project-form textarea {
+    width: 100%;
+    padding: var(--spacing-md);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    font-size: var(--font-size-base);
+    font-family: var(--font-family);
+    background: var(--background-color);
+    color: var(--text-primary);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.project-form input:focus,
+.project-form select:focus,
+.project-form textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.project-form textarea {
+    resize: vertical;
+    min-height: 80px;
+    line-height: 1.5;
+}
+
+.project-form select {
+    cursor: pointer;
+}
+
+.project-form input[type="date"] {
+    cursor: pointer;
+}
+
+.project-form ::placeholder {
+    color: var(--text-muted);
+    opacity: 0.7;
+}
+
+/* Enhanced project card styles */
+.project-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.project-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.project-card:hover::before {
+    opacity: 1;
+}
+
+.project-type {
+    display: inline-block;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: var(--surface-alt);
+    color: var(--text-secondary);
+    border-radius: var(--border-radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    margin-bottom: var(--spacing-sm);
+}
+
+.project-deadline {
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+    margin-top: var(--spacing-xs);
+}
+
+.project-deadline.overdue {
+    color: var(--danger-color);
+    font-weight: 600;
+}
+
+.project-deadline.due-soon {
+    color: var(--warning-color);
+    font-weight: 600;
+}
+
+.project-actions-menu {
+    position: absolute;
+    top: var(--spacing-sm);
+    right: var(--spacing-sm);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.project-card:hover .project-actions-menu {
+    opacity: 1;
+}
+
+.project-menu-btn {
+    background: rgba(255, 255, 255, 0.9);
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.project-menu-btn:hover {
+    background: white;
+    transform: scale(1.1);
+}
+
+/* Project menu actions */
+.project-menu-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.menu-action {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background: var(--background-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: right;
+    width: 100%;
+}
+
+.menu-action:hover {
+    background: var(--surface-alt);
+    border-color: var(--primary-color);
+}
+
+.menu-action-danger {
+    color: var(--danger-color);
+    border-color: var(--danger-color);
+}
+
+.menu-action-danger:hover {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: var(--danger-color);
+}
+
+.menu-icon {
+    font-size: var(--font-size-lg);
+}
+
+.project-description {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: 1.4;
+    margin: var(--spacing-sm) 0;
+}
+
+.text-danger {
+    color: var(--danger-color);
+    font-weight: 500;
+}
+
+/* Responsive project form */
+@media (max-width: 768px) {
+    .project-form .form-row {
+        flex-direction: column;
+        gap: var(--spacing-md);
+    }
+    
+    .project-form .form-row .form-group {
+        margin-bottom: var(--spacing-lg);
+    }
+    
+    .project-form input,
+    .project-form select,
+    .project-form textarea {
+        font-size: var(--font-size-lg);
+    }
 } 

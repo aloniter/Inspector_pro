@@ -137,12 +137,10 @@ function loadSavedData() {
         if (userData) {
             appState.currentUser = userData;
             appState.isAuthenticated = true;
-        }
-        
-        // Load projects
-        const projectsData = getStorageItem(STORAGE_KEYS.projects);
-        if (projectsData) {
-            appState.projects = projectsData;
+            
+            // Load user's projects from new storage system
+            const userProjects = getAllProjects();
+            appState.projects = userProjects;
         }
         
         // Load photos
@@ -463,26 +461,320 @@ function createProjectCard(project) {
     card.className = 'project-card';
     card.dataset.projectId = project.id;
     
-    const photoCount = appState.photos.filter(photo => photo.projectId === project.id).length;
+    const photoCount = project.totalPhotos || 0;
     const createdDate = new Date(project.createdAt).toLocaleDateString('he-IL');
+    const updatedDate = new Date(project.updatedAt).toLocaleDateString('he-IL');
+    
+    // Format project type
+    const typeLabels = {
+        'safety': 'בטיחות',
+        'quality': 'איכות',
+        'maintenance': 'תחזוקה',
+        'compliance': 'ציות',
+        'inspection': 'בדיקה כללית',
+        'other': 'אחר'
+    };
+    
+    const typeLabel = typeLabels[project.type] || 'בדיקה כללית';
+    
+    // Format deadline
+    let deadlineHtml = '';
+    if (project.deadline) {
+        const deadlineDate = new Date(project.deadline);
+        const today = new Date();
+        const timeDiff = deadlineDate - today;
+        const daysDiff = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+        
+        let deadlineClass = 'project-deadline';
+        if (daysDiff < 0) {
+            deadlineClass += ' overdue';
+        } else if (daysDiff <= 7) {
+            deadlineClass += ' due-soon';
+        }
+        
+        deadlineHtml = `
+            <div class="${deadlineClass}">
+                ⏰ יעד: ${deadlineDate.toLocaleDateString('he-IL')}
+            </div>
+        `;
+    }
     
     card.innerHTML = `
-        <h3>${project.name}</h3>
-        <div class="project-meta">
-            <span>נוצר: ${createdDate}</span>
+        <div class="project-actions-menu">
+            <button class="project-menu-btn" onclick="showProjectMenu(event, '${project.id}')">
+                ⋮
+            </button>
         </div>
+        
+        <div class="project-type">${typeLabel}</div>
+        
+        <h3>${project.name}</h3>
+        
+        ${project.description ? `<p class="project-description">${project.description}</p>` : ''}
+        
+        <div class="project-meta">
+            <span>📅 נוצר: ${createdDate}</span>
+            ${updatedDate !== createdDate ? `<span>📝 עודכן: ${updatedDate}</span>` : ''}
+            ${project.location ? `<span>📍 ${project.location}</span>` : ''}
+            ${project.client ? `<span>🏢 ${project.client}</span>` : ''}
+        </div>
+        
         <div class="project-stats">
             <span>📷 ${photoCount} תמונות</span>
-            <span>📝 ${project.description ? 'עם תיאור' : 'ללא תיאור'}</span>
+            <span>📊 ${project.annotatedPhotos || 0} מוכנות</span>
+            <span>🎯 ${project.completionPercentage || 0}%</span>
         </div>
+        
+        ${deadlineHtml}
     `;
     
-    card.addEventListener('click', () => {
-        appState.currentProject = project;
-        navigateToPage('project');
+    // Add click handler for the card (except for the menu button)
+    card.addEventListener('click', (e) => {
+        if (!e.target.closest('.project-actions-menu')) {
+            appState.currentProject = project;
+            navigateToPage('project');
+        }
     });
     
     return card;
+}
+
+function showProjectMenu(event, projectId) {
+    event.stopPropagation();
+    
+    const project = getProjectById(projectId);
+    if (!project) return;
+    
+    const menuContent = `
+        <div class="project-menu-actions">
+            <button class="menu-action" onclick="editProject('${projectId}')">
+                <span class="menu-icon">✏️</span>
+                ערוך פרויקט
+            </button>
+            <button class="menu-action" onclick="duplicateProject('${projectId}')">
+                <span class="menu-icon">📋</span>
+                שכפל פרויקט
+            </button>
+            <button class="menu-action" onclick="exportProject('${projectId}')">
+                <span class="menu-icon">📤</span>
+                יצוא פרויקט
+            </button>
+            <button class="menu-action menu-action-danger" onclick="confirmDeleteProject('${projectId}')">
+                <span class="menu-icon">🗑️</span>
+                מחק פרויקט
+            </button>
+        </div>
+    `;
+
+    const modal = createModal(
+        project.name,
+        menuContent,
+        [
+            {
+                text: 'סגור',
+                class: 'btn-secondary',
+                action: 'closeModal(this.closest(\'.modal-overlay\'))'
+            }
+        ]
+    );
+
+    showModal(modal);
+}
+
+function editProject(projectId) {
+    const project = getProjectById(projectId);
+    if (!project) return;
+    
+    const modalContent = `
+        <form id="editProjectForm" class="project-form">
+            <div class="form-group">
+                <label for="editProjectName">שם הפרויקט *</label>
+                <input type="text" id="editProjectName" name="projectName" required maxlength="100" 
+                       value="${project.name}" placeholder="שם הפרויקט">
+            </div>
+            
+            <div class="form-group">
+                <label for="editProjectDescription">תיאור הפרויקט</label>
+                <textarea id="editProjectDescription" name="projectDescription" rows="4" maxlength="500"
+                          placeholder="תיאור קצר של הפרויקט...">${project.description || ''}</textarea>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="editProjectLocation">מיקום</label>
+                    <input type="text" id="editProjectLocation" name="projectLocation" maxlength="200"
+                           value="${project.location || ''}" placeholder="כתובת או מיקום">
+                </div>
+                
+                <div class="form-group">
+                    <label for="editProjectType">סוג בדיקה</label>
+                    <select id="editProjectType" name="projectType">
+                        <option value="">בחר סוג בדיקה</option>
+                        <option value="safety" ${project.type === 'safety' ? 'selected' : ''}>בדיקת בטיחות</option>
+                        <option value="quality" ${project.type === 'quality' ? 'selected' : ''}>בדיקת איכות</option>
+                        <option value="maintenance" ${project.type === 'maintenance' ? 'selected' : ''}>בדיקת תחזוקה</option>
+                        <option value="compliance" ${project.type === 'compliance' ? 'selected' : ''}>בדיקת ציות</option>
+                        <option value="inspection" ${project.type === 'inspection' ? 'selected' : ''}>בדיקה כללית</option>
+                        <option value="other" ${project.type === 'other' ? 'selected' : ''}>אחר</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="editProjectClient">לקוח</label>
+                    <input type="text" id="editProjectClient" name="projectClient" maxlength="100"
+                           value="${project.client || ''}" placeholder="שם הלקוח">
+                </div>
+                
+                <div class="form-group">
+                    <label for="editProjectDeadline">תאריך יעד</label>
+                    <input type="date" id="editProjectDeadline" name="projectDeadline"
+                           value="${project.deadline || ''}">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="editProjectNotes">הערות נוספות</label>
+                <textarea id="editProjectNotes" name="projectNotes" rows="3" maxlength="300"
+                          placeholder="הערות נוספות...">${project.notes || ''}</textarea>
+            </div>
+        </form>
+    `;
+
+    const modal = createModal(
+        'ערוך פרויקט',
+        modalContent,
+        [
+            {
+                text: 'ביטול',
+                class: 'btn-secondary',
+                action: 'closeModal(this.closest(\'.modal-overlay\'))'
+            },
+            {
+                text: 'שמור שינויים',
+                class: 'btn-primary',
+                action: `handleEditProject('${projectId}')`
+            }
+        ]
+    );
+
+    showModal(modal);
+}
+
+function handleEditProject(projectId) {
+    const form = document.getElementById('editProjectForm');
+    const formData = new FormData(form);
+    
+    const projectName = formData.get('projectName').trim();
+    if (!projectName) {
+        showNotification('שם הפרויקט הוא שדה חובה', 'error');
+        return;
+    }
+    
+    const updates = {
+        name: projectName,
+        description: formData.get('projectDescription').trim(),
+        location: formData.get('projectLocation').trim(),
+        type: formData.get('projectType'),
+        client: formData.get('projectClient').trim(),
+        deadline: formData.get('projectDeadline'),
+        notes: formData.get('projectNotes').trim()
+    };
+    
+    const updatedProject = updateProject(projectId, updates);
+    
+    if (updatedProject) {
+        closeModal(document.querySelector('.modal-overlay'));
+        showNotification('הפרויקט עודכן בהצלחה!', 'success');
+        renderProjects();
+    }
+}
+
+function duplicateProject(projectId) {
+    const project = getProjectById(projectId);
+    if (!project) return;
+    
+    const duplicatedProject = {
+        name: project.name + ' (עותק)',
+        description: project.description,
+        location: project.location,
+        type: project.type,
+        client: project.client,
+        deadline: project.deadline,
+        notes: project.notes
+    };
+    
+    const newProject = createProject(duplicatedProject);
+    
+    if (newProject) {
+        closeModal(document.querySelector('.modal-overlay'));
+        showNotification('הפרויקט שוכפל בהצלחה!', 'success');
+        renderProjects();
+    }
+}
+
+function exportProject(projectId) {
+    const project = getProjectById(projectId);
+    if (!project) return;
+    
+    try {
+        const projectData = {
+            project: project,
+            photos: project.photos || [],
+            exportDate: new Date().toISOString()
+        };
+        
+        const dataStr = JSON.stringify(projectData, null, 2);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(dataBlob);
+        link.download = `${project.name}-${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        
+        closeModal(document.querySelector('.modal-overlay'));
+        showNotification('הפרויקט יוצא בהצלחה', 'success');
+    } catch (error) {
+        console.error('Export error:', error);
+        showNotification('שגיאה ביצוא הפרויקט', 'error');
+    }
+}
+
+function confirmDeleteProject(projectId) {
+    const project = getProjectById(projectId);
+    if (!project) return;
+    
+    const modal = createModal(
+        'מחק פרויקט',
+        `<p>האם אתה בטוח שברצונך למחוק את הפרויקט "<strong>${project.name}</strong>"?</p>
+         <p class="text-danger">פעולה זו לא ניתנת לביטול!</p>`,
+        [
+            {
+                text: 'ביטול',
+                class: 'btn-secondary',
+                action: 'closeModal(this.closest(\'.modal-overlay\'))'
+            },
+            {
+                text: 'מחק',
+                class: 'btn-danger',
+                action: `handleDeleteProject('${projectId}')`
+            }
+        ]
+    );
+
+    showModal(modal);
+}
+
+function handleDeleteProject(projectId) {
+    const success = deleteProject(projectId);
+    
+    if (success) {
+        closeModal(document.querySelector('.modal-overlay'));
+        showNotification('הפרויקט נמחק בהצלחה', 'success');
+        renderProjects();
+        updateUserStats();
+    }
 }
 
 /**
@@ -954,8 +1246,267 @@ function initializeResponsive() {
 }
 
 function showCreateProjectModal() {
-    // TODO: Implement create project modal
-    console.log('Create project modal');
+    const modalContent = `
+        <form id="createProjectForm" class="project-form">
+            <div class="form-group">
+                <label for="projectName">שם הפרויקט *</label>
+                <input type="text" id="projectName" name="projectName" required maxlength="100" 
+                       placeholder="לדוגמה: בדיקת בטיחות בניין מספר 5">
+            </div>
+            
+            <div class="form-group">
+                <label for="projectDescription">תיאור הפרויקט</label>
+                <textarea id="projectDescription" name="projectDescription" rows="4" maxlength="500"
+                          placeholder="תיאור קצר של הפרויקט ומטרתו..."></textarea>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="projectLocation">מיקום</label>
+                    <input type="text" id="projectLocation" name="projectLocation" maxlength="200"
+                           placeholder="כתובת או מיקום הבדיקה">
+                </div>
+                
+                <div class="form-group">
+                    <label for="projectType">סוג בדיקה</label>
+                    <select id="projectType" name="projectType">
+                        <option value="">בחר סוג בדיקה</option>
+                        <option value="safety">בדיקת בטיחות</option>
+                        <option value="quality">בדיקת איכות</option>
+                        <option value="maintenance">בדיקת תחזוקה</option>
+                        <option value="compliance">בדיקת ציות</option>
+                        <option value="inspection">בדיקה כללית</option>
+                        <option value="other">אחר</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="projectClient">לקוח</label>
+                    <input type="text" id="projectClient" name="projectClient" maxlength="100"
+                           placeholder="שם הלקוח או הארגון">
+                </div>
+                
+                <div class="form-group">
+                    <label for="projectDeadline">תאריך יעד</label>
+                    <input type="date" id="projectDeadline" name="projectDeadline">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="projectNotes">הערות נוספות</label>
+                <textarea id="projectNotes" name="projectNotes" rows="3" maxlength="300"
+                          placeholder="הערות, דרישות מיוחדות או מידע נוסף..."></textarea>
+            </div>
+        </form>
+    `;
+
+    const modal = createModal(
+        'צור פרויקט חדש',
+        modalContent,
+        [
+            {
+                text: 'ביטול',
+                class: 'btn-secondary',
+                action: 'closeModal(this.closest(\'.modal-overlay\'))'
+            },
+            {
+                text: 'צור פרויקט',
+                class: 'btn-primary',
+                action: 'handleCreateProject()'
+            }
+        ]
+    );
+
+    showModal(modal);
+    
+    // Focus on project name field
+    setTimeout(() => {
+        const nameField = document.getElementById('projectName');
+        if (nameField) nameField.focus();
+    }, 100);
+}
+
+// Handle project creation from modal
+function handleCreateProject() {
+    const form = document.getElementById('createProjectForm');
+    const formData = new FormData(form);
+    
+    // Validate required fields
+    const projectName = formData.get('projectName').trim();
+    if (!projectName) {
+        showNotification('שם הפרויקט הוא שדה חובה', 'error');
+        return;
+    }
+    
+    // Create project object
+    const projectData = {
+        name: projectName,
+        description: formData.get('projectDescription').trim(),
+        location: formData.get('projectLocation').trim(),
+        type: formData.get('projectType'),
+        client: formData.get('projectClient').trim(),
+        deadline: formData.get('projectDeadline'),
+        notes: formData.get('projectNotes').trim()
+    };
+    
+    // Create the project
+    const newProject = createProject(projectData);
+    
+    if (newProject) {
+        // Close modal and refresh dashboard
+        closeModal(document.querySelector('.modal-overlay'));
+        showNotification('הפרויקט נוצר בהצלחה!', 'success');
+        renderProjects();
+        
+        // Update statistics
+        updateUserStats();
+    }
+}
+
+function createProject(projectData) {
+    try {
+        const currentUser = getCurrentUser();
+        if (!currentUser) {
+            throw new Error('משתמש לא מחובר');
+        }
+
+        const projectId = generateId();
+        const now = new Date().toISOString();
+        
+        const project = {
+            id: projectId,
+            name: projectData.name,
+            description: projectData.description || '',
+            location: projectData.location || '',
+            type: projectData.type || 'inspection',
+            client: projectData.client || '',
+            deadline: projectData.deadline || null,
+            notes: projectData.notes || '',
+            createdAt: now,
+            updatedAt: now,
+            createdBy: currentUser.id,
+            status: 'active',
+            photos: [],
+            totalPhotos: 0,
+            annotatedPhotos: 0,
+            completionPercentage: 0
+        };
+
+        // Save project to storage
+        const projects = getAllProjects();
+        projects.push(project);
+        localStorage.setItem('inspectort_projects', JSON.stringify(projects));
+
+        // Update app state
+        appState.projects.push(project);
+
+        return project;
+    } catch (error) {
+        console.error('Error creating project:', error);
+        showNotification('שגיאה ביצירת הפרויקט: ' + error.message, 'error');
+        return null;
+    }
+}
+
+function getAllProjects() {
+    try {
+        const projects = JSON.parse(localStorage.getItem('inspectort_projects') || '[]');
+        const currentUser = getCurrentUser();
+        
+        if (!currentUser) {
+            return [];
+        }
+        
+        // Filter projects by current user
+        return projects.filter(project => project.createdBy === currentUser.id);
+    } catch (error) {
+        console.error('Error getting projects:', error);
+        return [];
+    }
+}
+
+function getProjectById(projectId) {
+    const projects = getAllProjects();
+    return projects.find(project => project.id === projectId);
+}
+
+function updateProject(projectId, updates) {
+    try {
+        const allProjects = JSON.parse(localStorage.getItem('inspectort_projects') || '[]');
+        const projectIndex = allProjects.findIndex(p => p.id === projectId);
+        
+        if (projectIndex === -1) {
+            throw new Error('פרויקט לא נמצא');
+        }
+
+        // Update project data
+        allProjects[projectIndex] = {
+            ...allProjects[projectIndex],
+            ...updates,
+            updatedAt: new Date().toISOString()
+        };
+
+        localStorage.setItem('inspectort_projects', JSON.stringify(allProjects));
+        
+        // Update app state
+        const appProjectIndex = appState.projects.findIndex(p => p.id === projectId);
+        if (appProjectIndex !== -1) {
+            appState.projects[appProjectIndex] = allProjects[projectIndex];
+        }
+
+        return allProjects[projectIndex];
+    } catch (error) {
+        console.error('Error updating project:', error);
+        showNotification('שגיאה בעדכון הפרויקט: ' + error.message, 'error');
+        return null;
+    }
+}
+
+function deleteProject(projectId) {
+    try {
+        const allProjects = JSON.parse(localStorage.getItem('inspectort_projects') || '[]');
+        const filteredProjects = allProjects.filter(p => p.id !== projectId);
+        
+        localStorage.setItem('inspectort_projects', JSON.stringify(filteredProjects));
+        
+        // Update app state
+        appState.projects = appState.projects.filter(p => p.id !== projectId);
+        
+        return true;
+    } catch (error) {
+        console.error('Error deleting project:', error);
+        showNotification('שגיאה במחיקת הפרויקט: ' + error.message, 'error');
+        return false;
+    }
+}
+
+function getCurrentUser() {
+    return appState.currentUser;
+}
+
+function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+function renderProjects() {
+    const projects = getAllProjects();
+    appState.projects = projects;
+    
+    if (appState.currentPage === 'dashboard') {
+        updateDashboardContent();
+    }
+}
+
+function updateUserStats() {
+    const totalProjects = appState.projects.length;
+    const totalPhotos = appState.projects.reduce((sum, p) => sum + p.totalPhotos, 0);
+    
+    // Update dashboard stats if visible
+    if (appState.currentPage === 'dashboard') {
+        updateDashboardContent();
+    }
 }
 
 function showUserMenu() {
