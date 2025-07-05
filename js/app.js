@@ -2927,7 +2927,7 @@ async function exportToWordRTF() {
 
 async function createWordContentSimple(photos, config) {
     const content = [];
-    const { Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, WidthType, ImageRun } = window.docx;
+    const { Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, WidthType, ImageRun, PageBreak } = window.docx;
     
     try {
         // Title page
@@ -2958,145 +2958,51 @@ async function createWordContentSimple(photos, config) {
             })
         );
 
-        // Process each photo with better error handling
-        for (let i = 0; i < photos.length; i++) {
-            const photo = photos[i];
-            console.log(`Processing photo ${i + 1}/${photos.length}:`, photo.name || 'unnamed');
+        // Process photos in pairs (2 photos per page)
+        for (let i = 0; i < photos.length; i += 2) {
+            const photo1 = photos[i];
+            const photo2 = photos[i + 1]; // May be undefined for odd number of photos
             
+            console.log(`Processing photo pair ${Math.floor(i/2) + 1}: photos ${i + 1}${photo2 ? ` and ${i + 2}` : ''}`);
+            
+            // Create table rows for this page
+            const tableRows = [];
+            
+            // Process first photo
             try {
-                // Try to create image data
-                let imageBuffer = null;
-                try {
-                    let imageData;
-                    if (config.includeAnnotations && photo.annotations && photo.annotations.length > 0) {
-                        imageData = await renderPhotoWithAnnotations(photo, config.imageQuality);
-                    } else {
-                        imageData = photo.url;
-                    }
-                    
-                    // Convert base64 to buffer
-                    const base64Data = imageData.split(',')[1];
-                    imageBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-                } catch (imageError) {
-                    console.error('Error processing image:', imageError);
-                    imageBuffer = null;
-                }
-                
-                // Create table row content
-                const leftCellContent = [];
-                if (imageBuffer) {
-                    leftCellContent.push(
-                        new Paragraph({
-                            children: [
-                                new ImageRun({
-                                    data: imageBuffer,
-                                    transformation: {
-                                        width: 300,
-                                        height: 225,
-                                    },
-                                }),
-                            ],
-                            alignment: AlignmentType.CENTER,
-                        })
-                    );
-                } else {
-                    leftCellContent.push(
-                        new Paragraph({
-                            children: [
-                                new TextRun({
-                                    text: 'שגיאה בטעינת תמונה',
-                                    color: 'FF0000',
-                                }),
-                            ],
-                            alignment: AlignmentType.CENTER,
-                        })
-                    );
-                }
-                
-                const rightCellContent = [
-                    new Paragraph({
-                        children: [
-                            new TextRun({
-                                text: `${i + 1}. ${photo.name || 'ללא שם'}`,
-                                bold: true,
-                                size: 24,
-                            }),
-                        ],
-                        spacing: { after: 200 },
-                    }),
-                    new Paragraph({
-                        children: [
-                            new TextRun({
-                                text: photo.description || 'ללא תיאור',
-                                size: 22,
-                            }),
-                        ],
-                        spacing: { after: 200 },
-                    }),
-                    new Paragraph({
-                        children: [
-                            new TextRun({
-                                text: `תאריך: ${new Date(photo.createdAt).toLocaleDateString('he-IL')}`,
-                                size: 18,
-                                color: '666666',
-                            }),
-                        ],
-                    }),
-                ];
-                
-                // Create table for photo layout
-                const photoTable = new Table({
-                    width: {
-                        size: 100,
-                        type: WidthType.PERCENTAGE,
-                    },
-                    rows: [
-                        new TableRow({
-                            children: [
-                                new TableCell({
-                                    children: leftCellContent,
-                                    width: {
-                                        size: 50,
-                                        type: WidthType.PERCENTAGE,
-                                    },
-                                }),
-                                new TableCell({
-                                    children: rightCellContent,
-                                    width: {
-                                        size: 50,
-                                        type: WidthType.PERCENTAGE,
-                                    },
-                                }),
-                            ],
-                        }),
-                    ],
-                });
-                
-                content.push(photoTable);
-                
-                // Add spacing between photos
-                content.push(
-                    new Paragraph({
-                        children: [new TextRun({ text: '' })],
-                        spacing: { after: 400 },
-                    })
-                );
-                
-            } catch (photoError) {
-                console.error(`Error processing photo ${i + 1}:`, photoError);
-                // Add error placeholder
-                content.push(
-                    new Paragraph({
-                        children: [
-                            new TextRun({
-                                text: `${i + 1}. שגיאה בעיבוד תמונה: ${photo.name || 'ללא שם'}`,
-                                color: 'FF0000',
-                            }),
-                        ],
-                        spacing: { after: 400 },
-                    })
-                );
+                const photo1Row = await createPhotoRow(photo1, i + 1, config);
+                tableRows.push(photo1Row);
+            } catch (error) {
+                console.error(`Error processing photo ${i + 1}:`, error);
+                tableRows.push(createErrorRow(i + 1, photo1?.name || 'ללא שם'));
             }
+            
+            // Process second photo if exists
+            if (photo2) {
+                try {
+                    const photo2Row = await createPhotoRow(photo2, i + 2, config);
+                    tableRows.push(photo2Row);
+                } catch (error) {
+                    console.error(`Error processing photo ${i + 2}:`, error);
+                    tableRows.push(createErrorRow(i + 2, photo2?.name || 'ללא שם'));
+                }
+            }
+            
+            // Create table for this page with 2 photos
+            const pageTable = new Table({
+                width: {
+                    size: 100,
+                    type: WidthType.PERCENTAGE,
+                },
+                rows: tableRows,
+            });
+            
+            content.push(pageTable);
+            
+                         // Add page break after each pair (except the last one)
+             if (i + 2 < photos.length) {
+                 content.push(new PageBreak());
+             }
         }
         
     } catch (contentError) {
@@ -3117,6 +3023,141 @@ async function createWordContentSimple(photos, config) {
     return content;
 }
 
+// Helper function to create a photo row with improved layout
+async function createPhotoRow(photo, photoNumber, config) {
+    const { Paragraph, TextRun, TableRow, TableCell, AlignmentType, WidthType, ImageRun } = window.docx;
+    
+    // Try to create image data with higher quality
+    let imageBuffer = null;
+    try {
+        let imageData;
+        if (config.includeAnnotations && photo.annotations && photo.annotations.length > 0) {
+            imageData = await renderPhotoWithAnnotations(photo, config.imageQuality);
+        } else {
+            imageData = photo.url;
+        }
+        
+        // Convert base64 to buffer
+        const base64Data = imageData.split(',')[1];
+        imageBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+    } catch (imageError) {
+        console.error('Error processing image:', imageError);
+        imageBuffer = null;
+    }
+    
+    // Create image content with higher resolution
+    const leftCellContent = [];
+    if (imageBuffer) {
+        leftCellContent.push(
+            new Paragraph({
+                children: [
+                    new ImageRun({
+                        data: imageBuffer,
+                        transformation: {
+                            width: 380,  // Increased from 300
+                            height: 285, // Increased from 225
+                        },
+                    }),
+                ],
+                alignment: AlignmentType.CENTER,
+            })
+        );
+    } else {
+        leftCellContent.push(
+            new Paragraph({
+                children: [
+                    new TextRun({
+                        text: 'שגיאה בטעינת תמונה',
+                        color: 'FF0000',
+                        size: 20,
+                    }),
+                ],
+                alignment: AlignmentType.CENTER,
+            })
+        );
+    }
+    
+    // Create more compact text content
+    const rightCellContent = [
+        new Paragraph({
+            children: [
+                new TextRun({
+                    text: `${photoNumber}. ${photo.name || 'ללא שם'}`,
+                    bold: true,
+                    size: 20, // Reduced from 24
+                }),
+            ],
+            spacing: { after: 100 }, // Reduced from 200
+        }),
+        new Paragraph({
+            children: [
+                new TextRun({
+                    text: photo.description || 'ללא תיאור',
+                    size: 18, // Reduced from 22
+                }),
+            ],
+            spacing: { after: 100 }, // Reduced from 200
+        }),
+        new Paragraph({
+            children: [
+                new TextRun({
+                    text: `תאריך: ${new Date(photo.createdAt).toLocaleDateString('he-IL')}`,
+                    size: 16, // Reduced from 18
+                    color: '666666',
+                }),
+            ],
+        }),
+    ];
+    
+    // Create table row with 70% image, 30% text layout
+    return new TableRow({
+        children: [
+            new TableCell({
+                children: leftCellContent,
+                width: {
+                    size: 70, // Increased from 50% to give more space to image
+                    type: WidthType.PERCENTAGE,
+                },
+            }),
+            new TableCell({
+                children: rightCellContent,
+                width: {
+                    size: 30, // Reduced from 50% to make text more compact
+                    type: WidthType.PERCENTAGE,
+                },
+            }),
+        ],
+    });
+}
+
+// Helper function to create error row
+function createErrorRow(photoNumber, photoName) {
+    const { Paragraph, TextRun, TableRow, TableCell, AlignmentType, WidthType } = window.docx;
+    
+    return new TableRow({
+        children: [
+            new TableCell({
+                children: [
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: `${photoNumber}. שגיאה בעיבוד תמונה: ${photoName}`,
+                                color: 'FF0000',
+                                size: 18,
+                            }),
+                        ],
+                        alignment: AlignmentType.CENTER,
+                    })
+                ],
+                width: {
+                    size: 100,
+                    type: WidthType.PERCENTAGE,
+                },
+            }),
+        ],
+    });
+}
+
 async function renderPhotoWithAnnotations(photo, quality) {
     return new Promise((resolve, reject) => {
         try {
@@ -3125,8 +3166,8 @@ async function renderPhotoWithAnnotations(photo, quality) {
             const img = new Image();
             
             img.onload = function() {
-                // Set canvas size based on quality
-                const qualityScale = quality === 'high' ? 1 : quality === 'medium' ? 0.8 : 0.6;
+                // Set canvas size based on quality with higher resolution for Word export
+                const qualityScale = quality === 'high' ? 1.2 : quality === 'medium' ? 1.0 : 0.8;
                 canvas.width = img.width * qualityScale;
                 canvas.height = img.height * qualityScale;
                 
@@ -3158,8 +3199,8 @@ async function renderPhotoWithAnnotations(photo, quality) {
                     });
                 }
                 
-                // Convert to data URL
-                const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+                // Convert to data URL with higher quality
+                const dataURL = canvas.toDataURL('image/jpeg', 0.92);
                 resolve(dataURL);
             };
             
