@@ -850,8 +850,7 @@ function createPhotoCard(photo) {
         </div>
         
         <div class="photo-info">
-            <h4>${photo.name}</h4>
-            <p class="photo-description">${photo.description || 'ללא תיאור'}</p>
+            <h4>${photo.name || 'ללא שם'}</h4>
             <div class="photo-meta">
                 <span class="photo-date">📅 ${createdDate}</span>
                 <span class="photo-size">📏 ${fileSize}</span>
@@ -1837,7 +1836,7 @@ function takePicture(video) {
                 
                 // Create file object with iOS compatibility
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                const fileName = `photo-${timestamp}.jpg`;
+                const fileName = `photo-${timestamp}.jpg`; // Keep for technical purposes
                 
                 let file;
                 try {
@@ -2019,8 +2018,8 @@ function processCompressedPhoto(file) {
             try {
                 const photoData = {
                     id: generateId(),
-                    name: file.name,
-                    originalName: file.name,
+                    name: '', // Default to blank name
+                    originalName: file.name, // Keep technical name for reference
                     url: e.target.result,
                     type: file.type,
                     size: file.size,
@@ -2512,76 +2511,93 @@ function exportReport() {
 }
 
 function openPhotoAnnotation(photo) {
+    const displayName = photo.name || 'ללא שם';
+    
     const modalContent = `
         <div class="photo-annotation-container">
-            <div class="annotation-toolbar">
-                <div class="tool-group">
-                    <button class="tool-btn active" data-tool="view" title="צפייה">
-                        <span class="tool-icon">👁️</span>
-                    </button>
-                    <button class="tool-btn" data-tool="pen" title="עט">
-                        <span class="tool-icon">✏️</span>
-                    </button>
-                    <button class="tool-btn" data-tool="arrow" title="חץ">
-                        <span class="tool-icon">↗️</span>
-                    </button>
-                    <button class="tool-btn" data-tool="rectangle" title="מלבן">
-                        <span class="tool-icon">▭</span>
-                    </button>
-                    <button class="tool-btn" data-tool="circle" title="עיגול">
-                        <span class="tool-icon">⭕</span>
-                    </button>
-                    <button class="tool-btn" data-tool="text" title="טקסט">
-                        <span class="tool-icon">📝</span>
-                    </button>
-                </div>
-                
-                <div class="tool-group">
-                    <div class="color-picker-container">
-                        <input type="color" id="annotationColor" class="color-picker" value="#FF0000" title="צבע">
-                        <div class="color-presets">
-                            <button class="color-preset" data-color="#FF0000" style="background: #FF0000" title="אדום"></button>
-                            <button class="color-preset" data-color="#00FF00" style="background: #00FF00" title="ירוק"></button>
-                            <button class="color-preset" data-color="#0000FF" style="background: #0000FF" title="כחול"></button>
-                            <button class="color-preset" data-color="#FFFF00" style="background: #FFFF00" title="צהוב"></button>
-                            <button class="color-preset" data-color="#FF8000" style="background: #FF8000" title="כתום"></button>
-                        </div>
-                    </div>
-                    
-                    <div class="stroke-width-container">
-                        <label for="strokeWidth">עובי:</label>
-                        <input type="range" id="strokeWidth" min="1" max="10" value="3" class="stroke-slider">
-                        <span id="strokeWidthValue">3</span>
-                    </div>
-                </div>
-                
-                <div class="tool-group">
-                    <button class="tool-btn" id="undoBtn" title="בטל">
-                        <span class="tool-icon">↶</span>
-                    </button>
-                    <button class="tool-btn" id="redoBtn" title="חזור">
-                        <span class="tool-icon">↷</span>
-                    </button>
-                    <button class="tool-btn" id="clearBtn" title="נקה הכל">
-                        <span class="tool-icon">🗑️</span>
-                    </button>
-                </div>
-            </div>
-            
+            <!-- Photo First - Main Focus -->
             <div class="annotation-image-container">
-                <img src="${photo.url}" alt="${photo.name}" class="annotation-image" id="annotationImage">
+                <img src="${photo.url}" alt="${displayName}" class="annotation-image" id="annotationImage">
                 <canvas id="annotationCanvas" class="annotation-canvas"></canvas>
             </div>
             
+            <!-- Photo Info -->
             <div class="annotation-info">
-                <h4>${photo.name}</h4>
-                <p class="photo-description">${photo.description || 'ללא תיאור'}</p>
+                <h4>${displayName}</h4>
                 <div class="photo-meta">
                     <span>📅 ${new Date(photo.createdAt).toLocaleDateString('he-IL')}</span>
                     <span>📏 ${formatFileSize(photo.size)}</span>
                 </div>
             </div>
             
+            <!-- Annotation Tools Below - Organized and Clean -->
+            <div class="annotation-toolbar">
+                <div class="tool-section">
+                    <div class="tool-group">
+                        <label class="tool-label">כלי ציור:</label>
+                        <div class="tools-row">
+                            <button class="tool-btn active" data-tool="pen" title="עט">
+                                <span class="tool-icon">✏️</span>
+                            </button>
+                            <button class="tool-btn" data-tool="arrow" title="חץ">
+                                <span class="tool-icon">↗️</span>
+                            </button>
+                            <button class="tool-btn" data-tool="rectangle" title="מלבן">
+                                <span class="tool-icon">▭</span>
+                            </button>
+                            <button class="tool-btn" data-tool="circle" title="עיגול">
+                                <span class="tool-icon">⭕</span>
+                            </button>
+                            <button class="tool-btn" data-tool="text" title="טקסט">
+                                <span class="tool-icon">📝</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tool-section">
+                    <div class="tool-group">
+                        <label class="tool-label">צבע:</label>
+                        <div class="color-picker-container">
+                            <input type="color" id="annotationColor" class="color-picker" value="#FF0000" title="בחר צבע">
+                            <div class="color-presets">
+                                <button class="color-preset" data-color="#FF0000" style="background: #FF0000" title="אדום"></button>
+                                <button class="color-preset" data-color="#00FF00" style="background: #00FF00" title="ירוק"></button>
+                                <button class="color-preset" data-color="#0000FF" style="background: #0000FF" title="כחול"></button>
+                                <button class="color-preset" data-color="#FFFF00" style="background: #FFFF00" title="צהוב"></button>
+                                <button class="color-preset" data-color="#FF8000" style="background: #FF8000" title="כתום"></button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="tool-group">
+                        <label class="tool-label">עובי:</label>
+                        <div class="stroke-width-container">
+                            <input type="range" id="strokeWidth" min="1" max="10" value="3" class="stroke-slider">
+                            <span id="strokeWidthValue">3</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tool-section">
+                    <div class="tool-group">
+                        <label class="tool-label">פעולות:</label>
+                        <div class="tools-row">
+                            <button class="tool-btn" id="undoBtn" title="בטל">
+                                <span class="tool-icon">↶</span>
+                            </button>
+                            <button class="tool-btn" id="redoBtn" title="חזור">
+                                <span class="tool-icon">↷</span>
+                            </button>
+                            <button class="tool-btn" id="clearBtn" title="נקה הכל">
+                                <span class="tool-icon">🗑️</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Description at Bottom -->
             <div class="annotation-description">
                 <label for="annotationText">הוסף תיאור או הערה:</label>
                 <textarea id="annotationText" rows="3" maxlength="300" 
@@ -2627,7 +2643,7 @@ function initializeAnnotationSystem(photo) {
         
         // Initialize annotation state
         window.annotationState = {
-            currentTool: 'view',
+            currentTool: 'pen', // Start with pen tool instead of view
             currentColor: '#FF0000',
             currentStrokeWidth: 3,
             isDrawing: false,
@@ -2772,11 +2788,14 @@ function selectTool(toolName) {
         btn.classList.remove('active');
     });
     
-    document.querySelector(`[data-tool="${toolName}"]`).classList.add('active');
+    const toolButton = document.querySelector(`[data-tool="${toolName}"]`);
+    if (toolButton) {
+        toolButton.classList.add('active');
+    }
     
-    // Update cursor
+    // Update cursor - all tools are interactive now
     const canvas = window.annotationState.canvas;
-    canvas.style.cursor = toolName === 'view' ? 'default' : 'crosshair';
+    canvas.style.cursor = 'crosshair';
 }
 
 function getCanvasCoordinates(event) {
