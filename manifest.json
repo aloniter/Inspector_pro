@@ -2,68 +2,68 @@
   "name": "Inspectort Pro - אפליקציית בדיקות מקצועית",
   "short_name": "Inspectort Pro",
   "description": "אפליקציית בדיקות מקצועית לניהול פרויקטים, צילום תמונות, הוספת הערות ויצוא דוחות",
-  "start_url": "/",
+  "start_url": "/Inspector_pro/",
   "display": "standalone",
   "orientation": "portrait",
   "theme_color": "#2563eb",
   "background_color": "#f8fafc",
   "lang": "he",
   "dir": "rtl",
-  "scope": "/",
+  "scope": "/Inspector_pro/",
   "categories": ["productivity", "business", "utilities"],
   "icons": [
     {
-      "src": "assets/icons/favicon.svg",
+      "src": "assets/icons/inspector_icon.png",
       "sizes": "72x72",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icons/favicon.svg",
+      "src": "assets/icons/inspector_icon.png",
       "sizes": "96x96",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icons/favicon.svg",
+      "src": "assets/icons/inspector_icon.png",
       "sizes": "128x128",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icons/icon-144x144.svg",
+      "src": "assets/icons/inspector_icon.png",
       "sizes": "144x144",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icons/favicon.svg",
+      "src": "assets/icons/inspector_icon.png",
       "sizes": "152x152",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icons/icon-192x192.svg",
+      "src": "assets/icons/inspector_icon.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icons/favicon.svg",
+      "src": "assets/icons/inspector_icon.png",
       "sizes": "384x384",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icons/icon-512x512.svg",
+      "src": "assets/icons/inspector_icon.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icons/apple-touch-icon.svg",
+      "src": "assets/icons/inspector_icon.png",
       "sizes": "180x180",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
     }
   ],
@@ -95,10 +95,10 @@
       "name": "פרויקט חדש",
       "short_name": "פרויקט חדש",
       "description": "יצירת פרויקט בדיקה חדש",
-      "url": "/?action=new-project",
+      "url": "/Inspector_pro/?action=new-project",
       "icons": [
         {
-          "src": "assets/icons/shortcut-new-project.png",
+          "src": "assets/icons/inspector_icon.png",
           "sizes": "192x192",
           "type": "image/png"
         }
@@ -108,10 +108,10 @@
       "name": "צילום מהיר",
       "short_name": "צילום",
       "description": "צילום תמונה מהיר",
-      "url": "/?action=quick-capture",
+      "url": "/Inspector_pro/?action=quick-capture",
       "icons": [
         {
-          "src": "assets/icons/shortcut-camera.png",
+          "src": "assets/icons/inspector_icon.png",
           "sizes": "192x192",
           "type": "image/png"
         }
@@ -128,7 +128,7 @@
   },
   "file_handlers": [
     {
-      "action": "/?action=open-file",
+      "action": "/Inspector_pro/?action=open-file",
       "accept": {
         "image/*": [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"],
         "application/pdf": [".pdf"]
@@ -138,7 +138,7 @@
   "protocol_handlers": [
     {
       "protocol": "web+inspectort",
-      "url": "/?protocol=%s"
+      "url": "/Inspector_pro/?protocol=%s"
     }
   ]
 } 

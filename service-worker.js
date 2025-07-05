@@ -4,15 +4,16 @@
  */
 
 const CACHE_NAME = 'inspectort-pro-v1.0.0';
-const OFFLINE_PAGE = '/offline.html';
+const OFFLINE_PAGE = '/Inspector_pro/offline.html';
 
 // Files to cache for offline functionality
 const CACHE_URLS = [
-    '/',
-    '/index.html',
-    '/css/styles.css',
-    '/js/app.js',
-    '/manifest.json',
+    '/Inspector_pro/',
+    '/Inspector_pro/index.html',
+    '/Inspector_pro/css/styles.css',
+    '/Inspector_pro/js/app.js',
+    '/Inspector_pro/manifest.json',
+    '/Inspector_pro/assets/icons/inspector_icon.png',
     // Add more static assets as needed
 ];
 
@@ -133,20 +134,20 @@ self.addEventListener('push', event => {
     
     const options = {
         body: event.data ? event.data.text() : 'התקבלה הודעה חדשה',
-        icon: '/assets/icons/icon-192x192.png',
-        badge: '/assets/icons/icon-72x72.png',
+        icon: '/Inspector_pro/assets/icons/inspector_icon.png',
+        badge: '/Inspector_pro/assets/icons/inspector_icon.png',
         tag: 'inspectort-notification',
         requireInteraction: true,
         actions: [
             {
                 action: 'open',
                 title: 'פתח אפליקציה',
-                icon: '/assets/icons/action-open.png'
+                icon: '/Inspector_pro/assets/icons/inspector_icon.png'
             },
             {
                 action: 'close',
                 title: 'סגור',
-                icon: '/assets/icons/action-close.png'
+                icon: '/Inspector_pro/assets/icons/inspector_icon.png'
             }
         ]
     };
@@ -164,7 +165,7 @@ self.addEventListener('notificationclick', event => {
     
     if (event.action === 'open') {
         event.waitUntil(
-            clients.openWindow('/')
+            clients.openWindow('/Inspector_pro/')
         );
     }
 });
