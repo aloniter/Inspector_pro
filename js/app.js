@@ -850,7 +850,8 @@ function createPhotoCard(photo) {
         </div>
         
         <div class="photo-info">
-            <h4>${photo.name || 'ללא שם'}</h4>
+            ${photo.name ? `<h4>${photo.name}</h4>` : ''}
+            ${photo.description ? `<p class="photo-description">${photo.description}</p>` : ''}
             <div class="photo-meta">
                 <span class="photo-date">📅 ${createdDate}</span>
                 <span class="photo-size">📏 ${fileSize}</span>
@@ -2511,23 +2512,12 @@ function exportReport() {
 }
 
 function openPhotoAnnotation(photo) {
-    const displayName = photo.name || 'ללא שם';
-    
     const modalContent = `
         <div class="photo-annotation-container">
             <!-- Photo First - Main Focus -->
             <div class="annotation-image-container">
-                <img src="${photo.url}" alt="${displayName}" class="annotation-image" id="annotationImage">
+                <img src="${photo.url}" alt="${photo.name || 'תמונה'}" class="annotation-image" id="annotationImage">
                 <canvas id="annotationCanvas" class="annotation-canvas"></canvas>
-            </div>
-            
-            <!-- Photo Info -->
-            <div class="annotation-info">
-                <h4>${displayName}</h4>
-                <div class="photo-meta">
-                    <span>📅 ${new Date(photo.createdAt).toLocaleDateString('he-IL')}</span>
-                    <span>📏 ${formatFileSize(photo.size)}</span>
-                </div>
             </div>
             
             <!-- Annotation Tools Below - Organized and Clean -->
@@ -2597,11 +2587,28 @@ function openPhotoAnnotation(photo) {
                 </div>
             </div>
             
-            <!-- Description at Bottom -->
-            <div class="annotation-description">
-                <label for="annotationText">הוסף תיאור או הערה:</label>
-                <textarea id="annotationText" rows="3" maxlength="300" 
-                          placeholder="תאר את מה שנראה בתמונה או הוסף הערות...">${photo.description || ''}</textarea>
+            <!-- Photo Info and Editing Below Annotation -->
+            <div class="photo-edit-section">
+                <div class="photo-technical-info">
+                    <div class="photo-meta">
+                        <span>📅 ${new Date(photo.createdAt).toLocaleDateString('he-IL')}</span>
+                        <span>📏 ${formatFileSize(photo.size)}</span>
+                    </div>
+                </div>
+                
+                <div class="photo-edit-form">
+                    <div class="form-group">
+                        <label for="photoNameEdit">שם התמונה:</label>
+                        <input type="text" id="photoNameEdit" class="photo-name-input" 
+                               value="${photo.name || ''}" placeholder="הכנס שם לתמונה (אופציונלי)">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="photoDescriptionEdit">תיאור התמונה:</label>
+                        <textarea id="photoDescriptionEdit" rows="3" class="photo-description-input"
+                                  placeholder="תאר את מה שנראה בתמונה או הוסף הערות...">${photo.description || ''}</textarea>
+                    </div>
+                </div>
             </div>
         </div>
     `;
@@ -3166,12 +3173,16 @@ function closeAnnotationModal() {
 }
 
 function savePhotoAnnotations(photoId) {
-    const textArea = document.getElementById('annotationText');
-    const description = textArea ? textArea.value.trim() : '';
+    const nameInput = document.getElementById('photoNameEdit');
+    const descriptionInput = document.getElementById('photoDescriptionEdit');
+    
+    const name = nameInput ? nameInput.value.trim() : '';
+    const description = descriptionInput ? descriptionInput.value.trim() : '';
     
     const annotations = window.annotationState ? window.annotationState.annotations : [];
     
     const updates = {
+        name: name,
         description: description,
         annotations: annotations,
         isAnnotated: description.length > 0 || annotations.length > 0
