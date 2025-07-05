@@ -141,12 +141,10 @@ function loadSavedData() {
             // Load user's projects from new storage system
             const userProjects = getAllProjects();
             appState.projects = userProjects;
-        }
-        
-        // Load photos
-        const photosData = getStorageItem(STORAGE_KEYS.photos);
-        if (photosData) {
-            appState.photos = photosData;
+            
+            // Load user's photos from new storage system
+            const userPhotos = getAllPhotos();
+            appState.photos = userPhotos;
         }
         
         console.log('Data loaded successfully');
@@ -802,9 +800,7 @@ function updatePhotosGrid() {
     // Clear existing content
     photosGrid.innerHTML = '';
     
-    const projectPhotos = appState.photos.filter(photo => 
-        photo.projectId === appState.currentProject.id
-    );
+    const projectPhotos = getPhotosByProject(appState.currentProject.id);
     
     if (projectPhotos.length === 0) {
         photosGrid.innerHTML = `
@@ -812,6 +808,14 @@ function updatePhotosGrid() {
                 <div class="empty-icon">📷</div>
                 <h3>אין עדיין תמונות</h3>
                 <p>צלם או העלה תמונות כדי להתחיל</p>
+                <button class="btn btn-primary" onclick="capturePhoto()">
+                    <span class="btn-icon">📸</span>
+                    צלם תמונה
+                </button>
+                <button class="btn btn-secondary" onclick="uploadPhoto()">
+                    <span class="btn-icon">📁</span>
+                    העלה תמונות
+                </button>
             </div>
         `;
     } else {
@@ -830,17 +834,37 @@ function createPhotoCard(photo) {
     card.className = 'photo-card';
     card.dataset.photoId = photo.id;
     
+    const createdDate = new Date(photo.createdAt).toLocaleDateString('he-IL');
+    const fileSize = formatFileSize(photo.size);
+    
     card.innerHTML = `
-        <img src="${photo.url}" alt="${photo.name}">
+        <div class="photo-actions-menu">
+            <button class="photo-menu-btn" onclick="showPhotoMenu(event, '${photo.id}')">
+                ⋮
+            </button>
+        </div>
+        
+        <div class="photo-image-container">
+            <img src="${photo.url}" alt="${photo.name}" loading="lazy">
+            ${photo.isAnnotated ? '<div class="photo-annotation-indicator">✏️</div>' : ''}
+        </div>
+        
         <div class="photo-info">
             <h4>${photo.name}</h4>
-            <p>${photo.description || 'ללא תיאור'}</p>
+            <p class="photo-description">${photo.description || 'ללא תיאור'}</p>
+            <div class="photo-meta">
+                <span class="photo-date">📅 ${createdDate}</span>
+                <span class="photo-size">📏 ${fileSize}</span>
+            </div>
         </div>
     `;
     
-    card.addEventListener('click', () => {
-        // Open photo annotation modal
-        openPhotoAnnotation(photo);
+    // Add click handler for the card (except for the menu button)
+    card.addEventListener('click', (e) => {
+        if (!e.target.closest('.photo-actions-menu')) {
+            // Open photo annotation modal
+            openPhotoAnnotation(photo);
+        }
     });
     
     return card;
@@ -1570,13 +1594,577 @@ function showUserMenu() {
 }
 
 function capturePhoto() {
-    // TODO: Implement photo capture
-    console.log('Capture photo');
+    if (!appState.currentProject) {
+        showNotification('יש לבחור פרויקט תחילה', 'error');
+        return;
+    }
+    
+    // Create camera modal
+    const modalContent = `
+        <div class="camera-container">
+            <div class="camera-view">
+                <video id="cameraVideo" autoplay playsinline></video>
+                <canvas id="cameraCanvas" style="display: none;"></canvas>
+            </div>
+            <div class="camera-controls">
+                <button id="takePictureBtn" class="btn btn-primary camera-btn">
+                    <span class="btn-icon">📸</span>
+                    צלם
+                </button>
+                <button id="switchCameraBtn" class="btn btn-secondary camera-btn">
+                    <span class="btn-icon">🔄</span>
+                    החלף מצלמה
+                </button>
+            </div>
+        </div>
+    `;
+
+    const modal = createModal(
+        'צילום תמונה',
+        modalContent,
+        [
+            {
+                text: 'ביטול',
+                class: 'btn-secondary',
+                action: 'stopCamera(); closeModal(this.closest(\'.modal-overlay\'))'
+            }
+        ]
+    );
+
+    showModal(modal);
+    
+    // Initialize camera
+    initializeCamera();
 }
 
 function uploadPhoto() {
-    // TODO: Implement photo upload
-    console.log('Upload photo');
+    if (!appState.currentProject) {
+        showNotification('יש לבחור פרויקט תחילה', 'error');
+        return;
+    }
+    
+    // Create file input
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.multiple = true;
+    fileInput.style.display = 'none';
+    
+    fileInput.addEventListener('change', handlePhotoUpload);
+    
+    document.body.appendChild(fileInput);
+    fileInput.click();
+    
+    // Clean up
+    setTimeout(() => {
+        document.body.removeChild(fileInput);
+    }, 1000);
+}
+
+async function initializeCamera() {
+    try {
+        const video = document.getElementById('cameraVideo');
+        const takePictureBtn = document.getElementById('takePictureBtn');
+        const switchCameraBtn = document.getElementById('switchCameraBtn');
+        
+        if (!video) return;
+        
+        // Check if camera is available
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            showNotification('המצלמה אינה נתמכת בדפדפן זה', 'error');
+            return;
+        }
+        
+        // Get available cameras
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        
+        let currentDeviceIndex = 0;
+        let stream = null;
+        
+        async function startCamera(deviceId = null) {
+            try {
+                // Stop previous stream
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                
+                const constraints = {
+                    video: {
+                        facingMode: deviceId ? undefined : 'environment',
+                        deviceId: deviceId ? { exact: deviceId } : undefined,
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    }
+                };
+                
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+                
+                // Show/hide switch button based on available cameras
+                if (switchCameraBtn) {
+                    switchCameraBtn.style.display = videoDevices.length > 1 ? 'block' : 'none';
+                }
+                
+            } catch (error) {
+                console.error('Camera error:', error);
+                showNotification('שגיאה בגישה למצלמה: ' + error.message, 'error');
+            }
+        }
+        
+        // Start with default camera
+        await startCamera();
+        
+        // Handle take picture
+        if (takePictureBtn) {
+            takePictureBtn.addEventListener('click', () => {
+                takePicture(video);
+            });
+        }
+        
+        // Handle switch camera
+        if (switchCameraBtn) {
+            switchCameraBtn.addEventListener('click', async () => {
+                currentDeviceIndex = (currentDeviceIndex + 1) % videoDevices.length;
+                await startCamera(videoDevices[currentDeviceIndex].deviceId);
+            });
+        }
+        
+        // Store stream reference for cleanup
+        window.currentCameraStream = stream;
+        
+    } catch (error) {
+        console.error('Camera initialization error:', error);
+        showNotification('שגיאה באתחול המצלמה', 'error');
+    }
+}
+
+function takePicture(video) {
+    try {
+        const canvas = document.getElementById('cameraCanvas');
+        const context = canvas.getContext('2d');
+        
+        // Set canvas size to match video
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        // Draw video frame to canvas
+        context.drawImage(video, 0, 0);
+        
+        // Convert to blob
+        canvas.toBlob((blob) => {
+            if (blob) {
+                // Create file object
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const fileName = `photo-${timestamp}.jpg`;
+                const file = new File([blob], fileName, { type: 'image/jpeg' });
+                
+                // Process the captured photo
+                processPhoto(file);
+                
+                // Close camera modal
+                stopCamera();
+                closeModal(document.querySelector('.modal-overlay'));
+            }
+        }, 'image/jpeg', 0.9);
+        
+    } catch (error) {
+        console.error('Take picture error:', error);
+        showNotification('שגיאה בצילום התמונה', 'error');
+    }
+}
+
+function stopCamera() {
+    if (window.currentCameraStream) {
+        window.currentCameraStream.getTracks().forEach(track => track.stop());
+        window.currentCameraStream = null;
+    }
+}
+
+function handlePhotoUpload(event) {
+    const files = Array.from(event.target.files);
+    
+    if (files.length === 0) return;
+    
+    // Validate files
+    const validFiles = files.filter(file => {
+        if (!file.type.startsWith('image/')) {
+            showNotification(`הקובץ ${file.name} אינו תמונה`, 'error');
+            return false;
+        }
+        
+        if (file.size > 10 * 1024 * 1024) { // 10MB limit
+            showNotification(`הקובץ ${file.name} גדול מדי (מעל 10MB)`, 'error');
+            return false;
+        }
+        
+        return true;
+    });
+    
+    if (validFiles.length === 0) return;
+    
+    // Process each valid file
+    validFiles.forEach(file => {
+        processPhoto(file);
+    });
+    
+    showNotification(`הועלו ${validFiles.length} תמונות בהצלחה`, 'success');
+}
+
+function processPhoto(file) {
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        const photoData = {
+            id: generateId(),
+            name: file.name,
+            originalName: file.name,
+            url: e.target.result,
+            type: file.type,
+            size: file.size,
+            projectId: appState.currentProject.id,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            description: '',
+            annotations: [],
+            isAnnotated: false
+        };
+        
+        // Save photo
+        savePhoto(photoData);
+        
+        // Update project statistics
+        updateProjectPhotoCount(appState.currentProject.id);
+        
+        // Refresh photos grid
+        updatePhotosGrid();
+        
+        // Update project stats
+        updateUserStats();
+    };
+    
+    reader.readAsDataURL(file);
+}
+
+function savePhoto(photoData) {
+    try {
+        // Get current photos
+        const allPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
+        
+        // Add new photo
+        allPhotos.push(photoData);
+        
+        // Save to localStorage
+        localStorage.setItem('inspectort_photos', JSON.stringify(allPhotos));
+        
+        // Update app state
+        appState.photos.push(photoData);
+        
+        return photoData;
+    } catch (error) {
+        console.error('Error saving photo:', error);
+        showNotification('שגיאה בשמירת התמונה', 'error');
+        return null;
+    }
+}
+
+function getAllPhotos() {
+    try {
+        const photos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
+        const currentUser = getCurrentUser();
+        
+        if (!currentUser) {
+            return [];
+        }
+        
+        // Filter photos by current user's projects
+        const userProjects = getAllProjects();
+        const userProjectIds = userProjects.map(p => p.id);
+        
+        return photos.filter(photo => userProjectIds.includes(photo.projectId));
+    } catch (error) {
+        console.error('Error getting photos:', error);
+        return [];
+    }
+}
+
+function getPhotosByProject(projectId) {
+    const allPhotos = getAllPhotos();
+    return allPhotos.filter(photo => photo.projectId === projectId);
+}
+
+function getPhotoById(photoId) {
+    const allPhotos = getAllPhotos();
+    return allPhotos.find(photo => photo.id === photoId);
+}
+
+function updatePhoto(photoId, updates) {
+    try {
+        const allPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
+        const photoIndex = allPhotos.findIndex(p => p.id === photoId);
+        
+        if (photoIndex === -1) {
+            throw new Error('תמונה לא נמצאה');
+        }
+
+        // Update photo data
+        allPhotos[photoIndex] = {
+            ...allPhotos[photoIndex],
+            ...updates,
+            updatedAt: new Date().toISOString()
+        };
+
+        localStorage.setItem('inspectort_photos', JSON.stringify(allPhotos));
+        
+        // Update app state
+        const appPhotoIndex = appState.photos.findIndex(p => p.id === photoId);
+        if (appPhotoIndex !== -1) {
+            appState.photos[appPhotoIndex] = allPhotos[photoIndex];
+        }
+
+        return allPhotos[photoIndex];
+    } catch (error) {
+        console.error('Error updating photo:', error);
+        showNotification('שגיאה בעדכון התמונה: ' + error.message, 'error');
+        return null;
+    }
+}
+
+function deletePhoto(photoId) {
+    try {
+        const allPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
+        const filteredPhotos = allPhotos.filter(p => p.id !== photoId);
+        
+        localStorage.setItem('inspectort_photos', JSON.stringify(filteredPhotos));
+        
+        // Update app state
+        appState.photos = appState.photos.filter(p => p.id !== photoId);
+        
+        return true;
+    } catch (error) {
+        console.error('Error deleting photo:', error);
+        showNotification('שגיאה במחיקת התמונה: ' + error.message, 'error');
+        return false;
+    }
+}
+
+function updateProjectPhotoCount(projectId) {
+    const projectPhotos = getPhotosByProject(projectId);
+    const annotatedPhotos = projectPhotos.filter(p => p.isAnnotated).length;
+    
+    const updates = {
+        totalPhotos: projectPhotos.length,
+        annotatedPhotos: annotatedPhotos,
+        completionPercentage: projectPhotos.length > 0 ? Math.round((annotatedPhotos / projectPhotos.length) * 100) : 0
+    };
+    
+    updateProject(projectId, updates);
+}
+
+function showPhotoMenu(event, photoId) {
+    event.stopPropagation();
+    
+    const photo = getPhotoById(photoId);
+    if (!photo) return;
+    
+    const menuContent = `
+        <div class="photo-menu-actions">
+            <button class="menu-action" onclick="editPhotoInfo('${photoId}')">
+                <span class="menu-icon">✏️</span>
+                ערוך פרטים
+            </button>
+            <button class="menu-action" onclick="renamePhoto('${photoId}')">
+                <span class="menu-icon">🏷️</span>
+                שנה שם
+            </button>
+            <button class="menu-action" onclick="downloadPhoto('${photoId}')">
+                <span class="menu-icon">📥</span>
+                הורד תמונה
+            </button>
+            <button class="menu-action menu-action-danger" onclick="confirmDeletePhoto('${photoId}')">
+                <span class="menu-icon">🗑️</span>
+                מחק תמונה
+            </button>
+        </div>
+    `;
+
+    const modal = createModal(
+        photo.name,
+        menuContent,
+        [
+            {
+                text: 'סגור',
+                class: 'btn-secondary',
+                action: 'closeModal(this.closest(\'.modal-overlay\'))'
+            }
+        ]
+    );
+
+    showModal(modal);
+}
+
+function editPhotoInfo(photoId) {
+    const photo = getPhotoById(photoId);
+    if (!photo) return;
+    
+    const modalContent = `
+        <form id="editPhotoForm" class="photo-form">
+            <div class="form-group">
+                <label for="photoName">שם התמונה *</label>
+                <input type="text" id="photoName" name="photoName" required maxlength="100" 
+                       value="${photo.name}" placeholder="שם התמונה">
+            </div>
+            
+            <div class="form-group">
+                <label for="photoDescription">תיאור התמונה</label>
+                <textarea id="photoDescription" name="photoDescription" rows="4" maxlength="500"
+                          placeholder="תיאור מפורט של התמונה...">${photo.description || ''}</textarea>
+            </div>
+            
+            <div class="photo-preview">
+                <img src="${photo.url}" alt="${photo.name}" class="preview-image">
+            </div>
+            
+            <div class="photo-info">
+                <div class="info-item">
+                    <span class="info-label">גודל:</span>
+                    <span class="info-value">${formatFileSize(photo.size)}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">תאריך:</span>
+                    <span class="info-value">${new Date(photo.createdAt).toLocaleDateString('he-IL')}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">סוג:</span>
+                    <span class="info-value">${photo.type}</span>
+                </div>
+            </div>
+        </form>
+    `;
+
+    const modal = createModal(
+        'ערוך פרטי תמונה',
+        modalContent,
+        [
+            {
+                text: 'ביטול',
+                class: 'btn-secondary',
+                action: 'closeModal(this.closest(\'.modal-overlay\'))'
+            },
+            {
+                text: 'שמור שינויים',
+                class: 'btn-primary',
+                action: `handleEditPhoto('${photoId}')`
+            }
+        ]
+    );
+
+    showModal(modal);
+}
+
+function handleEditPhoto(photoId) {
+    const form = document.getElementById('editPhotoForm');
+    const formData = new FormData(form);
+    
+    const photoName = formData.get('photoName').trim();
+    if (!photoName) {
+        showNotification('שם התמונה הוא שדה חובה', 'error');
+        return;
+    }
+    
+    const updates = {
+        name: photoName,
+        description: formData.get('photoDescription').trim()
+    };
+    
+    const updatedPhoto = updatePhoto(photoId, updates);
+    
+    if (updatedPhoto) {
+        closeModal(document.querySelector('.modal-overlay'));
+        showNotification('פרטי התמונה עודכנו בהצלחה!', 'success');
+        updatePhotosGrid();
+    }
+}
+
+function renamePhoto(photoId) {
+    const photo = getPhotoById(photoId);
+    if (!photo) return;
+    
+    const newName = prompt('שם חדש לתמונה:', photo.name);
+    if (newName && newName.trim() !== photo.name) {
+        const updatedPhoto = updatePhoto(photoId, { name: newName.trim() });
+        if (updatedPhoto) {
+            closeModal(document.querySelector('.modal-overlay'));
+            showNotification('שם התמונה שונה בהצלחה!', 'success');
+            updatePhotosGrid();
+        }
+    }
+}
+
+function downloadPhoto(photoId) {
+    const photo = getPhotoById(photoId);
+    if (!photo) return;
+    
+    try {
+        const link = document.createElement('a');
+        link.href = photo.url;
+        link.download = photo.name;
+        link.click();
+        
+        closeModal(document.querySelector('.modal-overlay'));
+        showNotification('התמונה הורדה בהצלחה', 'success');
+    } catch (error) {
+        console.error('Download error:', error);
+        showNotification('שגיאה בהורדת התמונה', 'error');
+    }
+}
+
+function confirmDeletePhoto(photoId) {
+    const photo = getPhotoById(photoId);
+    if (!photo) return;
+    
+    const modal = createModal(
+        'מחק תמונה',
+        `<p>האם אתה בטוח שברצונך למחוק את התמונה "<strong>${photo.name}</strong>"?</p>
+         <p class="text-danger">פעולה זו לא ניתנת לביטול!</p>`,
+        [
+            {
+                text: 'ביטול',
+                class: 'btn-secondary',
+                action: 'closeModal(this.closest(\'.modal-overlay\'))'
+            },
+            {
+                text: 'מחק',
+                class: 'btn-danger',
+                action: `handleDeletePhoto('${photoId}')`
+            }
+        ]
+    );
+
+    showModal(modal);
+}
+
+function handleDeletePhoto(photoId) {
+    const photo = getPhotoById(photoId);
+    if (!photo) return;
+    
+    const success = deletePhoto(photoId);
+    
+    if (success) {
+        closeModal(document.querySelector('.modal-overlay'));
+        showNotification('התמונה נמחקה בהצלחה', 'success');
+        updatePhotosGrid();
+        updateProjectPhotoCount(photo.projectId);
+        updateUserStats();
+    }
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 function exportReport() {
@@ -1585,8 +2173,78 @@ function exportReport() {
 }
 
 function openPhotoAnnotation(photo) {
-    // TODO: Implement photo annotation
-    console.log('Open photo annotation for:', photo.name);
+    const modalContent = `
+        <div class="photo-annotation-container">
+            <div class="annotation-image-container">
+                <img src="${photo.url}" alt="${photo.name}" class="annotation-image" id="annotationImage">
+                <canvas id="annotationCanvas" class="annotation-canvas"></canvas>
+            </div>
+            
+            <div class="annotation-info">
+                <h4>${photo.name}</h4>
+                <p class="photo-description">${photo.description || 'ללא תיאור'}</p>
+                <div class="photo-meta">
+                    <span>📅 ${new Date(photo.createdAt).toLocaleDateString('he-IL')}</span>
+                    <span>📏 ${formatFileSize(photo.size)}</span>
+                </div>
+            </div>
+            
+            <div class="annotation-description">
+                <label for="annotationText">הוסף תיאור או הערה:</label>
+                <textarea id="annotationText" rows="3" maxlength="300" 
+                          placeholder="תאר את מה שנראה בתמונה או הוסף הערות...">${photo.description || ''}</textarea>
+            </div>
+        </div>
+    `;
+
+    const modal = createModal(
+        'צפה בתמונה',
+        modalContent,
+        [
+            {
+                text: 'ביטול',
+                class: 'btn-secondary',
+                action: 'closeModal(this.closest(\'.modal-overlay\'))'
+            },
+            {
+                text: 'שמור תיאור',
+                class: 'btn-primary',
+                action: `savePhotoDescription('${photo.id}')`
+            }
+        ]
+    );
+
+    showModal(modal);
+    
+    // Focus on description field
+    setTimeout(() => {
+        const textArea = document.getElementById('annotationText');
+        if (textArea) {
+            textArea.focus();
+            textArea.setSelectionRange(textArea.value.length, textArea.value.length);
+        }
+    }, 100);
+}
+
+function savePhotoDescription(photoId) {
+    const textArea = document.getElementById('annotationText');
+    if (!textArea) return;
+    
+    const description = textArea.value.trim();
+    
+    const updates = {
+        description: description,
+        isAnnotated: description.length > 0
+    };
+    
+    const updatedPhoto = updatePhoto(photoId, updates);
+    
+    if (updatedPhoto) {
+        closeModal(document.querySelector('.modal-overlay'));
+        showNotification('תיאור התמונה נשמר בהצלחה!', 'success');
+        updatePhotosGrid();
+        updateProjectPhotoCount(updatedPhoto.projectId);
+    }
 }
 
 function handleResize() {

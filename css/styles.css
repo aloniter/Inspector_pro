@@ -1148,6 +1148,346 @@ p {
     font-weight: 500;
 }
 
+/* Camera Interface */
+.camera-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-lg);
+}
+
+.camera-view {
+    position: relative;
+    width: 100%;
+    max-width: 600px;
+    background: var(--surface-alt);
+    border-radius: var(--border-radius-lg);
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.camera-view video {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.camera-controls {
+    display: flex;
+    gap: var(--spacing-md);
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.camera-btn {
+    min-width: 120px;
+    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: var(--font-size-lg);
+}
+
+.camera-btn .btn-icon {
+    font-size: 1.5em;
+    margin-left: var(--spacing-sm);
+}
+
+/* Photo Cards Enhanced */
+.photo-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--border-radius-lg);
+    transition: all 0.3s ease;
+}
+
+.photo-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.photo-actions-menu {
+    position: absolute;
+    top: var(--spacing-sm);
+    right: var(--spacing-sm);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: 10;
+}
+
+.photo-card:hover .photo-actions-menu {
+    opacity: 1;
+}
+
+.photo-menu-btn {
+    background: rgba(255, 255, 255, 0.9);
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    font-weight: bold;
+}
+
+.photo-menu-btn:hover {
+    background: white;
+    transform: scale(1.1);
+}
+
+.photo-image-container {
+    position: relative;
+    width: 100%;
+    height: 200px;
+    overflow: hidden;
+}
+
+.photo-image-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.photo-card:hover .photo-image-container img {
+    transform: scale(1.05);
+}
+
+.photo-annotation-indicator {
+    position: absolute;
+    top: var(--spacing-sm);
+    left: var(--spacing-sm);
+    background: var(--primary-color);
+    color: white;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.photo-info {
+    padding: var(--spacing-md);
+}
+
+.photo-info h4 {
+    margin: 0 0 var(--spacing-sm) 0;
+    font-size: var(--font-size-lg);
+    color: var(--text-primary);
+    line-height: 1.2;
+}
+
+.photo-description {
+    margin: 0 0 var(--spacing-md) 0;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.photo-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.photo-date,
+.photo-size {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+/* Photo Form Styles */
+.photo-form {
+    padding: 0;
+}
+
+.photo-form .form-group {
+    margin-bottom: var(--spacing-lg);
+}
+
+.photo-preview {
+    margin-bottom: var(--spacing-lg);
+    text-align: center;
+}
+
+.preview-image {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: var(--border-radius-md);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.photo-form .photo-info {
+    background: var(--surface-alt);
+    padding: var(--spacing-md);
+    border-radius: var(--border-radius-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm) 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.info-item:last-child {
+    border-bottom: none;
+}
+
+.info-label {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.info-value {
+    color: var(--text-secondary);
+    font-family: 'Courier New', monospace;
+}
+
+/* Photo Menu Actions */
+.photo-menu-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+/* Photo Annotation Interface */
+.photo-annotation-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.annotation-image-container {
+    position: relative;
+    margin-bottom: var(--spacing-lg);
+    text-align: center;
+    background: var(--surface-alt);
+    border-radius: var(--border-radius-md);
+    overflow: hidden;
+}
+
+.annotation-image {
+    max-width: 100%;
+    max-height: 500px;
+    display: block;
+    margin: 0 auto;
+}
+
+.annotation-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+}
+
+.annotation-info {
+    background: var(--surface-alt);
+    padding: var(--spacing-md);
+    border-radius: var(--border-radius-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+.annotation-info h4 {
+    margin: 0 0 var(--spacing-sm) 0;
+    color: var(--text-primary);
+}
+
+.annotation-info .photo-description {
+    margin: 0 0 var(--spacing-sm) 0;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.annotation-info .photo-meta {
+    display: flex;
+    gap: var(--spacing-lg);
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+}
+
+.annotation-description {
+    margin-bottom: var(--spacing-lg);
+}
+
+.annotation-description label {
+    display: block;
+    margin-bottom: var(--spacing-sm);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.annotation-description textarea {
+    width: 100%;
+    padding: var(--spacing-md);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+    background: var(--background-color);
+    color: var(--text-primary);
+    resize: vertical;
+    min-height: 80px;
+    transition: border-color 0.3s ease;
+}
+
+.annotation-description textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.annotation-description textarea::placeholder {
+    color: var(--text-muted);
+    opacity: 0.7;
+}
+
+/* Empty State Enhanced */
+.empty-state {
+    text-align: center;
+    padding: var(--spacing-2xl);
+    color: var(--text-secondary);
+}
+
+.empty-state .btn {
+    margin: var(--spacing-sm) var(--spacing-xs);
+}
+
+/* Responsive photo layout */
+@media (max-width: 768px) {
+    .camera-view {
+        max-width: 100%;
+        margin: 0 var(--spacing-md);
+    }
+    
+    .camera-controls {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .camera-btn {
+        width: 100%;
+        max-width: 250px;
+    }
+    
+    .photo-image-container {
+        height: 250px;
+    }
+    
+    .photos-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* Responsive project form */
 @media (max-width: 768px) {
     .project-form .form-row {
