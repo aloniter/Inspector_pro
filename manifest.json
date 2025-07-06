@@ -2,14 +2,14 @@
   "name": "Inspectort Pro - אפליקציית בדיקות מקצועית",
   "short_name": "Inspectort Pro",
   "description": "אפליקציית בדיקות מקצועית לניהול פרויקטים, צילום תמונות, הוספת הערות ויצוא דוחות",
-  "start_url": "/Inspector_pro/",
+  "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
   "theme_color": "#2563eb",
   "background_color": "#f8fafc",
   "lang": "he",
   "dir": "rtl",
-  "scope": "/Inspector_pro/",
+  "scope": "/",
   "categories": ["productivity", "business", "utilities"],
   "icons": [
     {
@@ -95,7 +95,7 @@
       "name": "פרויקט חדש",
       "short_name": "פרויקט חדש",
       "description": "יצירת פרויקט בדיקה חדש",
-      "url": "/Inspector_pro/?action=new-project",
+      "url": "/?action=new-project",
       "icons": [
         {
           "src": "assets/icons/icon-192x192.svg",
@@ -108,7 +108,7 @@
       "name": "צילום מהיר",
       "short_name": "צילום",
       "description": "צילום תמונה מהיר",
-      "url": "/Inspector_pro/?action=quick-capture",
+      "url": "/?action=quick-capture",
       "icons": [
         {
           "src": "assets/icons/icon-192x192.svg",
@@ -128,7 +128,7 @@
   },
   "file_handlers": [
     {
-      "action": "/Inspector_pro/?action=open-file",
+      "action": "/?action=open-file",
       "accept": {
         "image/*": [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"],
         "application/pdf": [".pdf"]
@@ -138,7 +138,7 @@
   "protocol_handlers": [
     {
       "protocol": "web+inspectort",
-      "url": "/Inspector_pro/?protocol=%s"
+      "url": "/?protocol=%s"
     }
   ]
 } 

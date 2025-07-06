@@ -5,10 +5,10 @@
 
 // Firebase configuration - Replace with your Firebase project config
 const firebaseConfig = {
-    apiKey: "AIzaSyBxxx_YOUR_API_KEY_HERE_xxxxx",
-    authDomain: "inspectort-pro.firebaseapp.com",
-    projectId: "inspectort-pro",
-    storageBucket: "inspectort-pro.appspot.com",
+    apiKey: "YOUR_API_KEY_HERE",
+    authDomain: "your-project.firebaseapp.com",
+    projectId: "your-project-id",
+    storageBucket: "your-project.appspot.com",
     messagingSenderId: "123456789012",
     appId: "1:123456789012:web:abcdef123456789"
 };
@@ -28,19 +28,15 @@ function initializeFirebase() {
             return false;
         }
 
-        // For demo purposes, we'll use a public Firebase project
-        // In production, you should replace this with your own Firebase project
-        const demoConfig = {
-            apiKey: "AIzaSyBvtjnKk_demo_key_for_testing",
-            authDomain: "inspectort-demo.firebaseapp.com",
-            projectId: "inspectort-demo",
-            storageBucket: "inspectort-demo.appspot.com",
-            messagingSenderId: "123456789",
-            appId: "1:123456789:web:demo"
-        };
+        // Check if Firebase config is properly set up
+        if (firebaseConfig.apiKey === "YOUR_API_KEY_HERE") {
+            console.log('Firebase not configured - using offline mode only');
+            console.log('To enable cloud sync, please configure Firebase in js/firebase-config.js');
+            return false;
+        }
 
-        // Initialize Firebase with demo config for testing
-        firebaseApp = firebase.initializeApp(demoConfig);
+        // Initialize Firebase with user config
+        firebaseApp = firebase.initializeApp(firebaseConfig);
         auth = firebase.auth();
         db = firebase.firestore();
         storage = firebase.storage();
@@ -52,6 +48,10 @@ function initializeFirebase() {
             })
             .catch((err) => {
                 console.log('Firebase persistence error:', err.code);
+                // This is expected if already enabled
+                if (err.code !== 'failed-precondition') {
+                    console.warn('Persistence failed, continuing without offline support');
+                }
             });
 
         isFirebaseEnabled = true;
@@ -59,6 +59,7 @@ function initializeFirebase() {
         return true;
     } catch (error) {
         console.error('Firebase initialization failed:', error);
+        console.log('App will continue in offline mode');
         isFirebaseEnabled = false;
         return false;
     }
