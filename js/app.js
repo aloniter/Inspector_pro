@@ -99,7 +99,7 @@ let elements = {};
 /**
  * Initialize the application
  */
-function initApp() {
+async function initApp() {
     // Cache DOM elements
     cacheElements();
     
@@ -110,7 +110,7 @@ function initApp() {
     showLoadingScreen();
     
     // Load saved data
-    loadSavedData();
+    await loadSavedData();
     
     // Setup event listeners
     setupEventListeners();
@@ -189,29 +189,43 @@ function initializeComponents() {
 }
 
 /**
- * Load saved data from localStorage
+ * Load saved data from IndexedDB
  */
-function loadSavedData() {
+async function loadSavedData() {
     try {
-        // Load user data
+        // Load user data from localStorage (for session persistence)
         const userData = getStorageItem(STORAGE_KEYS.user);
         if (userData) {
             appState.currentUser = userData;
             appState.isAuthenticated = true;
             
-            // Load user's projects from new storage system
-            const userProjects = getAllProjects();
-            appState.projects = userProjects;
-            
-            // Load user's photos from new storage system
-            const userPhotos = getAllPhotos();
-            appState.photos = userPhotos;
+            // Load user's projects and photos from IndexedDB
+            await loadUserData(userData.id);
         }
         
         console.log('Data loaded successfully');
     } catch (error) {
         console.error('Error loading saved data:', error);
         showNotification('שגיאה בטעינת הנתונים', 'error');
+    }
+}
+
+/**
+ * Load user's projects and photos from IndexedDB
+ */
+async function loadUserData(userId) {
+    try {
+        const userProjects = await window.LocalStorageManager.getUserProjects(userId);
+        appState.projects = userProjects || [];
+        
+        const userPhotos = await window.LocalStorageManager.getUserPhotos(userId);
+        appState.photos = userPhotos || [];
+        
+        console.log(`Loaded ${appState.projects.length} projects and ${appState.photos.length} photos`);
+    } catch (error) {
+        console.error('Error loading user data:', error);
+        appState.projects = [];
+        appState.photos = [];
     }
 }
 
@@ -306,51 +320,20 @@ async function handleLogin(e) {
     submitBtn.disabled = true;
     
     try {
-        let userData = null;
-        
-        // Try cloud authentication first
-        if (window.FirebaseSync && window.FirebaseSync.isEnabled()) {
-            try {
-                submitBtn.textContent = 'מתחבר לענן...';
-                const cloudUser = await window.FirebaseSync.signIn(email, password);
-                userData = {
-                    id: cloudUser.uid,
-                    email: cloudUser.email,
-                    name: cloudUser.displayName || email.split('@')[0],
-                    cloudSync: true,
-                    createdAt: new Date().toISOString()
-                };
-                console.log('Logged in with cloud sync:', userData.email);
-                
-                // Sync data from cloud
-                submitBtn.textContent = 'מסנכרן נתונים...';
-                await performDataSync();
-                
-            } catch (cloudError) {
-                console.log('Cloud login failed, trying offline:', cloudError.message);
-                // Fall back to local authentication
-                userData = await authenticateUser(email, password);
-                if (userData) {
-                    userData.cloudSync = false;
-                }
-            }
-        } else {
-            // Use local authentication only
-            userData = await authenticateUser(email, password);
-            if (userData) {
-                userData.cloudSync = false;
-            }
-        }
+        // Use IndexedDB authentication
+        const userData = await window.LocalStorageManager.authenticateUser(email, password);
         
         if (userData) {
             appState.currentUser = userData;
             appState.isAuthenticated = true;
             
-            // Save user data
+            // Load user's projects and photos
+            await loadUserData(userData.id);
+            
+            // Save user data to app state
             setStorageItem(STORAGE_KEYS.user, userData);
             
-            const syncStatus = userData.cloudSync ? ' (מסונכרן בענן ☁️)' : ' (אופליין 📱)';
-            showNotification(`ברוך הבא, ${userData.name}!` + syncStatus, 'success');
+            showNotification(`ברוך הבא, ${userData.name}!`, 'success');
             navigateToPage('dashboard');
         } else {
             showNotification('כתובת אימייל או סיסמה שגויים', 'error');
@@ -359,7 +342,7 @@ async function handleLogin(e) {
         }
     } catch (error) {
         console.error('Login error:', error);
-        showNotification('שגיאה בהתחברות לשרת. אנא נסה שוב.', 'error');
+        showNotification('שגיאה בהתחברות: ' + error.message, 'error');
     } finally {
         // Reset button state
         submitBtn.textContent = originalText;
@@ -395,60 +378,39 @@ async function handleRegister(e) {
     
     try {
         // Check if email already exists
-        const existingUser = checkEmailExists(email);
-        if (existingUser) {
+        const emailExists = await window.LocalStorageManager.emailExists(email);
+        if (emailExists) {
             showNotification('כתובת האימייל כבר קיימת במערכת', 'error');
             highlightFieldError(elements.registerEmail);
             return;
         }
         
-        let userData = null;
-        
-        // Try cloud registration first
-        if (window.FirebaseSync && window.FirebaseSync.isEnabled()) {
-            try {
-                submitBtn.textContent = 'נרשם בענן...';
-                const cloudUser = await window.FirebaseSync.signUp(email, password, name);
-                userData = {
-                    id: cloudUser.uid,
-                    email: cloudUser.email,
-                    name: name,
-                    cloudSync: true,
-                    createdAt: new Date().toISOString()
-                };
-                console.log('Registered with cloud sync:', userData.email);
-            } catch (cloudError) {
-                console.log('Cloud registration failed, using offline:', cloudError.message);
-                // Fall back to local registration
-                userData = await registerUser(name, email, password);
-                if (userData) {
-                    userData.cloudSync = false;
-                }
-            }
-        } else {
-            // Use local registration only
-            userData = await registerUser(name, email, password);
-            if (userData) {
-                userData.cloudSync = false;
-            }
-        }
+        // Create user using IndexedDB
+        const userData = await window.LocalStorageManager.createUser({
+            name: name,
+            email: email,
+            password: password
+        });
         
         if (userData) {
             appState.currentUser = userData;
             appState.isAuthenticated = true;
             
+            // Initialize empty projects and photos arrays
+            appState.projects = [];
+            appState.photos = [];
+            
             // Save user data
             setStorageItem(STORAGE_KEYS.user, userData);
             
-            const syncStatus = userData.cloudSync ? ' (מסונכרן בענן ☁️)' : ' (אופליין 📱)';
-            showNotification(`ברוך הבא, ${userData.name}! נרשמת בהצלחה.` + syncStatus, 'success');
+            showNotification(`ברוך הבא, ${userData.name}! נרשמת בהצלחה.`, 'success');
             navigateToPage('dashboard');
         } else {
             showNotification('שגיאה בהרשמה. אנא נסה שוב.', 'error');
         }
     } catch (error) {
         console.error('Registration error:', error);
-        showNotification('שגיאה בהרשמה לשרת. אנא נסה שוב.', 'error');
+        showNotification('שגיאה בהרשמה: ' + error.message, 'error');
     } finally {
         // Reset button state
         submitBtn.textContent = originalText;
@@ -517,9 +479,6 @@ function updateDashboardContent() {
     
     // Update user info in header
     updateUserInfo();
-    
-    // Add sync status to dashboard header
-    addSyncStatusToUI();
     
     // Clear existing content
     projectsGrid.innerHTML = '';
@@ -1069,58 +1028,12 @@ function showNotification(message, type = 'info', duration = 3000) {
 }
 
 /**
- * Authentication functions (mock implementation)
+ * Authentication functions are now handled by LocalStorageManager
+ * The IndexedDB-based authentication system provides:
+ * - User registration and login
+ * - Password hashing with Web Crypto API
+ * - Secure local storage of user data
  */
-async function authenticateUser(email, password) {
-    // Mock authentication - replace with real API call
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Check credentials against saved users
-    const allUsers = getStorageItem('all_users') || [];
-    const user = allUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-    
-    if (user) {
-        // In a real app, you'd verify the password hash here
-        // For demo purposes, we'll accept any password for existing users
-        return {
-            ...user,
-            lastLogin: new Date().toISOString()
-        };
-    }
-    
-    // For demo purposes, create a new user if email/password is provided
-    if (email && password) {
-        return {
-            id: Date.now().toString(),
-            name: 'משתמש לדוגמה',
-            email: email,
-            createdAt: new Date().toISOString(),
-            lastLogin: new Date().toISOString()
-        };
-    }
-    
-    return null;
-}
-
-async function registerUser(name, email, password) {
-    // Mock registration - replace with real API call
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const userData = {
-        id: Date.now().toString(),
-        name: name,
-        email: email,
-        createdAt: new Date().toISOString(),
-        lastLogin: new Date().toISOString()
-    };
-    
-    // Save user to all users list
-    const allUsers = getStorageItem('all_users') || [];
-    allUsers.push(userData);
-    setStorageItem('all_users', allUsers);
-    
-    return userData;
-}
 
 /**
  * Form validation functions
@@ -1208,11 +1121,7 @@ function isValidPassword(password) {
     return passwordRegex.test(password);
 }
 
-function checkEmailExists(email) {
-    // Check if email already exists in localStorage
-    const users = getStorageItem('all_users') || [];
-    return users.find(user => user.email.toLowerCase() === email.toLowerCase());
-}
+// Email existence check is now handled by LocalStorageManager.emailExists()
 
 /**
  * Form error handling
@@ -1484,7 +1393,7 @@ function showCreateProjectModal() {
 }
 
 // Handle project creation from modal
-function handleCreateProject() {
+async function handleCreateProject() {
     const form = document.getElementById('createProjectForm');
     const formData = new FormData(form);
     
@@ -1507,7 +1416,7 @@ function handleCreateProject() {
     };
     
     // Create the project
-    const newProject = createProject(projectData);
+    const newProject = await createProject(projectData);
     
     if (newProject) {
         // Close modal and refresh dashboard
@@ -1520,45 +1429,18 @@ function handleCreateProject() {
     }
 }
 
-function createProject(projectData) {
+async function createProject(projectData) {
     try {
         const currentUser = getCurrentUser();
         if (!currentUser) {
             throw new Error('משתמש לא מחובר');
         }
 
-        const projectId = generateId();
-        const now = new Date().toISOString();
-        
-        const project = {
-            id: projectId,
-            name: projectData.name,
-            description: projectData.description || '',
-            location: projectData.location || '',
-            type: projectData.type || 'inspection',
-            client: projectData.client || '',
-            deadline: projectData.deadline || null,
-            notes: projectData.notes || '',
-            createdAt: now,
-            updatedAt: now,
-            createdBy: currentUser.id,
-            status: 'active',
-            photos: [],
-            totalPhotos: 0,
-            annotatedPhotos: 0,
-            completionPercentage: 0
-        };
-
-        // Save project to storage
-        const projects = getAllProjects();
-        projects.push(project);
-        localStorage.setItem('inspectort_projects', JSON.stringify(projects));
+        // Create project using IndexedDB
+        const project = await window.LocalStorageManager.createProject(projectData, currentUser.id);
 
         // Update app state
         appState.projects.push(project);
-
-        // Auto-sync if cloud is enabled
-        autoSyncData();
 
         return project;
     } catch (error) {
@@ -1568,53 +1450,42 @@ function createProject(projectData) {
     }
 }
 
-function getAllProjects() {
+async function getAllProjects() {
     try {
-        const projects = JSON.parse(localStorage.getItem('inspectort_projects') || '[]');
         const currentUser = getCurrentUser();
-        
         if (!currentUser) {
             return [];
         }
         
-        // Filter projects by current user
-        return projects.filter(project => project.createdBy === currentUser.id);
+        // Get projects from IndexedDB
+        return await window.LocalStorageManager.getUserProjects(currentUser.id);
     } catch (error) {
         console.error('Error getting projects:', error);
         return [];
     }
 }
 
-function getProjectById(projectId) {
-    const projects = getAllProjects();
-    return projects.find(project => project.id === projectId);
+async function getProjectById(projectId) {
+    try {
+        return await window.LocalStorageManager.getProject(projectId);
+    } catch (error) {
+        console.error('Error getting project:', error);
+        return null;
+    }
 }
 
-function updateProject(projectId, updates) {
+async function updateProject(projectId, updates) {
     try {
-        const allProjects = JSON.parse(localStorage.getItem('inspectort_projects') || '[]');
-        const projectIndex = allProjects.findIndex(p => p.id === projectId);
-        
-        if (projectIndex === -1) {
-            throw new Error('פרויקט לא נמצא');
-        }
-
-        // Update project data
-        allProjects[projectIndex] = {
-            ...allProjects[projectIndex],
-            ...updates,
-            updatedAt: new Date().toISOString()
-        };
-
-        localStorage.setItem('inspectort_projects', JSON.stringify(allProjects));
+        // Update project in IndexedDB
+        const updatedProject = await window.LocalStorageManager.updateProject(projectId, updates);
         
         // Update app state
         const appProjectIndex = appState.projects.findIndex(p => p.id === projectId);
         if (appProjectIndex !== -1) {
-            appState.projects[appProjectIndex] = allProjects[projectIndex];
+            appState.projects[appProjectIndex] = updatedProject;
         }
 
-        return allProjects[projectIndex];
+        return updatedProject;
     } catch (error) {
         console.error('Error updating project:', error);
         showNotification('שגיאה בעדכון הפרויקט: ' + error.message, 'error');
@@ -1622,15 +1493,14 @@ function updateProject(projectId, updates) {
     }
 }
 
-function deleteProject(projectId) {
+async function deleteProject(projectId) {
     try {
-        const allProjects = JSON.parse(localStorage.getItem('inspectort_projects') || '[]');
-        const filteredProjects = allProjects.filter(p => p.id !== projectId);
-        
-        localStorage.setItem('inspectort_projects', JSON.stringify(filteredProjects));
+        // Delete project from IndexedDB (this also deletes all associated photos)
+        await window.LocalStorageManager.deleteProject(projectId);
         
         // Update app state
         appState.projects = appState.projects.filter(p => p.id !== projectId);
+        appState.photos = appState.photos.filter(p => p.projectId !== projectId);
         
         return true;
     } catch (error) {
@@ -2299,21 +2169,16 @@ function processCompressedPhoto(file) {
     }
 }
 
-function savePhoto(photoData) {
+async function savePhoto(photoData) {
     try {
         console.log('Attempting to save photo:', photoData.name, 'Size:', photoData.size);
         
-        // Check localStorage availability and space
-        if (!isStorageAvailable()) {
-            throw new Error('localStorage is not available');
-        }
-        
-        // Pre-check storage space
-        const usage = getStorageUsage();
+        // Check storage space
+        const usage = await window.LocalStorageManager.getStorageUsage();
         console.log('Storage usage:', usage.total, 'MB /', usage.limit, 'MB');
         
-        // Estimate photo size in storage (JSON overhead ~30%)
-        const estimatedSize = photoData.url ? new Blob([photoData.url]).size * 1.3 : photoData.size * 1.3;
+        // Estimate photo size in storage
+        const estimatedSize = photoData.url ? new Blob([photoData.url]).size : photoData.size;
         const estimatedSizeMB = estimatedSize / 1024 / 1024;
         
         console.log('Estimated photo storage size:', Math.round(estimatedSizeMB * 100) / 100, 'MB');
@@ -2323,63 +2188,37 @@ function savePhoto(photoData) {
             console.log('Not enough storage space available');
             
             // Try to clean up old photos first
-            const cleanupSuccess = attemptAutomaticCleanup();
-            if (!cleanupSuccess) {
-                throw new Error('Not enough storage space. Available: ' + Math.round(usage.available * 100) / 100 + 'MB, Needed: ' + Math.round(estimatedSizeMB * 100) / 100 + 'MB');
-            }
-        }
-        
-        // Get current photos
-        const allPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
-        
-        // Add new photo
-        allPhotos.push(photoData);
-        
-        // Try to save with error handling
-        try {
-            const dataString = JSON.stringify(allPhotos);
-            localStorage.setItem('inspectort_photos', dataString);
-            console.log('Photo saved successfully to localStorage');
-        } catch (saveError) {
-            if (saveError.name === 'QuotaExceededError') {
-                console.log('Storage quota exceeded, attempting cleanup...');
-                
-                // Try aggressive cleanup
-                const cleanupSuccess = attemptAutomaticCleanup(true);
-                if (cleanupSuccess) {
-                    // Try saving again after cleanup
-                    const cleanedPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
-                    cleanedPhotos.push(photoData);
-                    localStorage.setItem('inspectort_photos', JSON.stringify(cleanedPhotos));
-                    console.log('Photo saved after cleanup');
-                } else {
-                    throw saveError;
+            const currentUser = getCurrentUser();
+            if (currentUser) {
+                const cleanedCount = await window.LocalStorageManager.cleanupOldPhotos(currentUser.id, 5);
+                if (cleanedCount === 0) {
+                    throw new Error('Not enough storage space. Available: ' + Math.round(usage.available * 100) / 100 + 'MB, Needed: ' + Math.round(estimatedSizeMB * 100) / 100 + 'MB');
                 }
-            } else {
-                throw saveError;
             }
         }
+        
+        // Add user ID to photo data
+        const currentUser = getCurrentUser();
+        if (!currentUser) {
+            throw new Error('משתמש לא מחובר');
+        }
+        
+        photoData.userId = currentUser.id;
+        
+        // Save photo to IndexedDB
+        const savedPhoto = await window.LocalStorageManager.savePhoto(photoData);
         
         // Update app state
-        appState.photos.push(photoData);
-        
-        // Auto-sync if cloud is enabled
-        autoSyncData();
+        appState.photos.push(savedPhoto);
         
         console.log('Photo saved successfully');
         
-        // Log project storage info
-        if (photoData.projectId) {
-            const projectUsage = getProjectStorageUsage(photoData.projectId);
-            console.log(`Project storage: ${projectUsage.photoCount} photos, ${projectUsage.sizeInMB} MB, avg ${projectUsage.averagePhotoSize} KB per photo`);
-        }
-        
-        return photoData;
+        return savedPhoto;
     } catch (error) {
         console.error('Error saving photo:', error);
         
         // Handle specific errors
-        if (error.name === 'QuotaExceededError' || error.message.includes('quota') || error.message.includes('storage space')) {
+        if (error.message.includes('storage space')) {
             showNotification('אחסון מלא! מחק תמונות ישנות כדי לפנות מקום', 'error');
             // Show storage management options
             setTimeout(() => {
@@ -2465,38 +2304,13 @@ function isStorageAvailable() {
     }
 }
 
-function getStorageUsage() {
+async function getStorageUsage() {
     try {
-        // Get all localStorage items
-        const photos = localStorage.getItem('inspectort_photos') || '[]';
-        const projects = localStorage.getItem('inspectort_projects') || '[]';
-        const users = localStorage.getItem('inspectort_users') || '[]';
-        const currentUser = localStorage.getItem('inspectort_currentUser') || '{}';
-        
-        // Calculate sizes
-        const photosSize = new Blob([photos]).size;
-        const projectsSize = new Blob([projects]).size;
-        const usersSize = new Blob([users]).size;
-        const currentUserSize = new Blob([currentUser]).size;
-        
-        const totalSize = photosSize + projectsSize + usersSize + currentUserSize;
-        
-        // Use more conservative limit for mobile devices
-        const storageLimit = 8 * 1024 * 1024; // 8MB limit for better mobile compatibility
-        
-        return {
-            photos: Math.round(photosSize / 1024 / 1024 * 100) / 100,
-            projects: Math.round(projectsSize / 1024 / 1024 * 100) / 100,
-            users: Math.round(usersSize / 1024 / 1024 * 100) / 100,
-            currentUser: Math.round(currentUserSize / 1024 / 1024 * 100) / 100,
-            total: Math.round(totalSize / 1024 / 1024 * 100) / 100,
-            limit: 8, // 8MB total limit for mobile compatibility
-            available: Math.max(0, Math.round((storageLimit - totalSize) / 1024 / 1024 * 100) / 100),
-            percentage: Math.round((totalSize / storageLimit) * 100)
-        };
+        // Get storage usage from IndexedDB
+        return await window.LocalStorageManager.getStorageUsage();
     } catch (error) {
         console.error('Error calculating storage usage:', error);
-        return { photos: 0, projects: 0, users: 0, currentUser: 0, total: 0, limit: 8, available: 8, percentage: 0 };
+        return { photos: 0, projects: 0, users: 0, total: 0, limit: 100, available: 100, percentage: 0 };
     }
 }
 
@@ -2794,61 +2608,51 @@ function navigateToPhotoManagement() {
     showNotification('גלול למטה לראות את כל התמונות ולמחוק ישנות', 'info', 5000);
 }
 
-function getAllPhotos() {
+async function getAllPhotos() {
     try {
-        const photos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
         const currentUser = getCurrentUser();
-        
         if (!currentUser) {
             return [];
         }
         
-        // Filter photos by current user's projects
-        const userProjects = getAllProjects();
-        const userProjectIds = userProjects.map(p => p.id);
-        
-        return photos.filter(photo => userProjectIds.includes(photo.projectId));
+        // Get photos from IndexedDB
+        return await window.LocalStorageManager.getUserPhotos(currentUser.id);
     } catch (error) {
         console.error('Error getting photos:', error);
         return [];
     }
 }
 
-function getPhotosByProject(projectId) {
-    const allPhotos = getAllPhotos();
-    return allPhotos.filter(photo => photo.projectId === projectId);
-}
-
-function getPhotoById(photoId) {
-    const allPhotos = getAllPhotos();
-    return allPhotos.find(photo => photo.id === photoId);
-}
-
-function updatePhoto(photoId, updates) {
+async function getPhotosByProject(projectId) {
     try {
-        const allPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
-        const photoIndex = allPhotos.findIndex(p => p.id === photoId);
-        
-        if (photoIndex === -1) {
-            throw new Error('תמונה לא נמצאה');
-        }
+        return await window.LocalStorageManager.getProjectPhotos(projectId);
+    } catch (error) {
+        console.error('Error getting project photos:', error);
+        return [];
+    }
+}
 
-        // Update photo data
-        allPhotos[photoIndex] = {
-            ...allPhotos[photoIndex],
-            ...updates,
-            updatedAt: new Date().toISOString()
-        };
+async function getPhotoById(photoId) {
+    try {
+        return await window.LocalStorageManager.getPhoto(photoId);
+    } catch (error) {
+        console.error('Error getting photo:', error);
+        return null;
+    }
+}
 
-        localStorage.setItem('inspectort_photos', JSON.stringify(allPhotos));
+async function updatePhoto(photoId, updates) {
+    try {
+        // Update photo in IndexedDB
+        const updatedPhoto = await window.LocalStorageManager.updatePhoto(photoId, updates);
         
         // Update app state
         const appPhotoIndex = appState.photos.findIndex(p => p.id === photoId);
         if (appPhotoIndex !== -1) {
-            appState.photos[appPhotoIndex] = allPhotos[photoIndex];
+            appState.photos[appPhotoIndex] = updatedPhoto;
         }
 
-        return allPhotos[photoIndex];
+        return updatedPhoto;
     } catch (error) {
         console.error('Error updating photo:', error);
         showNotification('שגיאה בעדכון התמונה: ' + error.message, 'error');
@@ -2856,12 +2660,10 @@ function updatePhoto(photoId, updates) {
     }
 }
 
-function deletePhoto(photoId) {
+async function deletePhoto(photoId) {
     try {
-        const allPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
-        const filteredPhotos = allPhotos.filter(p => p.id !== photoId);
-        
-        localStorage.setItem('inspectort_photos', JSON.stringify(filteredPhotos));
+        // Delete photo from IndexedDB
+        await window.LocalStorageManager.deletePhoto(photoId);
         
         // Update app state
         appState.photos = appState.photos.filter(p => p.id !== photoId);
@@ -4810,21 +4612,12 @@ function logout() {
 }
 
 async function confirmLogout() {
-    // Sign out from Firebase if connected
-    if (appState.currentUser?.cloudSync && window.FirebaseSync) {
-        try {
-            await window.FirebaseSync.signOut();
-            console.log('Signed out from Firebase');
-        } catch (error) {
-            console.error('Firebase signout error:', error);
-        }
-    }
-    
     // Clear user data
     appState.currentUser = null;
     appState.isAuthenticated = false;
     appState.currentProject = null;
-    appState.lastSyncTime = null;
+    appState.projects = [];
+    appState.photos = [];
     
     // Clear stored user data
     localStorage.removeItem(APP_CONFIG.storagePrefix + STORAGE_KEYS.user);
@@ -4869,144 +4662,16 @@ function exportUserData() {
 }
 
 /**
- * Cloud Sync Functions
- */
-async function performDataSync() {
-    if (!window.FirebaseSync || !window.FirebaseSync.isEnabled()) {
-        console.log('Firebase not available for sync');
-        return { success: false, message: 'Cloud sync not available' };
-    }
-    
-    if (appState.isSyncing) {
-        console.log('Sync already in progress');
-        return { success: false, message: 'Sync already in progress' };
-    }
-    
-    try {
-        appState.isSyncing = true;
-        console.log('Starting data sync...');
-        
-        const syncResult = await window.FirebaseSync.performFullSync();
-        
-        if (syncResult.success) {
-            appState.lastSyncTime = new Date().toISOString();
-            
-            // Reload data after sync
-            await loadSavedData();
-            
-            // Update UI
-            if (appState.currentPage === 'dashboard') {
-                updateDashboardContent();
-            } else if (appState.currentPage === 'project') {
-                updateProjectContent();
-            }
-            
-            console.log('Data sync completed successfully');
-            showNotification(`סנכרון הושלם: ${syncResult.projects} פרויקטים, ${syncResult.photos} תמונות`, 'success');
-        } else {
-            showNotification('שגיאה בסנכרון: ' + syncResult.message, 'error');
-        }
-        
-        return syncResult;
-    } catch (error) {
-        console.error('Data sync failed:', error);
-        showNotification('שגיאה בסנכרון: ' + error.message, 'error');
-        return { success: false, message: error.message };
-    } finally {
-        appState.isSyncing = false;
-    }
-}
-
-/**
- * Auto-sync when projects or photos are created/updated
- */
-async function autoSyncData() {
-    if (!window.FirebaseSync || !window.FirebaseSync.isEnabled() || !appState.currentUser?.cloudSync) {
-        return;
-    }
-    
-    if (appState.isSyncing) {
-        return;
-    }
-    
-    try {
-        console.log('Auto-syncing data...');
-        await window.FirebaseSync.syncProjects(appState.projects);
-        await window.FirebaseSync.syncPhotos(appState.photos);
-        appState.lastSyncTime = new Date().toISOString();
-        console.log('Auto-sync completed');
-    } catch (error) {
-        console.error('Auto-sync failed:', error);
-    }
-}
-
-/**
  * Network status handlers
  */
 function handleOnlineStatus() {
     appState.isOnline = true;
     console.log('Network: Online');
-    showNotification('חזרת לאינטרנט ☁️', 'success', 2000);
-    
-    if (appState.currentUser?.cloudSync) {
-        // Auto-sync when coming back online
-        setTimeout(() => {
-            performDataSync();
-        }, 1000);
-    }
 }
 
 function handleOfflineStatus() {
     appState.isOnline = false;
     console.log('Network: Offline');
-    showNotification('עבדת אופליין 📱', 'info', 2000);
-}
-
-/**
- * Add sync status to dashboard UI
- */
-function addSyncStatusToUI() {
-    const dashboardHeader = document.querySelector('.dashboard-header');
-    if (!dashboardHeader) return;
-    
-    // Remove existing sync status
-    const existingSyncStatus = dashboardHeader.querySelector('.sync-status');
-    if (existingSyncStatus) {
-        existingSyncStatus.remove();
-    }
-    
-    // Only show sync status if user is cloud-enabled
-    if (!appState.currentUser?.cloudSync) {
-        return;
-    }
-    
-    const syncStatus = document.createElement('div');
-    syncStatus.className = 'sync-status';
-    
-    const lastSync = appState.lastSyncTime ? 
-        new Date(appState.lastSyncTime).toLocaleString('he-IL', {
-            hour: '2-digit',
-            minute: '2-digit',
-            day: '2-digit',
-            month: '2-digit'
-        }) : 
-        'מעולם לא';
-    
-    const status = appState.isSyncing ? 
-        '🔄 מסנכרן...' : 
-        appState.isOnline ? 
-            `☁️ מסונכרן (${lastSync})` : 
-            '📱 אופליין';
-    
-    syncStatus.innerHTML = `
-        <div class="sync-indicator">
-            <span class="sync-text">${status}</span>
-            ${appState.currentUser?.cloudSync && !appState.isSyncing && appState.isOnline ? 
-                '<button class="sync-btn" onclick="performDataSync()" title="סנכרן עכשיו">🔄</button>' : ''}
-        </div>
-    `;
-    
-    dashboardHeader.appendChild(syncStatus);
 }
 
 // Add CSS animations for notifications
