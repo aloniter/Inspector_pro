@@ -96,10 +96,405 @@ let appState = {
 // DOM Elements
 let elements = {};
 
+// Enhanced Image Storage System with IndexedDB
+class ImageStorageManager {
+    constructor() {
+        this.dbName = 'InspectortProImages';
+        this.dbVersion = 1;
+        this.storeName = 'images';
+        this.db = null;
+        this.useIndexedDB = true;
+        this.fallbackToLocalStorage = true;
+    }
+
+    async init() {
+        try {
+            // Check if IndexedDB is supported
+            if (!window.indexedDB) {
+                console.log('IndexedDB not supported, falling back to localStorage');
+                this.useIndexedDB = false;
+                return;
+            }
+
+            // Initialize IndexedDB
+            this.db = await this.openDatabase();
+            console.log('IndexedDB initialized successfully');
+        } catch (error) {
+            console.error('Failed to initialize IndexedDB:', error);
+            this.useIndexedDB = false;
+        }
+    }
+
+    openDatabase() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(this.dbName, this.dbVersion);
+
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
+
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                
+                // Create object store for images
+                if (!db.objectStoreNames.contains(this.storeName)) {
+                    const store = db.createObjectStore(this.storeName, { keyPath: 'id' });
+                    
+                    // Create indexes for efficient querying
+                    store.createIndex('projectId', 'projectId', { unique: false });
+                    store.createIndex('createdAt', 'createdAt', { unique: false });
+                    store.createIndex('userId', 'userId', { unique: false });
+                    store.createIndex('filename', 'filename', { unique: false });
+                }
+            };
+        });
+    }
+
+    async saveImage(imageData) {
+        try {
+            // Enhanced image metadata
+            const enhancedImageData = {
+                ...imageData,
+                userId: getCurrentUser()?.id,
+                storageType: this.useIndexedDB ? 'indexeddb' : 'localstorage',
+                compression: {
+                    originalSize: imageData.originalSize || imageData.size,
+                    compressedSize: imageData.size,
+                    compressionRatio: imageData.originalSize ? (imageData.size / imageData.originalSize) : 1,
+                    quality: imageData.quality || 0.7
+                },
+                technical: {
+                    userAgent: navigator.userAgent,
+                    timestamp: Date.now(),
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    screenResolution: `${screen.width}x${screen.height}`,
+                    pixelRatio: window.devicePixelRatio
+                },
+                // Export tracking
+                exported: false,
+                exportHistory: []
+            };
+
+            if (this.useIndexedDB && this.db) {
+                await this.saveToIndexedDB(enhancedImageData);
+            } else {
+                await this.saveToLocalStorage(enhancedImageData);
+            }
+
+            return enhancedImageData;
+        } catch (error) {
+            console.error('Error saving image:', error);
+            
+            // Fallback to localStorage if IndexedDB fails
+            if (this.useIndexedDB && this.fallbackToLocalStorage) {
+                console.log('Falling back to localStorage...');
+                return await this.saveToLocalStorage(imageData);
+            }
+            
+            throw error;
+        }
+    }
+
+    async saveToIndexedDB(imageData) {
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([this.storeName], 'readwrite');
+            const store = transaction.objectStore(this.storeName);
+            
+            const request = store.put(imageData);
+            
+            request.onsuccess = () => resolve(imageData);
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    async saveToLocalStorage(imageData) {
+        try {
+            const existingPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
+            
+            // Remove existing photo with same ID if exists
+            const filteredPhotos = existingPhotos.filter(photo => photo.id !== imageData.id);
+            
+            // Add new photo
+            filteredPhotos.push(imageData);
+            
+            // Save to localStorage
+            localStorage.setItem('inspectort_photos', JSON.stringify(filteredPhotos));
+            
+            return imageData;
+        } catch (error) {
+            console.error('Error saving to localStorage:', error);
+            throw error;
+        }
+    }
+
+    async getImage(imageId) {
+        try {
+            if (this.useIndexedDB && this.db) {
+                return await this.getFromIndexedDB(imageId);
+            } else {
+                return await this.getFromLocalStorage(imageId);
+            }
+        } catch (error) {
+            console.error('Error getting image:', error);
+            
+            // Fallback to localStorage
+            if (this.useIndexedDB && this.fallbackToLocalStorage) {
+                return await this.getFromLocalStorage(imageId);
+            }
+            
+            throw error;
+        }
+    }
+
+    async getFromIndexedDB(imageId) {
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([this.storeName], 'readonly');
+            const store = transaction.objectStore(this.storeName);
+            
+            const request = store.get(imageId);
+            
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    async getFromLocalStorage(imageId) {
+        try {
+            const photos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
+            return photos.find(photo => photo.id === imageId);
+        } catch (error) {
+            console.error('Error getting from localStorage:', error);
+            throw error;
+        }
+    }
+
+    async getAllImages(projectId = null) {
+        try {
+            if (this.useIndexedDB && this.db) {
+                return await this.getAllFromIndexedDB(projectId);
+            } else {
+                return await this.getAllFromLocalStorage(projectId);
+            }
+        } catch (error) {
+            console.error('Error getting all images:', error);
+            
+            // Fallback to localStorage
+            if (this.useIndexedDB && this.fallbackToLocalStorage) {
+                return await this.getAllFromLocalStorage(projectId);
+            }
+            
+            throw error;
+        }
+    }
+
+    async getAllFromIndexedDB(projectId = null) {
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([this.storeName], 'readonly');
+            const store = transaction.objectStore(this.storeName);
+            
+            let request;
+            
+            if (projectId) {
+                // Use project index for filtering
+                const index = store.index('projectId');
+                request = index.getAll(projectId);
+            } else {
+                request = store.getAll();
+            }
+            
+            request.onsuccess = () => {
+                const currentUser = getCurrentUser();
+                if (currentUser) {
+                    // Filter by user ID
+                    const userImages = request.result.filter(img => img.userId === currentUser.id);
+                    resolve(userImages);
+                } else {
+                    resolve(request.result);
+                }
+            };
+            
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    async getAllFromLocalStorage(projectId = null) {
+        try {
+            const photos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
+            const currentUser = getCurrentUser();
+            
+            let filteredPhotos = photos;
+            
+            // Filter by user if logged in
+            if (currentUser) {
+                const userProjects = getAllProjects();
+                const userProjectIds = userProjects.map(p => p.id);
+                filteredPhotos = photos.filter(photo => userProjectIds.includes(photo.projectId));
+            }
+            
+            // Filter by project if specified
+            if (projectId) {
+                filteredPhotos = filteredPhotos.filter(photo => photo.projectId === projectId);
+            }
+            
+            return filteredPhotos;
+        } catch (error) {
+            console.error('Error getting all from localStorage:', error);
+            throw error;
+        }
+    }
+
+    async deleteImage(imageId) {
+        try {
+            if (this.useIndexedDB && this.db) {
+                await this.deleteFromIndexedDB(imageId);
+            } else {
+                await this.deleteFromLocalStorage(imageId);
+            }
+            
+            return true;
+        } catch (error) {
+            console.error('Error deleting image:', error);
+            return false;
+        }
+    }
+
+    async deleteFromIndexedDB(imageId) {
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([this.storeName], 'readwrite');
+            const store = transaction.objectStore(this.storeName);
+            
+            const request = store.delete(imageId);
+            
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    async deleteFromLocalStorage(imageId) {
+        try {
+            const photos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
+            const filteredPhotos = photos.filter(photo => photo.id !== imageId);
+            
+            localStorage.setItem('inspectort_photos', JSON.stringify(filteredPhotos));
+            
+            return true;
+        } catch (error) {
+            console.error('Error deleting from localStorage:', error);
+            throw error;
+        }
+    }
+
+    async updateImage(imageId, updates) {
+        try {
+            const existingImage = await this.getImage(imageId);
+            
+            if (!existingImage) {
+                throw new Error('Image not found');
+            }
+            
+            const updatedImage = {
+                ...existingImage,
+                ...updates,
+                updatedAt: new Date().toISOString()
+            };
+            
+            return await this.saveImage(updatedImage);
+        } catch (error) {
+            console.error('Error updating image:', error);
+            throw error;
+        }
+    }
+
+    async getStorageStats() {
+        try {
+            let totalSize = 0;
+            let imageCount = 0;
+            const images = await this.getAllImages();
+            
+            images.forEach(image => {
+                totalSize += image.size || 0;
+                imageCount++;
+            });
+            
+            return {
+                totalImages: imageCount,
+                totalSizeBytes: totalSize,
+                totalSizeMB: Math.round(totalSize / 1024 / 1024 * 100) / 100,
+                averageImageSize: imageCount > 0 ? Math.round(totalSize / imageCount) : 0,
+                storageType: this.useIndexedDB ? 'IndexedDB' : 'LocalStorage'
+            };
+        } catch (error) {
+            console.error('Error getting storage stats:', error);
+            return {
+                totalImages: 0,
+                totalSizeBytes: 0,
+                totalSizeMB: 0,
+                averageImageSize: 0,
+                storageType: 'Unknown'
+            };
+        }
+    }
+
+    async exportImageData(imageId, format = 'blob') {
+        try {
+            const image = await this.getImage(imageId);
+            
+            if (!image) {
+                throw new Error('Image not found');
+            }
+            
+            // Track export
+            const exportEntry = {
+                timestamp: new Date().toISOString(),
+                format: format,
+                exported: true
+            };
+            
+            // Update export history
+            const updatedImage = {
+                ...image,
+                exported: true,
+                exportHistory: [...(image.exportHistory || []), exportEntry]
+            };
+            
+            await this.saveImage(updatedImage);
+            
+            if (format === 'blob') {
+                // Convert data URL to blob
+                const response = await fetch(image.url);
+                return await response.blob();
+            } else if (format === 'dataurl') {
+                return image.url;
+            } else if (format === 'metadata') {
+                return {
+                    id: image.id,
+                    name: image.name,
+                    filename: image.filename,
+                    description: image.description,
+                    createdAt: image.createdAt,
+                    updatedAt: image.updatedAt,
+                    size: image.size,
+                    type: image.type,
+                    compression: image.compression,
+                    technical: image.technical,
+                    exportHistory: image.exportHistory
+                };
+            }
+            
+            return image;
+        } catch (error) {
+            console.error('Error exporting image data:', error);
+            throw error;
+        }
+    }
+}
+
+// Initialize the enhanced image storage manager
+const imageStorageManager = new ImageStorageManager();
+
 /**
  * Initialize the application
  */
-function initApp() {
+async function initApp() {
     // Cache DOM elements
     cacheElements();
     
@@ -108,6 +503,9 @@ function initApp() {
     
     // Show loading screen
     showLoadingScreen();
+    
+    // Initialize enhanced image storage
+    await imageStorageManager.init();
     
     // Load saved data
     loadSavedData();
@@ -1983,8 +2381,8 @@ function takePicture(video) {
                     file.lastModified = Date.now();
                 }
                 
-                // Process the captured photo
-                processPhoto(file);
+                // Process the captured photo with camera method
+                processPhoto(file, 'camera');
                 
                 // Close camera modal
                 stopCamera();
@@ -2037,7 +2435,7 @@ function handlePhotoUpload(event) {
         
         // Process each valid file
         validFiles.forEach(file => {
-            processPhoto(file);
+            processPhoto(file, 'upload');
         });
         
         // Show success message only for multiple files
@@ -2050,9 +2448,9 @@ function handlePhotoUpload(event) {
     }
 }
 
-function processPhoto(file) {
+function processPhoto(file, captureMethod = 'unknown') {
     try {
-        console.log('Processing photo:', file.name, 'Original size:', Math.round(file.size / 1024), 'KB');
+        console.log('Processing photo:', file.name, 'Original size:', Math.round(file.size / 1024), 'KB', 'Method:', captureMethod);
         
         // Check storage space before processing
         const usage = getStorageUsage();
@@ -2077,13 +2475,13 @@ function processPhoto(file) {
             console.log('Compressing image for mobile/size optimization');
             compressImage(file, (compressedFile) => {
                 if (compressedFile) {
-                    processCompressedPhoto(compressedFile);
+                    processCompressedPhoto(compressedFile, captureMethod);
                 } else {
                     showNotification('שגיאה בדחיסת התמונה', 'error');
                 }
             });
         } else {
-            processCompressedPhoto(file);
+            processCompressedPhoto(file, captureMethod);
         }
         
     } catch (error) {
@@ -2238,11 +2636,11 @@ function compressImageAggressively(img, fileName, callback) {
     }
 }
 
-function processCompressedPhoto(file) {
+async function processCompressedPhoto(file, captureMethod = 'unknown') {
     try {
         const reader = new FileReader();
         
-        reader.onload = function(e) {
+        reader.onload = async function(e) {
             try {
                 const photoData = {
                     id: generateId(),
@@ -2256,13 +2654,16 @@ function processCompressedPhoto(file) {
                     updatedAt: new Date().toISOString(),
                     description: '',
                     annotations: [],
-                    isAnnotated: false
+                    isAnnotated: false,
+                    captureMethod: captureMethod, // 'camera', 'upload', 'paste'
+                    originalSize: file.originalSize || file.size, // Track original size before compression
+                    quality: file.quality || 0.7
                 };
                 
                 console.log('Photo data created:', photoData.name, 'Final size:', Math.round(photoData.size / 1024), 'KB');
                 
-                // Save photo
-                const savedPhoto = savePhoto(photoData);
+                // Save photo using the new async function
+                const savedPhoto = await savePhoto(photoData);
                 
                 if (savedPhoto) {
                     console.log('Photo saved successfully');
@@ -2299,99 +2700,148 @@ function processCompressedPhoto(file) {
     }
 }
 
-function savePhoto(photoData) {
+async function savePhoto(photoData) {
     try {
         console.log('Attempting to save photo:', photoData.name, 'Size:', photoData.size);
         
-        // Check localStorage availability and space
-        if (!isStorageAvailable()) {
-            throw new Error('localStorage is not available');
-        }
+        // Enhanced photo data with additional metadata
+        const enhancedPhotoData = {
+            ...photoData,
+            filename: photoData.name || photoData.originalName || `photo-${Date.now()}.jpg`,
+            // Add enhanced metadata
+            captureDetails: {
+                method: photoData.captureMethod || 'unknown', // 'camera', 'upload', 'paste'
+                device: navigator.userAgent,
+                timestamp: Date.now(),
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                location: photoData.location || null // GPS coordinates if available
+            },
+            // Add export tracking
+            exportable: true,
+            exportFormats: ['jpg', 'png', 'pdf', 'word'],
+            lastAccessed: new Date().toISOString()
+        };
         
-        // Pre-check storage space
-        const usage = getStorageUsage();
-        console.log('Storage usage:', usage.total, 'MB /', usage.limit, 'MB');
+        // Use the enhanced image storage manager
+        const savedPhoto = await imageStorageManager.saveImage(enhancedPhotoData);
         
-        // Estimate photo size in storage (JSON overhead ~30%)
-        const estimatedSize = photoData.url ? new Blob([photoData.url]).size * 1.3 : photoData.size * 1.3;
-        const estimatedSizeMB = estimatedSize / 1024 / 1024;
-        
-        console.log('Estimated photo storage size:', Math.round(estimatedSizeMB * 100) / 100, 'MB');
-        
-        // Check if we have enough space
-        if (estimatedSizeMB > usage.available) {
-            console.log('Not enough storage space available');
+        if (savedPhoto) {
+            // Update app state
+            appState.photos.push(savedPhoto);
             
-            // Try to clean up old photos first
-            const cleanupSuccess = attemptAutomaticCleanup();
-            if (!cleanupSuccess) {
-                throw new Error('Not enough storage space. Available: ' + Math.round(usage.available * 100) / 100 + 'MB, Needed: ' + Math.round(estimatedSizeMB * 100) / 100 + 'MB');
+            // Auto-sync if cloud is enabled
+            autoSyncData();
+            
+            console.log('Photo saved successfully using', savedPhoto.storageType);
+            
+            // Log enhanced storage info
+            if (savedPhoto.projectId) {
+                const projectUsage = getProjectStorageUsage(savedPhoto.projectId);
+                console.log(`Project storage: ${projectUsage.photoCount} photos, ${projectUsage.sizeInMB} MB, avg ${projectUsage.averagePhotoSize} KB per photo`);
             }
+            
+            // Show storage type indicator
+            const storageTypeMsg = savedPhoto.storageType === 'indexeddb' ? 
+                'תמונה נשמרה באחסון מתקדם (IndexedDB) 🚀' : 
+                'תמונה נשמרה באחסון מקומי (LocalStorage) 💾';
+            
+            console.log(storageTypeMsg);
+            
+            return savedPhoto;
+        } else {
+            throw new Error('Failed to save photo using enhanced storage');
         }
-        
-        // Get current photos
-        const allPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
-        
-        // Add new photo
-        allPhotos.push(photoData);
-        
-        // Try to save with error handling
-        try {
-            const dataString = JSON.stringify(allPhotos);
-            localStorage.setItem('inspectort_photos', dataString);
-            console.log('Photo saved successfully to localStorage');
-        } catch (saveError) {
-            if (saveError.name === 'QuotaExceededError') {
-                console.log('Storage quota exceeded, attempting cleanup...');
-                
-                // Try aggressive cleanup
-                const cleanupSuccess = attemptAutomaticCleanup(true);
-                if (cleanupSuccess) {
-                    // Try saving again after cleanup
-                    const cleanedPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
-                    cleanedPhotos.push(photoData);
-                    localStorage.setItem('inspectort_photos', JSON.stringify(cleanedPhotos));
-                    console.log('Photo saved after cleanup');
-                } else {
-                    throw saveError;
-                }
-            } else {
-                throw saveError;
-            }
-        }
-        
-        // Update app state
-        appState.photos.push(photoData);
-        
-        // Auto-sync if cloud is enabled
-        autoSyncData();
-        
-        console.log('Photo saved successfully');
-        
-        // Log project storage info
-        if (photoData.projectId) {
-            const projectUsage = getProjectStorageUsage(photoData.projectId);
-            console.log(`Project storage: ${projectUsage.photoCount} photos, ${projectUsage.sizeInMB} MB, avg ${projectUsage.averagePhotoSize} KB per photo`);
-        }
-        
-        return photoData;
     } catch (error) {
         console.error('Error saving photo:', error);
         
-        // Handle specific errors
-        if (error.name === 'QuotaExceededError' || error.message.includes('quota') || error.message.includes('storage space')) {
-            showNotification('אחסון מלא! מחק תמונות ישנות כדי לפנות מקום', 'error');
-            // Show storage management options
-            setTimeout(() => {
-                showStorageManagementModal();
-            }, 2000);
-        } else if (error.message.includes('too large')) {
-            showNotification('התמונה גדולה מדי. נסה תמונה קטנה יותר', 'error');
-        } else {
-            showNotification('שגיאה בשמירת התמונה: ' + error.message, 'error');
+        // Fallback to legacy storage system
+        try {
+            console.log('Attempting fallback to legacy storage...');
+            
+            // Check localStorage availability and space
+            if (!isStorageAvailable()) {
+                throw new Error('localStorage is not available');
+            }
+            
+            // Pre-check storage space
+            const usage = getStorageUsage();
+            console.log('Storage usage:', usage.total, 'MB /', usage.limit, 'MB');
+            
+            // Estimate photo size in storage (JSON overhead ~30%)
+            const estimatedSize = photoData.url ? new Blob([photoData.url]).size * 1.3 : photoData.size * 1.3;
+            const estimatedSizeMB = estimatedSize / 1024 / 1024;
+            
+            console.log('Estimated photo storage size:', Math.round(estimatedSizeMB * 100) / 100, 'MB');
+            
+            // Check if we have enough space
+            if (estimatedSizeMB > usage.available) {
+                console.log('Not enough storage space available');
+                
+                // Try to clean up old photos first
+                const cleanupSuccess = attemptAutomaticCleanup();
+                if (!cleanupSuccess) {
+                    throw new Error('Not enough storage space. Available: ' + Math.round(usage.available * 100) / 100 + 'MB, Needed: ' + Math.round(estimatedSizeMB * 100) / 100 + 'MB');
+                }
+            }
+            
+            // Get current photos
+            const allPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
+            
+            // Add new photo
+            allPhotos.push(photoData);
+            
+            // Try to save with error handling
+            try {
+                const dataString = JSON.stringify(allPhotos);
+                localStorage.setItem('inspectort_photos', dataString);
+                console.log('Photo saved successfully to localStorage (fallback)');
+            } catch (saveError) {
+                if (saveError.name === 'QuotaExceededError') {
+                    console.log('Storage quota exceeded, attempting cleanup...');
+                    
+                    // Try aggressive cleanup
+                    const cleanupSuccess = attemptAutomaticCleanup(true);
+                    if (cleanupSuccess) {
+                        // Try saving again after cleanup
+                        const cleanedPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
+                        cleanedPhotos.push(photoData);
+                        localStorage.setItem('inspectort_photos', JSON.stringify(cleanedPhotos));
+                        console.log('Photo saved after cleanup (fallback)');
+                    } else {
+                        throw saveError;
+                    }
+                } else {
+                    throw saveError;
+                }
+            }
+            
+            // Update app state
+            appState.photos.push(photoData);
+            
+            // Auto-sync if cloud is enabled
+            autoSyncData();
+            
+            console.log('Photo saved successfully (fallback)');
+            
+            return photoData;
+        } catch (fallbackError) {
+            console.error('Fallback save also failed:', fallbackError);
+            
+            // Handle specific errors
+            if (fallbackError.name === 'QuotaExceededError' || fallbackError.message.includes('quota') || fallbackError.message.includes('storage space')) {
+                showNotification('אחסון מלא! מחק תמונות ישנות כדי לפנות מקום', 'error');
+                // Show storage management options
+                setTimeout(() => {
+                    showStorageManagementModal();
+                }, 2000);
+            } else if (fallbackError.message.includes('too large')) {
+                showNotification('התמונה גדולה מדי. נסה תמונה קטנה יותר', 'error');
+            } else {
+                showNotification('שגיאה בשמירת התמונה: ' + fallbackError.message, 'error');
+            }
+            
+            return null;
         }
-        
-        return null;
     }
 }
 
@@ -2794,9 +3244,18 @@ function navigateToPhotoManagement() {
     showNotification('גלול למטה לראות את כל התמונות ולמחוק ישנות', 'info', 5000);
 }
 
-function getAllPhotos() {
+async function getAllPhotos() {
     try {
-        const photos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
+        // Try to use the enhanced image storage manager first
+        const photos = await imageStorageManager.getAllImages();
+        
+        if (photos && photos.length > 0) {
+            console.log(`Retrieved ${photos.length} photos from ${imageStorageManager.useIndexedDB ? 'IndexedDB' : 'localStorage'}`);
+            return photos;
+        }
+        
+        // Fallback to localStorage if no photos found in IndexedDB
+        const fallbackPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
         const currentUser = getCurrentUser();
         
         if (!currentUser) {
@@ -2807,20 +3266,38 @@ function getAllPhotos() {
         const userProjects = getAllProjects();
         const userProjectIds = userProjects.map(p => p.id);
         
-        return photos.filter(photo => userProjectIds.includes(photo.projectId));
+        return fallbackPhotos.filter(photo => userProjectIds.includes(photo.projectId));
     } catch (error) {
-        console.error('Error getting photos:', error);
-        return [];
+        console.error('Error getting all photos:', error);
+        
+        // Final fallback to localStorage
+        try {
+            const photos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
+            const currentUser = getCurrentUser();
+            
+            if (!currentUser) {
+                return [];
+            }
+            
+            // Filter photos by current user's projects
+            const userProjects = getAllProjects();
+            const userProjectIds = userProjects.map(p => p.id);
+            
+            return photos.filter(photo => userProjectIds.includes(photo.projectId));
+        } catch (fallbackError) {
+            console.error('Fallback photo retrieval failed:', fallbackError);
+            return [];
+        }
     }
 }
 
-function getPhotosByProject(projectId) {
-    const allPhotos = getAllPhotos();
+async function getPhotosByProject(projectId) {
+    const allPhotos = await getAllPhotos();
     return allPhotos.filter(photo => photo.projectId === projectId);
 }
 
-function getPhotoById(photoId) {
-    const allPhotos = getAllPhotos();
+async function getPhotoById(photoId) {
+    const allPhotos = await getAllPhotos();
     return allPhotos.find(photo => photo.id === photoId);
 }
 
@@ -2929,9 +3406,68 @@ function showPhotoMenu(event, photoId) {
     showModal(modal);
 }
 
-function editPhotoInfo(photoId) {
-    const photo = getPhotoById(photoId);
+async function editPhotoInfo(photoId) {
+    const photo = await getPhotoById(photoId);
     if (!photo) return;
+    
+    // Enhanced photo information display
+    const compressionInfo = photo.compression ? `
+        <div class="info-section">
+            <h4>מידע דחיסה</h4>
+            <div class="info-item">
+                <span class="info-label">גודל מקורי:</span>
+                <span class="info-value">${formatFileSize(photo.compression.originalSize || photo.size)}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">גודל לאחר דחיסה:</span>
+                <span class="info-value">${formatFileSize(photo.compression.compressedSize || photo.size)}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">יחס דחיסה:</span>
+                <span class="info-value">${Math.round((photo.compression.compressionRatio || 1) * 100)}%</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">איכות:</span>
+                <span class="info-value">${Math.round((photo.compression.quality || 0.7) * 100)}%</span>
+            </div>
+        </div>
+    ` : '';
+    
+    const captureInfo = photo.captureDetails ? `
+        <div class="info-section">
+            <h4>מידע צילום</h4>
+            <div class="info-item">
+                <span class="info-label">שיטת צילום:</span>
+                <span class="info-value">${photo.captureDetails.method === 'camera' ? '📷 מצלמה' : photo.captureDetails.method === 'upload' ? '📁 העלאה' : '❓ לא ידוע'}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">אזור זמן:</span>
+                <span class="info-value">${photo.captureDetails.timezone || 'לא זמין'}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">סוג אחסון:</span>
+                <span class="info-value">${photo.storageType === 'indexeddb' ? '🚀 IndexedDB' : '💾 LocalStorage'}</span>
+            </div>
+        </div>
+    ` : '';
+    
+    const exportInfo = photo.exportHistory && photo.exportHistory.length > 0 ? `
+        <div class="info-section">
+            <h4>היסטוריית יצוא</h4>
+            <div class="info-item">
+                <span class="info-label">יוצא:</span>
+                <span class="info-value">${photo.exported ? '✅ כן' : '❌ לא'}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">מספר יצואים:</span>
+                <span class="info-value">${photo.exportHistory.length}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">יצוא אחרון:</span>
+                <span class="info-value">${new Date(photo.exportHistory[photo.exportHistory.length - 1].timestamp).toLocaleDateString('he-IL')}</span>
+            </div>
+        </div>
+    ` : '';
     
     const modalContent = `
         <form id="editPhotoForm" class="photo-form">
@@ -2951,19 +3487,34 @@ function editPhotoInfo(photoId) {
                 <img src="${photo.url}" alt="${photo.name}" class="preview-image">
             </div>
             
-            <div class="photo-info">
-                <div class="info-item">
-                    <span class="info-label">גודל:</span>
-                    <span class="info-value">${formatFileSize(photo.size)}</span>
+            <div class="photo-info-enhanced">
+                <div class="info-section">
+                    <h4>מידע בסיסי</h4>
+                    <div class="info-item">
+                        <span class="info-label">גודל:</span>
+                        <span class="info-value">${formatFileSize(photo.size)}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">תאריך יצירה:</span>
+                        <span class="info-value">${new Date(photo.createdAt).toLocaleDateString('he-IL')}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">תאריך עדכון:</span>
+                        <span class="info-value">${new Date(photo.updatedAt).toLocaleDateString('he-IL')}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">סוג קובץ:</span>
+                        <span class="info-value">${photo.type}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">שם קובץ מקורי:</span>
+                        <span class="info-value">${photo.originalName || 'לא זמין'}</span>
+                    </div>
                 </div>
-                <div class="info-item">
-                    <span class="info-label">תאריך:</span>
-                    <span class="info-value">${new Date(photo.createdAt).toLocaleDateString('he-IL')}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">סוג:</span>
-                    <span class="info-value">${photo.type}</span>
-                </div>
+                
+                ${compressionInfo}
+                ${captureInfo}
+                ${exportInfo}
             </div>
         </form>
     `;
@@ -2981,6 +3532,11 @@ function editPhotoInfo(photoId) {
                 text: 'שמור שינויים',
                 class: 'btn-primary',
                 action: `handleEditPhoto('${photoId}')`
+            },
+            {
+                text: 'הצג מטה-דאטה מלא',
+                class: 'btn-outline',
+                action: `showFullPhotoMetadata('${photoId}')`
             }
         ]
     );
@@ -2988,7 +3544,7 @@ function editPhotoInfo(photoId) {
     showModal(modal);
 }
 
-function handleEditPhoto(photoId) {
+async function handleEditPhoto(photoId) {
     const form = document.getElementById('editPhotoForm');
     const formData = new FormData(form);
     
@@ -3003,13 +3559,152 @@ function handleEditPhoto(photoId) {
         description: formData.get('photoDescription').trim()
     };
     
-    const updatedPhoto = updatePhoto(photoId, updates);
-    
-    if (updatedPhoto) {
-        closeModal(document.querySelector('.modal-overlay'));
-        showNotification('פרטי התמונה עודכנו בהצלחה!', 'success');
-        updatePhotosGrid();
+    // Use ImageStorageManager for updates
+    try {
+        const updatedPhoto = await imageStorageManager.updateImage(photoId, updates);
+        
+        if (updatedPhoto) {
+            closeModal(document.querySelector('.modal-overlay'));
+            showNotification('פרטי התמונה עודכנו בהצלחה!', 'success');
+            updatePhotosGrid();
+        }
+    } catch (error) {
+        console.error('Error updating photo:', error);
+        
+        // Fallback to legacy update
+        const updatedPhoto = updatePhoto(photoId, updates);
+        
+        if (updatedPhoto) {
+            closeModal(document.querySelector('.modal-overlay'));
+            showNotification('פרטי התמונה עודכנו בהצלחה!', 'success');
+            updatePhotosGrid();
+        }
     }
+}
+
+async function showFullPhotoMetadata(photoId) {
+    const photo = await getPhotoById(photoId);
+    if (!photo) return;
+    
+    // Get enhanced metadata from ImageStorageManager
+    let metadataJson = '';
+    try {
+        const fullMetadata = await imageStorageManager.exportImageData(photoId, 'metadata');
+        metadataJson = JSON.stringify(fullMetadata, null, 2);
+    } catch (error) {
+        console.error('Error getting full metadata:', error);
+        metadataJson = JSON.stringify(photo, null, 2);
+    }
+    
+    const modalContent = `
+        <div class="metadata-container">
+            <div class="metadata-header">
+                <h3>מטה-דאטה מלא עבור: ${photo.name}</h3>
+                <p class="metadata-description">מידע טכני מפורט על התמונה</p>
+            </div>
+            
+            <div class="metadata-sections">
+                <div class="metadata-section">
+                    <h4>🏷️ מזהים</h4>
+                    <div class="metadata-item">
+                        <span class="metadata-label">ID:</span>
+                        <span class="metadata-value">${photo.id}</span>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">Project ID:</span>
+                        <span class="metadata-value">${photo.projectId}</span>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">User ID:</span>
+                        <span class="metadata-value">${photo.userId || 'לא זמין'}</span>
+                    </div>
+                </div>
+                
+                <div class="metadata-section">
+                    <h4>🔧 מידע טכני</h4>
+                    <div class="metadata-item">
+                        <span class="metadata-label">סוג אחסון:</span>
+                        <span class="metadata-value">${photo.storageType || 'לא זמין'}</span>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">רזולוציית מסך:</span>
+                        <span class="metadata-value">${photo.technical?.screenResolution || 'לא זמין'}</span>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">יחס פיקסלים:</span>
+                        <span class="metadata-value">${photo.technical?.pixelRatio || 'לא זמין'}</span>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">דפדפן:</span>
+                        <span class="metadata-value">${photo.technical?.userAgent ? photo.technical.userAgent.substring(0, 50) + '...' : 'לא זמין'}</span>
+                    </div>
+                </div>
+                
+                <div class="metadata-section">
+                    <h4>📊 סטטיסטיקות</h4>
+                    <div class="metadata-item">
+                        <span class="metadata-label">גודל בבייטים:</span>
+                        <span class="metadata-value">${photo.size?.toLocaleString() || 'לא זמין'}</span>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">גודל מקורי:</span>
+                        <span class="metadata-value">${photo.compression?.originalSize?.toLocaleString() || 'לא זמין'}</span>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">חיסכון בשטח:</span>
+                        <span class="metadata-value">${photo.compression?.originalSize ? Math.round((1 - photo.compression.compressionRatio) * 100) + '%' : 'לא זמין'}</span>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">הערות:</span>
+                        <span class="metadata-value">${photo.isAnnotated ? '✅ יש' : '❌ אין'}</span>
+                    </div>
+                </div>
+                
+                <div class="metadata-section">
+                    <h4>📤 יצוא</h4>
+                    <div class="metadata-item">
+                        <span class="metadata-label">יוצא:</span>
+                        <span class="metadata-value">${photo.exported ? '✅ כן' : '❌ לא'}</span>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">פורמטים זמינים:</span>
+                        <span class="metadata-value">${photo.exportFormats?.join(', ') || 'לא זמין'}</span>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">גישה אחרונה:</span>
+                        <span class="metadata-value">${photo.lastAccessed ? new Date(photo.lastAccessed).toLocaleString('he-IL') : 'לא זמין'}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="metadata-json">
+                <h4>JSON גולמי</h4>
+                <textarea class="metadata-json-content" rows="10" readonly>${metadataJson}</textarea>
+                <button class="btn btn-sm btn-secondary" onclick="copyToClipboard('${metadataJson.replace(/'/g, "\\'")}')">
+                    📋 העתק JSON
+                </button>
+            </div>
+        </div>
+    `;
+    
+    const modal = createModal(
+        'מטה-דאטה מלא',
+        modalContent,
+        [
+            {
+                text: 'סגור',
+                class: 'btn-secondary',
+                action: 'closeModal(this.closest(\'.modal-overlay\'))'
+            },
+            {
+                text: 'יצא מטה-דאטה',
+                class: 'btn-primary',
+                action: `exportPhotoMetadata('${photoId}')`
+            }
+        ]
+    );
+    
+    showModal(modal);
 }
 
 function renamePhoto(photoId) {
@@ -3091,6 +3786,65 @@ function formatFileSize(bytes) {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function copyToClipboard(text) {
+    try {
+        navigator.clipboard.writeText(text).then(() => {
+            showNotification('מטה-דאטה הועתק ללוח', 'success');
+        }).catch(err => {
+            console.error('Failed to copy to clipboard:', err);
+            // Fallback method
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            showNotification('מטה-דאטה הועתק ללוח', 'success');
+        });
+    } catch (error) {
+        console.error('Error copying to clipboard:', error);
+        showNotification('שגיאה בהעתקה ללוח', 'error');
+    }
+}
+
+async function exportPhotoMetadata(photoId) {
+    try {
+        const photo = await getPhotoById(photoId);
+        if (!photo) return;
+        
+        // Get full metadata from ImageStorageManager
+        let fullMetadata;
+        try {
+            fullMetadata = await imageStorageManager.exportImageData(photoId, 'metadata');
+        } catch (error) {
+            console.error('Error getting full metadata:', error);
+            fullMetadata = photo;
+        }
+        
+        // Create downloadable JSON file
+        const metadataJson = JSON.stringify(fullMetadata, null, 2);
+        const blob = new Blob([metadataJson], { type: 'application/json' });
+        
+        // Create download link
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${photo.name || 'photo'}-metadata.json`;
+        link.click();
+        
+        // Clean up
+        URL.revokeObjectURL(url);
+        
+        showNotification('מטה-דאטה יוצא בהצלחה', 'success');
+        
+        // Close modal
+        closeModal(document.querySelector('.modal-overlay'));
+    } catch (error) {
+        console.error('Error exporting metadata:', error);
+        showNotification('שגיאה ביצוא מטה-דאטה', 'error');
+    }
 }
 
 function checkExportLibraries() {
