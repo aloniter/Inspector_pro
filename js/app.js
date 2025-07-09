@@ -80,6 +80,510 @@ const STORAGE_KEYS = {
     settings: 'app_settings'
 };
 
+/**
+ * IndexedDB Image Storage System
+ * Provides efficient storage for images with metadata
+ */
+class ImageStorageManager {
+    constructor() {
+        this.dbName = 'InspectortProDB';
+        this.dbVersion = 1;
+        this.db = null;
+        this.initPromise = null;
+        
+        // Store names
+        this.STORES = {
+            IMAGES: 'images',
+            METADATA: 'metadata',
+            PROJECTS: 'projects'
+        };
+        
+        // Initialize immediately
+        this.initPromise = this.initDB();
+    }
+    
+    /**
+     * Initialize IndexedDB database
+     */
+    async initDB() {
+        return new Promise((resolve, reject) => {
+            try {
+                if (!window.indexedDB) {
+                    console.warn('IndexedDB not supported, falling back to localStorage');
+                    resolve(false);
+                    return;
+                }
+                
+                const request = indexedDB.open(this.dbName, this.dbVersion);
+                
+                request.onerror = () => {
+                    console.error('IndexedDB error:', request.error);
+                    resolve(false);
+                };
+                
+                request.onsuccess = () => {
+                    this.db = request.result;
+                    console.log('IndexedDB initialized successfully');
+                    resolve(true);
+                };
+                
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    
+                    // Create images store for binary data
+                    if (!db.objectStoreNames.contains(this.STORES.IMAGES)) {
+                        const imageStore = db.createObjectStore(this.STORES.IMAGES, { keyPath: 'id' });
+                        imageStore.createIndex('projectId', 'projectId', { unique: false });
+                        imageStore.createIndex('createdAt', 'createdAt', { unique: false });
+                    }
+                    
+                    // Create metadata store for photo information
+                    if (!db.objectStoreNames.contains(this.STORES.METADATA)) {
+                        const metadataStore = db.createObjectStore(this.STORES.METADATA, { keyPath: 'id' });
+                        metadataStore.createIndex('projectId', 'projectId', { unique: false });
+                        metadataStore.createIndex('createdAt', 'createdAt', { unique: false });
+                        metadataStore.createIndex('name', 'name', { unique: false });
+                    }
+                    
+                    // Create projects store for project information
+                    if (!db.objectStoreNames.contains(this.STORES.PROJECTS)) {
+                        const projectStore = db.createObjectStore(this.STORES.PROJECTS, { keyPath: 'id' });
+                        projectStore.createIndex('userId', 'userId', { unique: false });
+                        projectStore.createIndex('createdAt', 'createdAt', { unique: false });
+                    }
+                    
+                    console.log('IndexedDB stores created successfully');
+                };
+                
+            } catch (error) {
+                console.error('Error initializing IndexedDB:', error);
+                resolve(false);
+            }
+        });
+    }
+    
+    /**
+     * Check if IndexedDB is available and initialized
+     */
+    async isAvailable() {
+        try {
+            const initialized = await this.initPromise;
+            return initialized && this.db !== null;
+        } catch (error) {
+            console.error('Error checking IndexedDB availability:', error);
+            return false;
+        }
+    }
+    
+    /**
+     * Save image with metadata to IndexedDB
+     */
+    async saveImage(photoData, imageBlob) {
+        try {
+            if (!await this.isAvailable()) {
+                throw new Error('IndexedDB not available');
+            }
+            
+            const transaction = this.db.transaction([this.STORES.IMAGES, this.STORES.METADATA], 'readwrite');
+            
+            // Store image binary data
+            const imageStore = transaction.objectStore(this.STORES.IMAGES);
+            const imageRecord = {
+                id: photoData.id,
+                projectId: photoData.projectId,
+                blob: imageBlob,
+                type: imageBlob.type,
+                size: imageBlob.size,
+                createdAt: photoData.createdAt
+            };
+            
+            // Store metadata separately
+            const metadataStore = transaction.objectStore(this.STORES.METADATA);
+            const metadataRecord = {
+                id: photoData.id,
+                name: photoData.name,
+                originalName: photoData.originalName,
+                projectId: photoData.projectId,
+                createdAt: photoData.createdAt,
+                updatedAt: photoData.updatedAt,
+                description: photoData.description,
+                annotations: photoData.annotations,
+                isAnnotated: photoData.isAnnotated,
+                type: imageBlob.type,
+                size: imageBlob.size
+            };
+            
+            // Save both records
+            await Promise.all([
+                new Promise((resolve, reject) => {
+                    const request = imageStore.put(imageRecord);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                }),
+                new Promise((resolve, reject) => {
+                    const request = metadataStore.put(metadataRecord);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                })
+            ]);
+            
+            console.log('Image saved to IndexedDB successfully:', photoData.id);
+            return true;
+            
+        } catch (error) {
+            console.error('Error saving image to IndexedDB:', error);
+            return false;
+        }
+    }
+    
+    /**
+     * Get image blob by ID
+     */
+    async getImageBlob(imageId) {
+        try {
+            if (!await this.isAvailable()) {
+                throw new Error('IndexedDB not available');
+            }
+            
+            const transaction = this.db.transaction([this.STORES.IMAGES], 'readonly');
+            const store = transaction.objectStore(this.STORES.IMAGES);
+            
+            return new Promise((resolve, reject) => {
+                const request = store.get(imageId);
+                request.onsuccess = () => {
+                    if (request.result) {
+                        resolve(request.result.blob);
+                    } else {
+                        resolve(null);
+                    }
+                };
+                request.onerror = () => reject(request.error);
+            });
+            
+        } catch (error) {
+            console.error('Error getting image blob:', error);
+            return null;
+        }
+    }
+    
+    /**
+     * Get image metadata by ID
+     */
+    async getImageMetadata(imageId) {
+        try {
+            if (!await this.isAvailable()) {
+                throw new Error('IndexedDB not available');
+            }
+            
+            const transaction = this.db.transaction([this.STORES.METADATA], 'readonly');
+            const store = transaction.objectStore(this.STORES.METADATA);
+            
+            return new Promise((resolve, reject) => {
+                const request = store.get(imageId);
+                request.onsuccess = () => resolve(request.result || null);
+                request.onerror = () => reject(request.error);
+            });
+            
+        } catch (error) {
+            console.error('Error getting image metadata:', error);
+            return null;
+        }
+    }
+    
+    /**
+     * Get all images metadata for a project
+     */
+    async getProjectImages(projectId) {
+        try {
+            if (!await this.isAvailable()) {
+                throw new Error('IndexedDB not available');
+            }
+            
+            const transaction = this.db.transaction([this.STORES.METADATA], 'readonly');
+            const store = transaction.objectStore(this.STORES.METADATA);
+            const index = store.index('projectId');
+            
+            return new Promise((resolve, reject) => {
+                const request = index.getAll(projectId);
+                request.onsuccess = () => resolve(request.result || []);
+                request.onerror = () => reject(request.error);
+            });
+            
+        } catch (error) {
+            console.error('Error getting project images:', error);
+            return [];
+        }
+    }
+    
+    /**
+     * Get all images metadata for all projects
+     */
+    async getAllImagesMetadata() {
+        try {
+            if (!await this.isAvailable()) {
+                throw new Error('IndexedDB not available');
+            }
+            
+            const transaction = this.db.transaction([this.STORES.METADATA], 'readonly');
+            const store = transaction.objectStore(this.STORES.METADATA);
+            
+            return new Promise((resolve, reject) => {
+                const request = store.getAll();
+                request.onsuccess = () => resolve(request.result || []);
+                request.onerror = () => reject(request.error);
+            });
+            
+        } catch (error) {
+            console.error('Error getting all images metadata:', error);
+            return [];
+        }
+    }
+    
+    /**
+     * Update image metadata
+     */
+    async updateImageMetadata(imageId, updates) {
+        try {
+            if (!await this.isAvailable()) {
+                throw new Error('IndexedDB not available');
+            }
+            
+            const transaction = this.db.transaction([this.STORES.METADATA], 'readwrite');
+            const store = transaction.objectStore(this.STORES.METADATA);
+            
+            // Get existing metadata
+            const existing = await new Promise((resolve, reject) => {
+                const request = store.get(imageId);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+            
+            if (!existing) {
+                throw new Error('Image metadata not found');
+            }
+            
+            // Update with new data
+            const updated = {
+                ...existing,
+                ...updates,
+                updatedAt: new Date().toISOString()
+            };
+            
+            // Save updated metadata
+            return new Promise((resolve, reject) => {
+                const request = store.put(updated);
+                request.onsuccess = () => resolve(true);
+                request.onerror = () => reject(request.error);
+            });
+            
+        } catch (error) {
+            console.error('Error updating image metadata:', error);
+            return false;
+        }
+    }
+    
+    /**
+     * Delete image and its metadata
+     */
+    async deleteImage(imageId) {
+        try {
+            if (!await this.isAvailable()) {
+                throw new Error('IndexedDB not available');
+            }
+            
+            const transaction = this.db.transaction([this.STORES.IMAGES, this.STORES.METADATA], 'readwrite');
+            
+            // Delete from both stores
+            const imageStore = transaction.objectStore(this.STORES.IMAGES);
+            const metadataStore = transaction.objectStore(this.STORES.METADATA);
+            
+            await Promise.all([
+                new Promise((resolve, reject) => {
+                    const request = imageStore.delete(imageId);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                }),
+                new Promise((resolve, reject) => {
+                    const request = metadataStore.delete(imageId);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                })
+            ]);
+            
+            console.log('Image deleted from IndexedDB successfully:', imageId);
+            return true;
+            
+        } catch (error) {
+            console.error('Error deleting image from IndexedDB:', error);
+            return false;
+        }
+    }
+    
+    /**
+     * Get storage usage statistics
+     */
+    async getStorageUsage() {
+        try {
+            if (!await this.isAvailable()) {
+                return { totalSize: 0, imageCount: 0, avgImageSize: 0 };
+            }
+            
+            const transaction = this.db.transaction([this.STORES.IMAGES], 'readonly');
+            const store = transaction.objectStore(this.STORES.IMAGES);
+            
+            return new Promise((resolve, reject) => {
+                const request = store.getAll();
+                request.onsuccess = () => {
+                    const images = request.result || [];
+                    const totalSize = images.reduce((sum, img) => sum + img.size, 0);
+                    const imageCount = images.length;
+                    const avgImageSize = imageCount > 0 ? totalSize / imageCount : 0;
+                    
+                    resolve({
+                        totalSize: totalSize,
+                        imageCount: imageCount,
+                        avgImageSize: avgImageSize,
+                        totalSizeMB: Math.round(totalSize / 1024 / 1024 * 100) / 100
+                    });
+                };
+                request.onerror = () => reject(request.error);
+            });
+            
+        } catch (error) {
+            console.error('Error getting storage usage:', error);
+            return { totalSize: 0, imageCount: 0, avgImageSize: 0, totalSizeMB: 0 };
+        }
+    }
+    
+    /**
+     * Clean up old images (oldest first)
+     */
+    async cleanupOldImages(count = 5) {
+        try {
+            if (!await this.isAvailable()) {
+                throw new Error('IndexedDB not available');
+            }
+            
+            const transaction = this.db.transaction([this.STORES.METADATA], 'readonly');
+            const store = transaction.objectStore(this.STORES.METADATA);
+            const index = store.index('createdAt');
+            
+            // Get oldest images
+            const oldImages = await new Promise((resolve, reject) => {
+                const request = index.getAll();
+                request.onsuccess = () => {
+                    const allImages = request.result || [];
+                    allImages.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                    resolve(allImages.slice(0, count));
+                };
+                request.onerror = () => reject(request.error);
+            });
+            
+            // Delete old images
+            let deletedCount = 0;
+            for (const image of oldImages) {
+                const success = await this.deleteImage(image.id);
+                if (success) deletedCount++;
+            }
+            
+            console.log(`Cleaned up ${deletedCount} old images from IndexedDB`);
+            return deletedCount;
+            
+        } catch (error) {
+            console.error('Error cleaning up old images:', error);
+            return 0;
+        }
+    }
+    
+    /**
+     * Convert Base64 data URL to Blob
+     */
+    dataURLToBlob(dataURL) {
+        try {
+            const parts = dataURL.split(',');
+            const mimeType = parts[0].match(/:(.*?);/)[1];
+            const byteString = atob(parts[1]);
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            
+            for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+            }
+            
+            return new Blob([ab], { type: mimeType });
+        } catch (error) {
+            console.error('Error converting data URL to blob:', error);
+            return null;
+        }
+    }
+    
+    /**
+     * Convert Blob to data URL
+     */
+    async blobToDataURL(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    }
+    
+    /**
+     * Migrate existing localStorage images to IndexedDB
+     */
+    async migrateFromLocalStorage() {
+        try {
+            if (!await this.isAvailable()) {
+                console.log('IndexedDB not available, skipping migration');
+                return false;
+            }
+            
+            const existingPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
+            
+            if (existingPhotos.length === 0) {
+                console.log('No photos to migrate from localStorage');
+                return true;
+            }
+            
+            console.log(`Starting migration of ${existingPhotos.length} photos from localStorage to IndexedDB`);
+            
+            let migratedCount = 0;
+            for (const photo of existingPhotos) {
+                try {
+                    // Convert data URL to blob
+                    const blob = this.dataURLToBlob(photo.url);
+                    if (blob) {
+                        const success = await this.saveImage(photo, blob);
+                        if (success) {
+                            migratedCount++;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error migrating photo:', photo.id, error);
+                }
+            }
+            
+            console.log(`Successfully migrated ${migratedCount} photos to IndexedDB`);
+            
+            // Optionally clear localStorage after successful migration
+            if (migratedCount === existingPhotos.length) {
+                localStorage.removeItem('inspectort_photos');
+                console.log('Cleared localStorage photos after successful migration');
+            }
+            
+            return true;
+            
+        } catch (error) {
+            console.error('Error migrating from localStorage:', error);
+            return false;
+        }
+    }
+}
+
+// Initialize the image storage manager
+const imageStorage = new ImageStorageManager();
+
 // App State
 let appState = {
     currentUser: null,
@@ -90,7 +594,8 @@ let appState = {
     photos: [],
     isOnline: navigator.onLine,
     lastSyncTime: null,
-    isSyncing: false
+    isSyncing: false,
+    useIndexedDB: false // Will be set to true if IndexedDB is available
 };
 
 // DOM Elements
@@ -99,33 +604,77 @@ let elements = {};
 /**
  * Initialize the application
  */
-function initApp() {
-    // Cache DOM elements
-    cacheElements();
-    
-    // Initialize components
-    initializeComponents();
-    
-    // Show loading screen
-    showLoadingScreen();
-    
-    // Load saved data
-    loadSavedData();
-    
-    // Setup event listeners
-    setupEventListeners();
-    
-    // Hide loading screen after initialization
-    setTimeout(() => {
-        hideLoadingScreen();
+async function initApp() {
+    try {
+        // Cache DOM elements
+        cacheElements();
         
-        // Check authentication state
-        if (appState.isAuthenticated) {
-            navigateToPage('dashboard');
+        // Initialize components
+        initializeComponents();
+        
+        // Show loading screen
+        showLoadingScreen();
+        
+        // Initialize IndexedDB and check if it's available
+        console.log('Initializing image storage system...');
+        const indexedDBAvailable = await imageStorage.isAvailable();
+        appState.useIndexedDB = indexedDBAvailable;
+        
+        if (indexedDBAvailable) {
+            console.log('✅ IndexedDB is available for image storage');
+            
+            // Migrate existing photos from localStorage to IndexedDB
+            console.log('Checking for photos to migrate...');
+            await imageStorage.migrateFromLocalStorage();
+            
+            // Load photos from IndexedDB
+            console.log('Loading photos from IndexedDB...');
+            const photos = await imageStorage.getAllImagesMetadata();
+            appState.photos = photos;
+            
+            // Update storage usage info
+            const storageUsage = await imageStorage.getStorageUsage();
+            console.log(`IndexedDB storage: ${storageUsage.imageCount} images, ${storageUsage.totalSizeMB} MB`);
+            
         } else {
-            navigateToPage('auth');
+            console.log('⚠️ IndexedDB not available, using localStorage fallback');
+            appState.useIndexedDB = false;
         }
-    }, APP_CONFIG.loadingDuration);
+        
+        // Load saved data
+        loadSavedData();
+        
+        // Setup event listeners
+        setupEventListeners();
+        
+        // Hide loading screen after initialization
+        setTimeout(() => {
+            hideLoadingScreen();
+            
+            // Check authentication state
+            if (appState.isAuthenticated) {
+                navigateToPage('dashboard');
+            } else {
+                navigateToPage('auth');
+            }
+        }, APP_CONFIG.loadingDuration);
+        
+    } catch (error) {
+        console.error('Error initializing app:', error);
+        
+        // Fallback to localStorage if IndexedDB fails
+        appState.useIndexedDB = false;
+        console.log('Falling back to localStorage for image storage');
+        
+        // Continue with normal initialization
+        loadSavedData();
+        setupEventListeners();
+        
+        setTimeout(() => {
+            hideLoadingScreen();
+            navigateToPage('auth');
+        }, APP_CONFIG.loadingDuration);
+    }
 }
 
 /**
@@ -203,9 +752,13 @@ function loadSavedData() {
             const userProjects = getAllProjects();
             appState.projects = userProjects;
             
-            // Load user's photos from new storage system
-            const userPhotos = getAllPhotos();
-            appState.photos = userPhotos;
+            // Load user's photos from the appropriate storage system
+            if (!appState.useIndexedDB) {
+                // Only load from localStorage if IndexedDB is not available
+                // (IndexedDB photos are already loaded in initApp)
+                const userPhotos = getAllPhotos();
+                appState.photos = userPhotos;
+            }
         }
         
         console.log('Data loaded successfully');
@@ -909,7 +1462,7 @@ function handleDeleteProject(projectId) {
 /**
  * Update project content
  */
-function updateProjectContent() {
+async function updateProjectContent() {
     if (!appState.currentProject) return;
     
     // Update project title
@@ -918,13 +1471,13 @@ function updateProjectContent() {
     }
     
     // Update photos grid
-    updatePhotosGrid();
+    await updatePhotosGrid();
 }
 
 /**
  * Update photos grid
  */
-function updatePhotosGrid() {
+async function updatePhotosGrid() {
     const photosGrid = elements.photosGrid;
     if (!photosGrid) return;
     
@@ -950,23 +1503,42 @@ function updatePhotosGrid() {
             </div>
         `;
     } else {
-        projectPhotos.forEach(photo => {
-            const photoCard = createPhotoCard(photo);
+        // Create photo cards (handling both IndexedDB and localStorage)
+        for (const photo of projectPhotos) {
+            const photoCard = await createPhotoCard(photo);
             photosGrid.appendChild(photoCard);
-        });
+        }
     }
 }
 
 /**
  * Create photo card element
  */
-function createPhotoCard(photo) {
+async function createPhotoCard(photo) {
     const card = document.createElement('div');
     card.className = 'photo-card';
     card.dataset.photoId = photo.id;
     
     const createdDate = new Date(photo.createdAt).toLocaleDateString('he-IL');
     const fileSize = formatFileSize(photo.size);
+    
+    // Get image URL (handle both IndexedDB and localStorage)
+    let imageUrl = photo.url;
+    
+    if (appState.useIndexedDB && !photo.url) {
+        // For IndexedDB photos, we need to get the blob and convert it to data URL
+        try {
+            const blob = await imageStorage.getImageBlob(photo.id);
+            if (blob) {
+                imageUrl = await imageStorage.blobToDataURL(blob);
+            } else {
+                imageUrl = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xMDAgODBMMTIwIDEwMEgxMDBMMTAwIDEyMEw4MCAxMDBIMTAwVjgwWiIgZmlsbD0iIzlDQTNBRiIvPgo8L3N2Zz4K'; // Placeholder image
+            }
+        } catch (error) {
+            console.error('Error loading image blob:', error);
+            imageUrl = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xMDAgODBMMTIwIDEwMEgxMDBMMTAwIDEyMEw4MCAxMDBIMTAwVjgwWiIgZmlsbD0iIzlDQTNBRiIvPgo8L3N2Zz4K';
+        }
+    }
     
     card.innerHTML = `
         <div class="photo-actions-menu">
@@ -976,7 +1548,7 @@ function createPhotoCard(photo) {
         </div>
         
         <div class="photo-image-container">
-            <img src="${photo.url}" alt="${photo.name}" loading="lazy">
+            <img src="${imageUrl}" alt="${photo.name || 'תמונה'}" loading="lazy">
             ${photo.isAnnotated ? '<div class="photo-annotation-indicator">✏️</div>' : ''}
         </div>
         
@@ -2242,7 +2814,7 @@ function processCompressedPhoto(file) {
     try {
         const reader = new FileReader();
         
-        reader.onload = function(e) {
+        reader.onload = async function(e) {
             try {
                 const photoData = {
                     id: generateId(),
@@ -2262,7 +2834,7 @@ function processCompressedPhoto(file) {
                 console.log('Photo data created:', photoData.name, 'Final size:', Math.round(photoData.size / 1024), 'KB');
                 
                 // Save photo
-                const savedPhoto = savePhoto(photoData);
+                const savedPhoto = await savePhoto(photoData);
                 
                 if (savedPhoto) {
                     console.log('Photo saved successfully');
@@ -2271,7 +2843,7 @@ function processCompressedPhoto(file) {
                     updateProjectPhotoCount(appState.currentProject.id);
                     
                     // Refresh photos grid
-                    updatePhotosGrid();
+                    await updatePhotosGrid();
                     
                     // Update project stats
                     updateUserStats();
@@ -2299,10 +2871,119 @@ function processCompressedPhoto(file) {
     }
 }
 
-function savePhoto(photoData) {
+async function savePhoto(photoData) {
     try {
         console.log('Attempting to save photo:', photoData.name, 'Size:', photoData.size);
         
+        // Use IndexedDB if available, otherwise fall back to localStorage
+        if (appState.useIndexedDB) {
+            return await savePhotoIndexedDB(photoData);
+        } else {
+            return await savePhotoLocalStorage(photoData);
+        }
+        
+    } catch (error) {
+        console.error('Error saving photo:', error);
+        
+        // Handle specific errors
+        if (error.name === 'QuotaExceededError' || error.message.includes('quota') || error.message.includes('storage space')) {
+            showNotification('אחסון מלא! מחק תמונות ישנות כדי לפנות מקום', 'error');
+            // Show storage management options
+            setTimeout(() => {
+                showStorageManagementModal();
+            }, 2000);
+        } else if (error.message.includes('too large')) {
+            showNotification('התמונה גדולה מדי. נסה תמונה קטנה יותר', 'error');
+        } else {
+            showNotification('שגיאה בשמירת התמונה: ' + error.message, 'error');
+        }
+        
+        return null;
+    }
+}
+
+/**
+ * Save photo using IndexedDB
+ */
+async function savePhotoIndexedDB(photoData) {
+    try {
+        // Convert data URL to blob if needed
+        let imageBlob;
+        if (photoData.url && photoData.url.startsWith('data:')) {
+            imageBlob = imageStorage.dataURLToBlob(photoData.url);
+            if (!imageBlob) {
+                throw new Error('Failed to convert image to blob');
+            }
+        } else {
+            throw new Error('Invalid photo data format for IndexedDB');
+        }
+        
+        // Check storage space
+        const usage = await imageStorage.getStorageUsage();
+        console.log('IndexedDB storage usage:', usage.totalSizeMB, 'MB');
+        
+        // Save to IndexedDB
+        const success = await imageStorage.saveImage(photoData, imageBlob);
+        
+        if (success) {
+            // Update app state
+            appState.photos.push(photoData);
+            
+            // Auto-sync if cloud is enabled
+            autoSyncData();
+            
+            console.log('Photo saved successfully to IndexedDB');
+            
+            // Log project storage info
+            if (photoData.projectId) {
+                const projectImages = await imageStorage.getProjectImages(photoData.projectId);
+                console.log(`Project has ${projectImages.length} images in IndexedDB`);
+            }
+            
+            return photoData;
+        } else {
+            throw new Error('Failed to save photo to IndexedDB');
+        }
+        
+    } catch (error) {
+        console.error('Error saving photo to IndexedDB:', error);
+        
+        // Try to clean up old photos if storage is full
+        if (error.message.includes('storage') || error.message.includes('quota')) {
+            console.log('Attempting to clean up old photos...');
+            const cleanedCount = await imageStorage.cleanupOldImages(3);
+            
+            if (cleanedCount > 0) {
+                console.log(`Cleaned up ${cleanedCount} old photos, retrying save...`);
+                
+                // Update app state by removing cleaned photos
+                const remainingPhotos = await imageStorage.getAllImagesMetadata();
+                appState.photos = remainingPhotos;
+                
+                // Try saving again
+                try {
+                    const imageBlob = imageStorage.dataURLToBlob(photoData.url);
+                    const success = await imageStorage.saveImage(photoData, imageBlob);
+                    
+                    if (success) {
+                        appState.photos.push(photoData);
+                        return photoData;
+                    }
+                } catch (retryError) {
+                    console.error('Failed to save photo after cleanup:', retryError);
+                }
+            }
+        }
+        
+        throw error;
+    }
+}
+
+/**
+ * Save photo using localStorage (fallback)
+ */
+async function savePhotoLocalStorage(photoData) {
+    try {
         // Check localStorage availability and space
         if (!isStorageAvailable()) {
             throw new Error('localStorage is not available');
@@ -2376,22 +3057,7 @@ function savePhoto(photoData) {
         
         return photoData;
     } catch (error) {
-        console.error('Error saving photo:', error);
-        
-        // Handle specific errors
-        if (error.name === 'QuotaExceededError' || error.message.includes('quota') || error.message.includes('storage space')) {
-            showNotification('אחסון מלא! מחק תמונות ישנות כדי לפנות מקום', 'error');
-            // Show storage management options
-            setTimeout(() => {
-                showStorageManagementModal();
-            }, 2000);
-        } else if (error.message.includes('too large')) {
-            showNotification('התמונה גדולה מדי. נסה תמונה קטנה יותר', 'error');
-        } else {
-            showNotification('שגיאה בשמירת התמונה: ' + error.message, 'error');
-        }
-        
-        return null;
+        throw error;
     }
 }
 
@@ -2824,31 +3490,52 @@ function getPhotoById(photoId) {
     return allPhotos.find(photo => photo.id === photoId);
 }
 
-function updatePhoto(photoId, updates) {
+async function updatePhoto(photoId, updates) {
     try {
-        const allPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
-        const photoIndex = allPhotos.findIndex(p => p.id === photoId);
-        
-        if (photoIndex === -1) {
-            throw new Error('תמונה לא נמצאה');
+        // Use IndexedDB if available, otherwise use localStorage
+        if (appState.useIndexedDB) {
+            const success = await imageStorage.updateImageMetadata(photoId, updates);
+            if (success) {
+                // Update app state
+                const appPhotoIndex = appState.photos.findIndex(p => p.id === photoId);
+                if (appPhotoIndex !== -1) {
+                    appState.photos[appPhotoIndex] = {
+                        ...appState.photos[appPhotoIndex],
+                        ...updates,
+                        updatedAt: new Date().toISOString()
+                    };
+                }
+                
+                console.log('Photo updated successfully in IndexedDB');
+                return appState.photos[appPhotoIndex];
+            }
+            throw new Error('Failed to update photo in IndexedDB');
+        } else {
+            const allPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
+            const photoIndex = allPhotos.findIndex(p => p.id === photoId);
+            
+            if (photoIndex === -1) {
+                throw new Error('תמונה לא נמצאה');
+            }
+
+            // Update photo data
+            allPhotos[photoIndex] = {
+                ...allPhotos[photoIndex],
+                ...updates,
+                updatedAt: new Date().toISOString()
+            };
+
+            localStorage.setItem('inspectort_photos', JSON.stringify(allPhotos));
+            
+            // Update app state
+            const appPhotoIndex = appState.photos.findIndex(p => p.id === photoId);
+            if (appPhotoIndex !== -1) {
+                appState.photos[appPhotoIndex] = allPhotos[photoIndex];
+            }
+
+            console.log('Photo updated successfully in localStorage');
+            return allPhotos[photoIndex];
         }
-
-        // Update photo data
-        allPhotos[photoIndex] = {
-            ...allPhotos[photoIndex],
-            ...updates,
-            updatedAt: new Date().toISOString()
-        };
-
-        localStorage.setItem('inspectort_photos', JSON.stringify(allPhotos));
-        
-        // Update app state
-        const appPhotoIndex = appState.photos.findIndex(p => p.id === photoId);
-        if (appPhotoIndex !== -1) {
-            appState.photos[appPhotoIndex] = allPhotos[photoIndex];
-        }
-
-        return allPhotos[photoIndex];
     } catch (error) {
         console.error('Error updating photo:', error);
         showNotification('שגיאה בעדכון התמונה: ' + error.message, 'error');
@@ -2856,17 +3543,30 @@ function updatePhoto(photoId, updates) {
     }
 }
 
-function deletePhoto(photoId) {
+async function deletePhoto(photoId) {
     try {
-        const allPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
-        const filteredPhotos = allPhotos.filter(p => p.id !== photoId);
-        
-        localStorage.setItem('inspectort_photos', JSON.stringify(filteredPhotos));
-        
-        // Update app state
-        appState.photos = appState.photos.filter(p => p.id !== photoId);
-        
-        return true;
+        // Use IndexedDB if available, otherwise use localStorage
+        if (appState.useIndexedDB) {
+            const success = await imageStorage.deleteImage(photoId);
+            if (success) {
+                // Update app state
+                appState.photos = appState.photos.filter(p => p.id !== photoId);
+                console.log('Photo deleted successfully from IndexedDB');
+                return true;
+            }
+            return false;
+        } else {
+            const allPhotos = JSON.parse(localStorage.getItem('inspectort_photos') || '[]');
+            const filteredPhotos = allPhotos.filter(p => p.id !== photoId);
+            
+            localStorage.setItem('inspectort_photos', JSON.stringify(filteredPhotos));
+            
+            // Update app state
+            appState.photos = appState.photos.filter(p => p.id !== photoId);
+            
+            console.log('Photo deleted successfully from localStorage');
+            return true;
+        }
     } catch (error) {
         console.error('Error deleting photo:', error);
         showNotification('שגיאה במחיקת התמונה: ' + error.message, 'error');
@@ -2988,7 +3688,7 @@ function editPhotoInfo(photoId) {
     showModal(modal);
 }
 
-function handleEditPhoto(photoId) {
+async function handleEditPhoto(photoId) {
     const form = document.getElementById('editPhotoForm');
     const formData = new FormData(form);
     
@@ -3003,26 +3703,26 @@ function handleEditPhoto(photoId) {
         description: formData.get('photoDescription').trim()
     };
     
-    const updatedPhoto = updatePhoto(photoId, updates);
+    const updatedPhoto = await updatePhoto(photoId, updates);
     
     if (updatedPhoto) {
         closeModal(document.querySelector('.modal-overlay'));
         showNotification('פרטי התמונה עודכנו בהצלחה!', 'success');
-        updatePhotosGrid();
+        await updatePhotosGrid();
     }
 }
 
-function renamePhoto(photoId) {
+async function renamePhoto(photoId) {
     const photo = getPhotoById(photoId);
     if (!photo) return;
     
     const newName = prompt('שם חדש לתמונה:', photo.name);
     if (newName && newName.trim() !== photo.name) {
-        const updatedPhoto = updatePhoto(photoId, { name: newName.trim() });
+        const updatedPhoto = await updatePhoto(photoId, { name: newName.trim() });
         if (updatedPhoto) {
             closeModal(document.querySelector('.modal-overlay'));
             showNotification('שם התמונה שונה בהצלחה!', 'success');
-            updatePhotosGrid();
+            await updatePhotosGrid();
         }
     }
 }
@@ -3070,16 +3770,16 @@ function confirmDeletePhoto(photoId) {
     showModal(modal);
 }
 
-function handleDeletePhoto(photoId) {
+async function handleDeletePhoto(photoId) {
     const photo = getPhotoById(photoId);
     if (!photo) return;
     
-    const success = deletePhoto(photoId);
+    const success = await deletePhoto(photoId);
     
     if (success) {
         closeModal(document.querySelector('.modal-overlay'));
         showNotification('התמונה נמחקה בהצלחה', 'success');
-        updatePhotosGrid();
+        await updatePhotosGrid();
         updateProjectPhotoCount(photo.projectId);
         updateUserStats();
     }
