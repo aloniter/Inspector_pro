@@ -4013,19 +4013,16 @@ async function createPDFHTMLContent(project, photos, config) {
         
         htmlContent += `</div>`; // Close content area
         
-        // Compact Footer
+        // Clean Professional Footer
         htmlContent += `
-                <!-- Compact Footer -->
-                <div style="margin-top: 10mm; border-top: 1px solid #e5e7eb; padding-top: 5mm;">
-                    <!-- Company Stamp Area -->
-                    <div style="border: 1px dashed #d1d5db; height: 15mm; margin-bottom: 3mm; text-align: center; display: flex; align-items: center; justify-content: center; background: #fafafa;">
-                        <span style="color: #9ca3af; font-size: 11px; font-style: italic;">חותמת החברה</span>
-                    </div>
-                    
-                    <!-- Contact Info -->
-                    <div style="text-align: center; color: #6b7280; font-size: 10px; line-height: 1.3;">
-                        <div><strong>${config.footerContact || 'פרטי קשר'}</strong></div>
-                        <div>${new Date().toLocaleDateString('he-IL')}</div>
+                <!-- Professional Footer -->
+                <div style="margin-top: 8mm; border-top: 1px solid #e5e7eb; padding-top: 8mm;">
+                    <div style="text-align: center; color: #374151; font-size: 12px; line-height: 1.4;">
+                        ${config.footerContact ? `<div style="margin-bottom: 4mm; font-weight: 600;">${config.footerContact}</div>` : ''}
+                        ${config.footerExtra ? `<div style="margin-bottom: 4mm; color: #6b7280;">${config.footerExtra}</div>` : ''}
+                        <div style="color: #9ca3af; font-size: 10px; margin-top: 6mm;">
+                            תאריך הדוח: ${new Date().toLocaleDateString('he-IL')}
+                        </div>
                     </div>
                 </div>
             </div>
