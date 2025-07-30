@@ -4085,38 +4085,39 @@ async function createPDFFinding2x2(photo, photoNumber, config, isLargePDF = fals
                             <td style="
                                 width: 35%; 
                                 padding: 8mm; 
-                                vertical-align: top; 
+                                vertical-align: ${(photo.description && photo.description.trim()) || (photo.name && photo.name.trim()) ? 'top' : 'middle'}; 
                                 text-align: right;
                                 background: white;
                             ">
-                                <div style="margin-bottom: 8mm;">
+                                <!-- Finding Number - Always shown -->
+                                <div style="margin-bottom: ${(photo.description && photo.description.trim()) || (photo.name && photo.name.trim()) ? '8mm' : '0'};">
                                     <span style="color: #2563eb; font-size: 18px; font-weight: bold; line-height: 1.2;">
                                         ממצא מס' ${photoNumber}
                                     </span>
                                 </div>
                                 
-                                <div style="margin-bottom: 5mm;">
-                                    <div style="font-weight: bold; color: #374151; font-size: 14px; margin-bottom: 2mm;">שם:</div>
-                                    <div style="color: #4b5563; font-size: 13px; line-height: 1.3;">
-                                        ${photo.name || 'ללא שם'}
+                                ${(photo.name && photo.name.trim()) ? `
+                                    <!-- Name - Only if provided -->
+                                    <div style="margin-bottom: 5mm;">
+                                        <div style="font-weight: bold; color: #374151; font-size: 14px; margin-bottom: 2mm;">שם:</div>
+                                        <div style="color: #4b5563; font-size: 13px; line-height: 1.3;">
+                                            ${photo.name}
+                                        </div>
                                     </div>
-                                </div>
+                                ` : ''}
                                 
-                                <div style="margin-bottom: 5mm;">
-                                    <div style="font-weight: bold; color: #374151; font-size: 14px; margin-bottom: 2mm;">תיאור:</div>
-                                    <div style="color: #4b5563; font-size: 12px; line-height: 1.4; word-wrap: break-word;">
-                                        ${photo.description || 'ללא תיאור'}
+                                ${(photo.description && photo.description.trim()) ? `
+                                    <!-- Description - Only if provided -->
+                                    <div style="margin-bottom: 5mm;">
+                                        <div style="font-weight: bold; color: #374151; font-size: 14px; margin-bottom: 2mm;">תיאור:</div>
+                                        <div style="color: #4b5563; font-size: 12px; line-height: 1.4; word-wrap: break-word;">
+                                            ${photo.description}
+                                        </div>
                                     </div>
-                                </div>
-                                
-                                <div style="margin-bottom: 3mm;">
-                                    <div style="font-weight: bold; color: #374151; font-size: 13px; margin-bottom: 1mm;">תאריך:</div>
-                                    <div style="color: #6b7280; font-size: 11px;">
-                                        ${new Date(photo.createdAt).toLocaleDateString('he-IL')}
-                                    </div>
-                                </div>
+                                ` : ''}
                                 
                                 ${photo.annotations && photo.annotations.length > 0 ? `
+                                    <!-- Annotations - Only if present -->
                                     <div style="margin-top: 4mm; color: #059669; font-size: 11px; font-style: italic; line-height: 1.2;">
                                         📝 ${photo.annotations.length} הערות
                                     </div>
@@ -4141,31 +4142,32 @@ async function createPDFFinding2x2(photo, photoNumber, config, isLargePDF = fals
                         </td>
                         
                         <!-- Description Cell (Right) -->
-                        <td style="width: 50%; padding: 20px; vertical-align: top; text-align: right;">
-                            <div style="margin-bottom: 12px;">
+                        <td style="width: 50%; padding: 20px; vertical-align: ${(photo.description && photo.description.trim()) || (photo.name && photo.name.trim()) ? 'top' : 'middle'}; text-align: right;">
+                            <!-- Finding Number - Always shown -->
+                            <div style="margin-bottom: ${(photo.description && photo.description.trim()) || (photo.name && photo.name.trim()) ? '12px' : '0'};">
                                 <span style="color: #2563eb; font-size: 20px; font-weight: bold;">ממצא מס' ${photoNumber}</span>
                             </div>
                             
-                            <div style="margin-bottom: 10px;">
-                                <span style="font-weight: bold; color: #374151;">שם: </span>
-                                <span style="color: #4b5563;">${photo.name || 'ללא שם'}</span>
-                            </div>
-                            
-                            <div style="margin-bottom: 10px;">
-                                <span style="font-weight: bold; color: #374151;">תיאור: </span>
-                                <div style="color: #4b5563; line-height: 1.4; margin-top: 5px;">
-                                    ${photo.description || 'ללא תיאור'}
+                            ${(photo.name && photo.name.trim()) ? `
+                                <!-- Name - Only if provided -->
+                                <div style="margin-bottom: 10px;">
+                                    <span style="font-weight: bold; color: #374151;">שם: </span>
+                                    <span style="color: #4b5563;">${photo.name}</span>
                                 </div>
-                            </div>
+                            ` : ''}
                             
-                            <div style="margin-bottom: 10px;">
-                                <span style="font-weight: bold; color: #374151;">תאריך: </span>
-                                <span style="color: #6b7280; font-size: 14px;">
-                                    ${new Date(photo.createdAt).toLocaleDateString('he-IL')}
-                                </span>
-                            </div>
+                            ${(photo.description && photo.description.trim()) ? `
+                                <!-- Description - Only if provided -->
+                                <div style="margin-bottom: 10px;">
+                                    <span style="font-weight: bold; color: #374151;">תיאור: </span>
+                                    <div style="color: #4b5563; line-height: 1.4; margin-top: 5px;">
+                                        ${photo.description}
+                                    </div>
+                                </div>
+                            ` : ''}
                             
                             ${photo.annotations && photo.annotations.length > 0 ? `
+                                <!-- Annotations - Only if present -->
                                 <div style="margin-top: 15px; color: #059669; font-size: 13px; font-style: italic;">
                                     📝 ${photo.annotations.length} הערות על התמונה
                                 </div>
