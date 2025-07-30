@@ -3666,19 +3666,19 @@ async function renderPhotoWithAnnotations(photo, quality, optimizeForSharing = f
             const img = new Image();
             
             img.onload = function() {
-                // Set canvas size based on quality and sharing optimization
+                // Optimized canvas sizing for professional PDFs
                 let qualityScale;
                 if (optimizeForSharing) {
-                    // Smaller sizes for sharing
-                    qualityScale = quality === 'high' ? 0.8 : quality === 'medium' ? 0.6 : 0.4;
+                    // Balanced quality vs size for sharing
+                    qualityScale = quality === 'high' ? 1.0 : quality === 'medium' ? 0.8 : 0.6;
                 } else {
-                    // Standard sizes
-                    qualityScale = quality === 'high' ? 1.2 : quality === 'medium' ? 1.0 : 0.8;
+                    // High quality for professional PDFs
+                    qualityScale = quality === 'high' ? 1.4 : quality === 'medium' ? 1.2 : 1.0;
                 }
                 
-                // Limit maximum dimensions for sharing
-                const maxWidth = optimizeForSharing ? 800 : 1200;
-                const maxHeight = optimizeForSharing ? 600 : 900;
+                // Professional dimensions - larger for PDF clarity
+                const maxWidth = optimizeForSharing ? 1000 : 1600;
+                const maxHeight = optimizeForSharing ? 750 : 1200;
                 
                 let targetWidth = img.width * qualityScale;
                 let targetHeight = img.height * qualityScale;
@@ -3723,8 +3723,8 @@ async function renderPhotoWithAnnotations(photo, quality, optimizeForSharing = f
                     });
                 }
                 
-                // Convert to data URL with optimized quality for sharing
-                const jpegQuality = optimizeForSharing ? 0.75 : 0.92;
+                // Professional quality settings for PDF export
+                const jpegQuality = optimizeForSharing ? 0.82 : 0.95;
                 const dataURL = canvas.toDataURL('image/jpeg', jpegQuality);
                 resolve(dataURL);
             };
@@ -3826,6 +3826,8 @@ async function exportToPDF() {
             showNotification('אין תמונות לייצוא', 'error');
             return;
         }
+        
+        console.log(`Exporting ${projectPhotos.length} photos to PDF`);
 
         // Close the config modal
         closeModal(document.querySelector('.modal-overlay'));
@@ -3863,9 +3865,8 @@ async function exportToPDF() {
         // Generate PDF using html2canvas + jsPDF with optimized settings
         const { jsPDF } = window.jspdf;
         
-        // Get config for optimization
-        const exportConfig = getExportConfig();
-        const scale = exportConfig.optimizeForSharing ? 1.5 : 2;
+        // Get config for optimization - use consistent variable naming
+        const scale = pdfConfig.optimizeForSharing ? 1.5 : 2;
         
         const canvas = await html2canvas(tempDiv, {
             useCORS: true,
@@ -3967,10 +3968,13 @@ async function createPDFHTMLContent(project, photos, config) {
         <div style="font-family: Arial, sans-serif; direction: rtl; background: white; width: 210mm; height: 297mm; margin: 0; padding: 0; box-sizing: border-box;">
     `;
     
-    // Process photos in pairs for 2 per page layout
-    for (let pageIndex = 0; pageIndex < Math.ceil(photos.length / 2); pageIndex++) {
+    // Process photos in pairs for 2 per page layout - ensure all photos included  
+    const totalPages = Math.ceil(photos.length / 2);
+    console.log(`Creating ${totalPages} pages for ${photos.length} photos`);
+    
+    for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
         const photo1 = photos[pageIndex * 2];
-        const photo2 = photos[pageIndex * 2 + 1]; // May be undefined
+        const photo2 = photos[pageIndex * 2 + 1]; // May be undefined for last page
         
         htmlContent += `
             <div class="pdf-page" style="
@@ -4071,7 +4075,7 @@ async function createPDFFinding2x2(photo, photoNumber, config, isLargePDF = fals
                                 <img src="${imageData}" 
                                      style="
                                          max-width: 100%; 
-                                         max-height: 70mm; 
+                                         max-height: 75mm; 
                                          width: auto; 
                                          height: auto; 
                                          border-radius: 4px; 
@@ -4137,7 +4141,7 @@ async function createPDFFinding2x2(photo, photoNumber, config, isLargePDF = fals
                         <!-- Image Cell (Left) -->
                         <td style="width: 50%; padding: 15px; text-align: center; vertical-align: middle; border-right: 1px solid #e5e7eb;">
                             <img src="${imageData}" 
-                                 style="max-width: 100%; max-height: ${config.optimizeForSharing ? '150px' : '200px'}; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"
+                                 style="max-width: 100%; max-height: ${config.optimizeForSharing ? '180px' : '220px'}; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"
                                  alt="ממצא ${photoNumber}">
                         </td>
                         
