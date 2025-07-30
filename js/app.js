@@ -1300,21 +1300,43 @@ function capturePhoto() {
         
         console.log('Starting photo capture');
         
-        // Create camera modal
+        // Detect iOS and PWA mode
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isPWA = window.matchMedia('(display-mode: standalone)').matches;
+        
+        // For iOS PWA, prefer file input fallback first
+        if (isIOS && isPWA) {
+            console.log('iOS PWA detected - using file input method');
+            showCameraChoiceModal();
+            return;
+        }
+        
+        // Create camera modal with enhanced UI
         const modalContent = `
             <div class="camera-container">
-                <div class="camera-view">
-                    <video id="cameraVideo" autoplay playsinline></video>
-                    <canvas id="cameraCanvas" style="display: none;"></canvas>
+                <div class="camera-status" id="cameraStatus">
+                    <div class="loading-spinner"></div>
+                    <p>מתחבר למצלמה...</p>
                 </div>
-                <div class="camera-controls">
+                <div class="camera-view" id="cameraView" style="display: none;">
+                    <video id="cameraVideo" autoplay playsinline muted webkit-playsinline></video>
+                    <canvas id="cameraCanvas" style="display: none;"></canvas>
+                    <div class="camera-overlay">
+                        <div class="viewfinder"></div>
+                    </div>
+                </div>
+                <div class="camera-controls" id="cameraControls" style="display: none;">
                     <button id="takePictureBtn" class="btn btn-primary camera-btn">
                         <span class="btn-icon">📸</span>
                         צלם
                     </button>
-                    <button id="switchCameraBtn" class="btn btn-secondary camera-btn">
+                    <button id="switchCameraBtn" class="btn btn-secondary camera-btn" style="display: none;">
                         <span class="btn-icon">🔄</span>
                         החלף מצלמה
+                    </button>
+                    <button id="useFileBtn" class="btn btn-outline camera-btn">
+                        <span class="btn-icon">📁</span>
+                        בחר מגלריה
                     </button>
                 </div>
             </div>
@@ -1334,11 +1356,447 @@ function capturePhoto() {
 
         showModal(modal);
         
-        // Initialize camera
-        initializeCamera();
+        // Initialize camera with delay to ensure modal is rendered
+        setTimeout(() => {
+            initializeCamera();
+        }, 100);
+        
     } catch (error) {
         console.error('Error in capturePhoto:', error);
         showNotification('שגיאה בפתיחת המצלמה', 'error');
+    }
+}
+
+function showCameraChoiceModal() {
+    const modalContent = `
+        <div class="camera-choice-container">
+            <div class="choice-info">
+                <h3>איך תרצה להוסיף תמונה?</h3>
+                <p>בחר את השיטה המועדפת עליך</p>
+            </div>
+            <div class="choice-buttons">
+                <button id="useCameraBtn" class="choice-btn">
+                    <span class="choice-icon">📸</span>
+                    <span class="choice-text">צלם עכשיו</span>
+                    <small>פתח מצלמה</small>
+                </button>
+                <button id="useGalleryBtn" class="choice-btn">
+                    <span class="choice-icon">📁</span>
+                    <span class="choice-text">בחר מגלריה</span>
+                    <small>העלה תמונה קיימת</small>
+                </button>
+            </div>
+        </div>
+    `;
+
+    const modal = createModal(
+        'הוסף תמונה',
+        modalContent,
+        [
+            {
+                text: 'ביטול',
+                class: 'btn-secondary',
+                action: 'closeModal(this.closest(\'.modal-overlay\'))'
+            }
+        ]
+    );
+
+    showModal(modal);
+    
+    // Add event listeners
+    setTimeout(() => {
+        const useCameraBtn = document.getElementById('useCameraBtn');
+        const useGalleryBtn = document.getElementById('useGalleryBtn');
+        
+        if (useCameraBtn) {
+            useCameraBtn.addEventListener('click', () => {
+                closeModal(document.querySelector('.modal-overlay'));
+                setTimeout(() => {
+                    startCameraCapture();
+                }, 300);
+            });
+        }
+        
+        if (useGalleryBtn) {
+            useGalleryBtn.addEventListener('click', () => {
+                closeModal(document.querySelector('.modal-overlay'));
+                uploadPhoto();
+            });
+        }
+    }, 100);
+}
+
+function startCameraCapture() {
+    const modalContent = `
+        <div class="camera-container">
+            <div class="camera-status" id="cameraStatus">
+                <div class="loading-spinner"></div>
+                <p>מתחבר למצלמה...</p>
+            </div>
+            <div class="camera-view" id="cameraView" style="display: none;">
+                <video id="cameraVideo" autoplay playsinline muted webkit-playsinline></video>
+                <canvas id="cameraCanvas" style="display: none;"></canvas>
+                <div class="camera-overlay">
+                    <div class="viewfinder"></div>
+                </div>
+            </div>
+            <div class="camera-controls" id="cameraControls" style="display: none;">
+                <button id="takePictureBtn" class="btn btn-primary camera-btn">
+                    <span class="btn-icon">📸</span>
+                    צלם
+                </button>
+                <button id="switchCameraBtn" class="btn btn-secondary camera-btn" style="display: none;">
+                    <span class="btn-icon">🔄</span>
+                    החלף מצלמה
+                </button>
+                <button id="useFileBtn" class="btn btn-outline camera-btn">
+                    <span class="btn-icon">📁</span>
+                    בחר מגלריה
+                </button>
+            </div>
+        </div>
+    `;
+
+    const modal = createModal(
+        'צילום תמונה',
+        modalContent,
+        [
+            {
+                text: 'ביטול',
+                class: 'btn-secondary',
+                action: 'stopCamera(); closeModal(this.closest(\'.modal-overlay\'))'
+            }
+        ]
+    );
+
+    showModal(modal);
+    
+    setTimeout(() => {
+        initializeCamera();
+    }, 100);
+}
+
+async function initializeCamera() {
+    try {
+        const video = document.getElementById('cameraVideo');
+        const takePictureBtn = document.getElementById('takePictureBtn');
+        const switchCameraBtn = document.getElementById('switchCameraBtn');
+        const useFileBtn = document.getElementById('useFileBtn');
+        const cameraStatus = document.getElementById('cameraStatus');
+        const cameraView = document.getElementById('cameraView');
+        const cameraControls = document.getElementById('cameraControls');
+        
+        if (!video) {
+            console.error('Video element not found');
+            return;
+        }
+        
+        // Add file input fallback button handler
+        if (useFileBtn) {
+            useFileBtn.addEventListener('click', () => {
+                stopCamera();
+                closeModal(document.querySelector('.modal-overlay'));
+                uploadPhoto();
+            });
+        }
+        
+        // Check if camera is available
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            showCameraError('המצלמה אינה נתמכת בדפדפן זה', true);
+            return;
+        }
+        
+        // Get available cameras
+        let devices = [];
+        try {
+            devices = await navigator.mediaDevices.enumerateDevices();
+        } catch (error) {
+            console.warn('Could not enumerate devices:', error);
+        }
+        
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        console.log('Available video devices:', videoDevices.length);
+        
+        let currentDeviceIndex = 0;
+        let stream = null;
+        
+        // iOS-specific constraints
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        async function startCamera(deviceId = null) {
+            try {
+                // Stop previous stream
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                
+                // iOS requires specific constraints
+                let constraints;
+                
+                if (isIOS) {
+                    // iOS-optimized constraints
+                    constraints = {
+                        video: {
+                            facingMode: deviceId ? undefined : { ideal: 'environment' },
+                            deviceId: deviceId ? { exact: deviceId } : undefined,
+                            width: { ideal: 1280, max: 1920 },
+                            height: { ideal: 720, max: 1080 },
+                            frameRate: { ideal: 30, max: 30 }
+                        },
+                        audio: false
+                    };
+                } else {
+                    // Standard mobile constraints
+                    constraints = {
+                        video: {
+                            facingMode: deviceId ? undefined : 'environment',
+                            deviceId: deviceId ? { exact: deviceId } : undefined,
+                            width: { ideal: isMobile ? 1280 : 1920 },
+                            height: { ideal: isMobile ? 720 : 1080 }
+                        },
+                        audio: false
+                    };
+                }
+                
+                console.log('Starting camera with constraints:', constraints);
+                
+                // Request camera access
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                console.log('Camera stream obtained');
+                
+                // Set up video element
+                video.srcObject = stream;
+                
+                // Wait for video metadata to load
+                return new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        reject(new Error('Video load timeout'));
+                    }, 10000);
+                    
+                    video.onloadedmetadata = () => {
+                        clearTimeout(timeout);
+                        console.log('Video metadata loaded:', video.videoWidth, 'x', video.videoHeight);
+                        
+                        // Ensure video is playing
+                        video.play().then(() => {
+                            console.log('Video playing successfully');
+                            
+                            // Show camera view and controls
+                            if (cameraStatus) cameraStatus.style.display = 'none';
+                            if (cameraView) cameraView.style.display = 'block';
+                            if (cameraControls) cameraControls.style.display = 'flex';
+                            
+                            // Show/hide switch button
+                            if (switchCameraBtn) {
+                                switchCameraBtn.style.display = videoDevices.length > 1 ? 'block' : 'none';
+                            }
+                            
+                            // Store stream reference for cleanup
+                            window.currentCameraStream = stream;
+                            
+                            resolve();
+                        }).catch(playError => {
+                            console.error('Video play error:', playError);
+                            reject(playError);
+                        });
+                    };
+                    
+                    video.onerror = (error) => {
+                        clearTimeout(timeout);
+                        reject(error);
+                    };
+                });
+                
+            } catch (error) {
+                console.error('Camera error:', error);
+                
+                // Try with more basic constraints for iOS
+                if (isIOS && !deviceId) {
+                    try {
+                        console.log('Trying basic iOS constraints');
+                        const basicConstraints = {
+                            video: {
+                                facingMode: 'environment',
+                                width: { ideal: 640 },
+                                height: { ideal: 480 }
+                            },
+                            audio: false
+                        };
+                        
+                        stream = await navigator.mediaDevices.getUserMedia(basicConstraints);
+                        video.srcObject = stream;
+                        
+                        return new Promise((resolve, reject) => {
+                            video.onloadedmetadata = () => {
+                                video.play().then(() => {
+                                    if (cameraStatus) cameraStatus.style.display = 'none';
+                                    if (cameraView) cameraView.style.display = 'block';
+                                    if (cameraControls) cameraControls.style.display = 'flex';
+                                    window.currentCameraStream = stream;
+                                    resolve();
+                                }).catch(reject);
+                            };
+                            video.onerror = reject;
+                        });
+                        
+                    } catch (fallbackError) {
+                        console.error('Fallback camera error:', fallbackError);
+                        throw fallbackError;
+                    }
+                } else {
+                    throw error;
+                }
+            }
+        }
+        
+        // Start camera
+        try {
+            await startCamera();
+            console.log('Camera initialized successfully');
+        } catch (error) {
+            console.error('Failed to initialize camera:', error);
+            showCameraError(error.message, true);
+            return;
+        }
+        
+        // Handle take picture
+        if (takePictureBtn) {
+            takePictureBtn.addEventListener('click', () => {
+                takePicture(video);
+            });
+        }
+        
+        // Handle switch camera
+        if (switchCameraBtn) {
+            switchCameraBtn.addEventListener('click', async () => {
+                try {
+                    cameraStatus.innerHTML = '<div class="loading-spinner"></div><p>מחליף מצלמה...</p>';
+                    cameraStatus.style.display = 'block';
+                    cameraView.style.display = 'none';
+                    cameraControls.style.display = 'none';
+                    
+                    currentDeviceIndex = (currentDeviceIndex + 1) % videoDevices.length;
+                    await startCamera(videoDevices[currentDeviceIndex].deviceId);
+                } catch (error) {
+                    console.error('Switch camera error:', error);
+                    showNotification('שגיאה בהחלפת מצלמה', 'error');
+                }
+            });
+        }
+        
+    } catch (error) {
+        console.error('Camera initialization error:', error);
+        showCameraError('שגיאה באתחול המצלמה', true);
+    }
+}
+
+function showCameraError(message, showFallback = false) {
+    const cameraStatus = document.getElementById('cameraStatus');
+    const cameraControls = document.getElementById('cameraControls');
+    
+    if (cameraStatus) {
+        cameraStatus.innerHTML = `
+            <div class="camera-error">
+                <span class="error-icon">⚠️</span>
+                <p>${message}</p>
+                ${showFallback ? '<button id="fallbackFileBtn" class="btn btn-primary">בחר תמונה מהגלריה</button>' : ''}
+            </div>
+        `;
+        
+        if (showFallback) {
+            setTimeout(() => {
+                const fallbackBtn = document.getElementById('fallbackFileBtn');
+                if (fallbackBtn) {
+                    fallbackBtn.addEventListener('click', () => {
+                        closeModal(document.querySelector('.modal-overlay'));
+                        uploadPhoto();
+                    });
+                }
+            }, 100);
+        }
+    }
+    
+    if (cameraControls) {
+        cameraControls.style.display = 'flex';
+    }
+}
+
+function takePicture(video) {
+    try {
+        const canvas = document.getElementById('cameraCanvas');
+        const context = canvas.getContext('2d');
+        
+        if (!video.videoWidth || !video.videoHeight) {
+            console.error('Video dimensions not available:', video.videoWidth, video.videoHeight);
+            showNotification('המצלמה עדיין לא מוכנה, נסה שוב', 'error');
+            return;
+        }
+        
+        console.log('Video dimensions:', video.videoWidth, 'x', video.videoHeight);
+        
+        // Use actual video dimensions
+        const videoWidth = video.videoWidth;
+        const videoHeight = video.videoHeight;
+        
+        // Set canvas to match video dimensions
+        canvas.width = videoWidth;
+        canvas.height = videoHeight;
+        
+        console.log('Taking picture:', videoWidth + 'x' + videoHeight);
+        
+        // Draw video frame to canvas
+        context.drawImage(video, 0, 0, videoWidth, videoHeight);
+        
+        // Convert to blob with good quality
+        canvas.toBlob((blob) => {
+            if (blob && blob.size > 0) {
+                console.log('Picture captured successfully, size:', Math.round(blob.size / 1024), 'KB');
+                
+                // Create file object with iOS compatibility
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const fileName = `photo-${timestamp}.jpg`;
+                
+                let file;
+                try {
+                    file = new File([blob], fileName, { 
+                        type: 'image/jpeg',
+                        lastModified: Date.now()
+                    });
+                } catch (error) {
+                    // Fallback for older iOS versions
+                    file = blob;
+                    file.name = fileName;
+                    file.lastModified = Date.now();
+                }
+                
+                // Process the captured photo
+                processPhoto(file);
+                
+                // Close camera modal
+                stopCamera();
+                closeModal(document.querySelector('.modal-overlay'));
+                
+                // Show success notification
+                showNotification('תמונה נצולמה בהצלחה!', 'success');
+                
+            } else {
+                console.error('Failed to create blob from canvas or blob is empty');
+                showNotification('שגיאה בצילום התמונה, נסה שוב', 'error');
+            }
+        }, 'image/jpeg', 0.9);
+        
+    } catch (error) {
+        console.error('Take picture error:', error);
+        showNotification('שגיאה בצילום התמונה', 'error');
+    }
+}
+
+function stopCamera() {
+    if (window.currentCameraStream) {
+        window.currentCameraStream.getTracks().forEach(track => track.stop());
+        window.currentCameraStream = null;
+        console.log('Camera stopped');
     }
 }
 
@@ -1359,210 +1817,59 @@ function uploadPhoto() {
         
         console.log('Starting photo upload');
         
-        // Create file input
+        // Detect mobile/iOS for enhanced file input
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        
+        // Create file input with camera support for mobile
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
-        fileInput.accept = 'image/*';
+        
+        if (isMobile) {
+            // Mobile devices get camera capture option
+            fileInput.accept = 'image/*';
+            if (isIOS) {
+                // iOS specific attributes for better camera integration
+                fileInput.capture = 'environment'; // Use rear camera
+            } else {
+                // Android and other mobile devices
+                fileInput.capture = 'camera';
+            }
+        } else {
+            // Desktop gets standard image file picker
+            fileInput.accept = 'image/*';
+        }
+        
         fileInput.multiple = true;
         fileInput.style.display = 'none';
         
         fileInput.addEventListener('change', handlePhotoUpload);
         
         document.body.appendChild(fileInput);
-        fileInput.click();
         
-        // Clean up
+        // Add a small delay for iOS to ensure proper setup
+        if (isIOS) {
+            setTimeout(() => {
+                fileInput.click();
+            }, 100);
+        } else {
+            fileInput.click();
+        }
+        
+        // Clean up after a reasonable timeout
         setTimeout(() => {
             if (document.body.contains(fileInput)) {
                 document.body.removeChild(fileInput);
             }
-        }, 1000);
+        }, 30000); // 30 seconds timeout for camera usage
+        
     } catch (error) {
         console.error('Error in uploadPhoto:', error);
         showNotification('שגיאה בפתיחת בוחר הקבצים', 'error');
     }
 }
 
-async function initializeCamera() {
-    try {
-        const video = document.getElementById('cameraVideo');
-        const takePictureBtn = document.getElementById('takePictureBtn');
-        const switchCameraBtn = document.getElementById('switchCameraBtn');
-        
-        if (!video) return;
-        
-        // Check if camera is available
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            showNotification('המצלמה אינה נתמכת בדפדפן זה', 'error');
-            return;
-        }
-        
-        // Get available cameras
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(device => device.kind === 'videoinput');
-        
-        let currentDeviceIndex = 0;
-        let stream = null;
-        
-        async function startCamera(deviceId = null) {
-            try {
-                // Stop previous stream
-                if (stream) {
-                    stream.getTracks().forEach(track => track.stop());
-                }
-                
-                // Mobile-optimized camera constraints
-                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-                const constraints = {
-                    video: {
-                        facingMode: deviceId ? undefined : 'environment',
-                        deviceId: deviceId ? { exact: deviceId } : undefined,
-                        width: { ideal: isMobile ? 1280 : 1920 },
-                        height: { ideal: isMobile ? 720 : 1080 }
-                    }
-                };
-                
-                console.log('Starting camera with constraints:', constraints);
-                
-                stream = await navigator.mediaDevices.getUserMedia(constraints);
-                video.srcObject = stream;
-                
-                // Show/hide switch button based on available cameras
-                if (switchCameraBtn) {
-                    switchCameraBtn.style.display = videoDevices.length > 1 ? 'block' : 'none';
-                }
-                
-                console.log('Camera started successfully');
-                
-            } catch (error) {
-                console.error('Camera error:', error);
-                
-                // Try with fallback constraints for mobile
-                if (isMobile && !deviceId) {
-                    try {
-                        console.log('Trying fallback camera constraints for mobile');
-                        const fallbackConstraints = {
-                            video: {
-                                facingMode: 'environment',
-                                width: { ideal: 640 },
-                                height: { ideal: 480 }
-                            }
-                        };
-                        
-                        stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
-                        video.srcObject = stream;
-                        
-                        console.log('Fallback camera started');
-                        return;
-                    } catch (fallbackError) {
-                        console.error('Fallback camera error:', fallbackError);
-                    }
-                }
-                
-                showNotification('שגיאה בגישה למצלמה: ' + error.message, 'error');
-            }
-        }
-        
-        // Start with default camera
-        await startCamera();
-        
-        // Handle take picture
-        if (takePictureBtn) {
-            takePictureBtn.addEventListener('click', () => {
-                takePicture(video);
-            });
-        }
-        
-        // Handle switch camera
-        if (switchCameraBtn) {
-            switchCameraBtn.addEventListener('click', async () => {
-                currentDeviceIndex = (currentDeviceIndex + 1) % videoDevices.length;
-                await startCamera(videoDevices[currentDeviceIndex].deviceId);
-            });
-        }
-        
-        // Store stream reference for cleanup
-        window.currentCameraStream = stream;
-        
-    } catch (error) {
-        console.error('Camera initialization error:', error);
-        showNotification('שגיאה באתחול המצלמה', 'error');
-    }
-}
 
-function takePicture(video) {
-    try {
-        const canvas = document.getElementById('cameraCanvas');
-        const context = canvas.getContext('2d');
-        
-        // Determine optimal canvas size for mobile
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        const maxWidth = isMobile ? 1200 : 1920;
-        const maxHeight = isMobile ? 1200 : 1080;
-        
-        let canvasWidth = video.videoWidth;
-        let canvasHeight = video.videoHeight;
-        
-        // Scale down for mobile if needed
-        if (canvasWidth > maxWidth || canvasHeight > maxHeight) {
-            const scale = Math.min(maxWidth / canvasWidth, maxHeight / canvasHeight);
-            canvasWidth = Math.round(canvasWidth * scale);
-            canvasHeight = Math.round(canvasHeight * scale);
-        }
-        
-        // Set canvas size
-        canvas.width = canvasWidth;
-        canvas.height = canvasHeight;
-        
-        console.log('Taking picture:', canvasWidth + 'x' + canvasHeight);
-        
-        // Draw video frame to canvas
-        context.drawImage(video, 0, 0, canvasWidth, canvasHeight);
-        
-        // Convert to blob with mobile-optimized quality
-        const quality = isMobile ? 0.7 : 0.9;
-        canvas.toBlob((blob) => {
-            if (blob) {
-                console.log('Picture captured, size:', Math.round(blob.size / 1024), 'KB');
-                
-                // Create file object with iOS compatibility
-                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                const fileName = `photo-${timestamp}.jpg`; // Keep for technical purposes
-                
-                let file;
-                try {
-                    file = new File([blob], fileName, { type: 'image/jpeg' });
-                } catch (error) {
-                    // Fallback for older iOS versions
-                    file = blob;
-                    file.name = fileName;
-                    file.lastModified = Date.now();
-                }
-                
-                // Process the captured photo
-                processPhoto(file);
-                
-                // Close camera modal
-                stopCamera();
-                closeModal(document.querySelector('.modal-overlay'));
-            } else {
-                console.error('Failed to create blob from canvas');
-                showNotification('שגיאה בהמרת התמונה', 'error');
-            }
-        }, 'image/jpeg', quality);
-        
-    } catch (error) {
-        console.error('Take picture error:', error);
-        showNotification('שגיאה בצילום התמונה', 'error');
-    }
-}
-
-function stopCamera() {
-    if (window.currentCameraStream) {
-        window.currentCameraStream.getTracks().forEach(track => track.stop());
-        window.currentCameraStream = null;
-    }
-}
 
 function handlePhotoUpload(event) {
     try {

@@ -1360,12 +1360,34 @@ p {
     font-weight: 500;
 }
 
-/* Camera Interface */
+/* Camera Interface Enhanced */
 .camera-container {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: var(--spacing-lg);
+    min-height: 400px;
+}
+
+.camera-status {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-xl);
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.camera-status .loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border-color);
+    border-top: 3px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
 }
 
 .camera-view {
@@ -1375,13 +1397,60 @@ p {
     background: var(--surface-alt);
     border-radius: var(--border-radius-lg);
     overflow: hidden;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .camera-view video {
     width: 100%;
     height: auto;
     display: block;
+    min-height: 300px;
+    object-fit: cover;
+}
+
+.camera-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.viewfinder {
+    width: 200px;
+    height: 200px;
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    border-radius: var(--border-radius-md);
+    background: rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(1px);
+    position: relative;
+}
+
+.viewfinder::before,
+.viewfinder::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border: 2px solid white;
+}
+
+.viewfinder::before {
+    top: -2px;
+    left: -2px;
+    border-right: none;
+    border-bottom: none;
+}
+
+.viewfinder::after {
+    bottom: -2px;
+    right: -2px;
+    border-left: none;
+    border-top: none;
 }
 
 .camera-controls {
@@ -1389,17 +1458,200 @@ p {
     gap: var(--spacing-md);
     justify-content: center;
     flex-wrap: wrap;
+    align-items: center;
 }
 
 .camera-btn {
     min-width: 120px;
     padding: var(--spacing-md) var(--spacing-lg);
-    font-size: var(--font-size-lg);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    border-radius: var(--border-radius-lg);
+    transition: all 0.3s ease;
+}
+
+.camera-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
 }
 
 .camera-btn .btn-icon {
-    font-size: 1.5em;
+    font-size: 1.2em;
     margin-left: var(--spacing-sm);
+}
+
+.camera-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-xl);
+    text-align: center;
+    color: var(--danger-color);
+}
+
+.camera-error .error-icon {
+    font-size: 3rem;
+    margin-bottom: var(--spacing-md);
+}
+
+.camera-error p {
+    margin: 0;
+    font-weight: 500;
+}
+
+/* Camera Choice Modal */
+.camera-choice-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xl);
+    text-align: center;
+    padding: var(--spacing-lg);
+}
+
+.choice-info h3 {
+    margin: 0 0 var(--spacing-sm) 0;
+    color: var(--primary-color);
+    font-size: var(--font-size-xl);
+}
+
+.choice-info p {
+    margin: 0;
+    color: var(--text-secondary);
+}
+
+.choice-buttons {
+    display: flex;
+    gap: var(--spacing-lg);
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.choice-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-xl);
+    background: var(--surface-color);
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius-lg);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 140px;
+    text-align: center;
+}
+
+.choice-btn:hover {
+    border-color: var(--primary-color);
+    background: var(--primary-light);
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+}
+
+.choice-icon {
+    font-size: 2.5rem;
+    margin-bottom: var(--spacing-sm);
+}
+
+.choice-text {
+    font-weight: 600;
+    font-size: var(--font-size-lg);
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.choice-btn small {
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+    margin: 0;
+}
+
+.choice-btn:hover .choice-text {
+    color: var(--primary-color);
+}
+
+/* Mobile Camera Optimizations */
+@media (max-width: 768px) {
+    .camera-container {
+        gap: var(--spacing-md);
+        min-height: 350px;
+    }
+    
+    .camera-view {
+        max-width: 100%;
+        margin: 0 var(--spacing-sm);
+    }
+    
+    .camera-view video {
+        min-height: 250px;
+    }
+    
+    .viewfinder {
+        width: 150px;
+        height: 150px;
+    }
+    
+    .camera-controls {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+    
+    .camera-btn {
+        width: 100%;
+        max-width: 280px;
+        min-width: auto;
+    }
+    
+    .choice-buttons {
+        flex-direction: column;
+        gap: var(--spacing-md);
+    }
+    
+    .choice-btn {
+        min-width: auto;
+        width: 100%;
+        max-width: 300px;
+        margin: 0 auto;
+        padding: var(--spacing-lg);
+    }
+    
+    .choice-icon {
+        font-size: 2rem;
+    }
+    
+    .camera-choice-container {
+        padding: var(--spacing-md);
+        gap: var(--spacing-lg);
+    }
+}
+
+@media (max-width: 480px) {
+    .camera-view video {
+        min-height: 200px;
+    }
+    
+    .viewfinder {
+        width: 120px;
+        height: 120px;
+    }
+    
+    .camera-btn {
+        padding: var(--spacing-sm) var(--spacing-md);
+        font-size: var(--font-size-sm);
+    }
+    
+    .choice-btn {
+        padding: var(--spacing-md);
+    }
+    
+    .choice-icon {
+        font-size: 1.8rem;
+    }
+    
+    .choice-text {
+        font-size: var(--font-size-base);
+    }
 }
 
 /* Photo Cards Enhanced */
