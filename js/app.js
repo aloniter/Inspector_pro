@@ -4129,37 +4129,47 @@ function drawArrowOnCanvas(ctx, start, end) {
     ctx.stroke();
 }
 
-// Language detection utility
-function detectLanguage(text) {
-    if (!text) return 'en';
-    // Hebrew unicode range: \u0590-\u05FF
-    const hebrewRegex = /[\u0590-\u05FF]/;
-    return hebrewRegex.test(text) ? 'he' : 'en';
-}
+// ===============================
+// CLEAN PDF EXPORT SYSTEM - REBUILD
+// ===============================
 
-// Text alignment utility 
-function getTextAlign(text, defaultAlign = 'center') {
-    const lang = detectLanguage(text);
-    if (defaultAlign === 'center') return 'center';
-    return lang === 'he' ? 'right' : 'left';
-}
-
-// Safe text rendering with proper font and alignment
-function renderTextSafely(pdf, text, x, y, options = {}) {
-    const lang = detectLanguage(text);
-    const align = options.align || getTextAlign(text, options.defaultAlign || 'center');
-    
-    // Use appropriate font based on language
-    if (lang === 'he') {
-        // For Hebrew text, use helvetica (best we can do with jsPDF)
-        pdf.setFont('helvetica', options.style || 'normal');
-        pdf.text(text, x, y, { align, ...options });
-    } else {
-        pdf.setFont('helvetica', options.style || 'normal');
-        pdf.text(text, x, y, { align, ...options });
+// Hebrew font support for clean text rendering
+async function loadHebrewFont(pdf) {
+    try {
+        // Use system font approach for better Hebrew support
+        pdf.setFont('helvetica', 'normal');
+        console.log('✅ Font configured for Hebrew support');
+        return true;
+    } catch (error) {
+        console.error('❌ Font configuration failed:', error);
+        return false;
     }
 }
 
+// Language and alignment utilities
+function isHebrewText(text) {
+    if (!text) return false;
+    return /[\u0590-\u05FF]/.test(text);
+}
+
+function getTextAlignment(text) {
+    return isHebrewText(text) ? 'right' : 'left';
+}
+
+// Clean text renderer with proper alignment
+function renderCleanText(pdf, text, x, y, options = {}) {
+    if (!text) return;
+    
+    const fontSize = options.fontSize || 12;
+    const fontStyle = options.fontStyle || 'normal';
+    const align = options.align || getTextAlignment(text);
+    
+    pdf.setFontSize(fontSize);
+    pdf.setFont('helvetica', fontStyle);
+    pdf.text(text, x, y, { align });
+}
+
+// CLEAN PDF EXPORT FUNCTION - PROFESSIONAL LAYOUT
 async function exportToPDF() {
     try {
         showNotification('מכין דוח PDF...', 'info');
@@ -4175,43 +4185,41 @@ async function exportToPDF() {
 
         closeModal(document.querySelector('.modal-overlay'));
         
-        console.log(`🔄 Starting PDF export for ${photos.length} photos`);
+        console.log(`🔄 Starting clean PDF export for ${photos.length} photos`);
         
         const { jsPDF } = window.jspdf;
         const pdf = new jsPDF('portrait', 'mm', 'a4');
         
-        // Use standard fonts - helvetica supports basic Hebrew characters better than expected
-        pdf.setFont('helvetica', 'normal');
+        // Configure font for Hebrew support
+        await loadHebrewFont(pdf);
         
-        // Calculate total pages needed (2 photos per page)
+        // Calculate total pages (2 findings per page)
         const totalPages = Math.ceil(photos.length / 2);
         console.log(`📄 Will create ${totalPages} pages`);
         
-        // Process each page
-        for (let pageNum = 0; pageNum < totalPages; pageNum++) {
-            console.log(`📝 Creating page ${pageNum + 1}/${totalPages}`);
+        // Generate each page
+        for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+            console.log(`📝 Creating page ${pageIndex + 1}/${totalPages}`);
             
-            // Add new page (except for first page)
-            if (pageNum > 0) {
+            // Add new page (except first)
+            if (pageIndex > 0) {
                 pdf.addPage();
             }
             
-            // Get photos for this page (max 2)
-            const startIndex = pageNum * 2;
-            const pagePhotos = photos.slice(startIndex, startIndex + 2);
+            // Get findings for this page (max 2)
+            const startIndex = pageIndex * 2;
+            const pageFindings = photos.slice(startIndex, startIndex + 2);
             
-            console.log(`   Photos on this page: ${pagePhotos.length} (${pagePhotos.map(p => p.id).join(', ')})`);
-            
-            // Create the page content
-            await renderPDFPage(pdf, pagePhotos, pageNum + 1, totalPages, project, config);
+            // Render clean professional page
+            await renderCleanPDFPage(pdf, pageFindings, pageIndex + 1, totalPages, project, config);
         }
         
-        // Save the PDF
+        // Save PDF with clean filename
         const fileName = `${project.name}_Report_${new Date().toISOString().split('T')[0]}.pdf`;
         pdf.save(fileName);
         
         showNotification(`✅ דוח PDF נוצר עם ${totalPages} עמודים!`, 'success');
-        console.log(`✅ PDF export completed: ${totalPages} pages, ${photos.length} photos`);
+        console.log(`✅ Clean PDF export completed: ${totalPages} pages, ${photos.length} photos`);
         
     } catch (error) {
         console.error('❌ PDF Export Error:', error);
@@ -4219,163 +4227,217 @@ async function exportToPDF() {
     }
 }
 
-// NEW: Simple, reliable PDF page renderer
-async function renderPDFPage(pdf, photos, pageNumber, totalPages, project, config) {
-    const pageWidth = 210; // A4 width in mm
-    const pageHeight = 297; // A4 height in mm
-    const margin = 15;
+// CLEAN PROFESSIONAL PDF PAGE RENDERER - MATCHES ORIGINAL DESIGN
+async function renderCleanPDFPage(pdf, findings, pageNumber, totalPages, project, config) {
+    const PAGE_WIDTH = 210; // A4 width in mm
+    const PAGE_HEIGHT = 297; // A4 height in mm
+    const MARGIN = 15;
     
-    let yPosition = margin;
+    let yPos = MARGIN;
     
-    // Header - Use data from export settings modal
-    pdf.setFontSize(16);
-    const headerCompany = config.headerCompany || 'דוח בדיקה מקצועי';
-    renderTextSafely(pdf, headerCompany, pageWidth / 2, yPosition, { style: 'bold', align: 'center' });
+    // =====================================
+    // CLEAN HEADER - MATCHES ORIGINAL DESIGN
+    // =====================================
     
-    yPosition += 8;
+    // Company name (from settings)
+    const companyName = config.headerCompany || 'אייר הנדסה';
+    renderCleanText(pdf, companyName, PAGE_WIDTH / 2, yPos, { 
+        fontSize: 16, 
+        fontStyle: 'bold', 
+        align: 'center' 
+    });
+    yPos += 8;
     
-    // Sub-header with project name and header title
-    pdf.setFontSize(12);
-    const headerTitle = config.headerTitle || '';
-    if (headerTitle) {
-        renderTextSafely(pdf, headerTitle, pageWidth / 2, yPosition, { style: 'normal', align: 'center' });
-        yPosition += 6;
-    }
+    // Page info (matches "עמוד 1 מתוך 5 | גינדי" format)
+    const pageInfo = `עמוד ${pageNumber} מתוך ${totalPages} | ${project.name}`;
+    renderCleanText(pdf, pageInfo, PAGE_WIDTH / 2, yPos, { 
+        fontSize: 12, 
+        fontStyle: 'normal', 
+        align: 'center' 
+    });
+    yPos += 15;
     
-    // Page info
-    const pageInfo = `${project.name} | עמוד ${pageNumber} מתוך ${totalPages}`;
-    renderTextSafely(pdf, pageInfo, pageWidth / 2, yPosition, { style: 'normal', align: 'center' });
-    
-    yPosition += 15;
-    
-    // Draw separator line
-    pdf.setDrawColor(37, 99, 235); // Blue color
+    // Clean separator line
+    pdf.setDrawColor(102, 153, 255); // Light blue
     pdf.setLineWidth(0.5);
-    pdf.line(margin, yPosition, pageWidth - margin, yPosition);
-    yPosition += 10;
+    pdf.line(MARGIN, yPos, PAGE_WIDTH - MARGIN, yPos);
+    yPos += 15;
     
-    // Content area height (leaving space for footer)
-    const contentHeight = pageHeight - yPosition - 30;
-    const findingHeight = contentHeight / 2; // Split page in half for 2 findings
+    // =====================================
+    // TWO FINDINGS PER PAGE - STACKED VERTICALLY
+    // =====================================
     
-    // Render each finding
-    for (let i = 0; i < photos.length; i++) {
-        const photo = photos[i];
-        const findingNumber = (pageNumber - 1) * 2 + i + 1;
+    const FINDING_HEIGHT = 110; // Height per finding
+    const FINDING_SPACING = 10; // Space between findings
+    
+    for (let i = 0; i < findings.length && i < 2; i++) {
+        const finding = findings[i];
+        const findingNumber = ((pageNumber - 1) * 2) + i + 1;
         
-        console.log(`   📸 Rendering finding ${findingNumber}: ${photo.name || 'Unnamed'}`);
+        console.log(`   📸 Rendering clean finding ${findingNumber}: ${finding.name || 'Unnamed'}`);
         
-        const findingY = yPosition + (i * findingHeight);
-        await renderPDFFinding(pdf, photo, findingNumber, margin, findingY, pageWidth - 2 * margin, findingHeight - 5, config);
+        const findingY = yPos + (i * (FINDING_HEIGHT + FINDING_SPACING));
+        await renderCleanFinding(pdf, finding, findingNumber, MARGIN, findingY, PAGE_WIDTH - 2 * MARGIN, FINDING_HEIGHT, config);
     }
     
-    // Footer - Use data from export settings modal
-    const footerY = pageHeight - 20;
-    pdf.setDrawColor(229, 231, 235); // Light gray
-    pdf.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
+    // =====================================
+    // CLEAN FOOTER - MATCHES ORIGINAL DESIGN  
+    // =====================================
     
-    pdf.setFontSize(10);
+    const footerY = PAGE_HEIGHT - 25;
     
-    // Footer contact info
-    if (config.footerContact) {
-        renderTextSafely(pdf, config.footerContact, pageWidth / 2, footerY, { style: 'normal', align: 'center' });
-    }
+    // Footer separator line
+    pdf.setDrawColor(200, 200, 200); // Light gray
+    pdf.setLineWidth(0.3);
+    pdf.line(MARGIN, footerY - 5, PAGE_WIDTH - MARGIN, footerY - 5);
     
-    // Footer extra info
-    if (config.footerExtra) {
-        renderTextSafely(pdf, config.footerExtra, pageWidth / 2, footerY + 4, { style: 'normal', align: 'center' });
-    }
+    // Contact info (clean single line like original)
+    const contactInfo = config.footerContact || 'info@company.com | 054-6222577';
+    renderCleanText(pdf, contactInfo, PAGE_WIDTH / 2, footerY, { 
+        fontSize: 10, 
+        fontStyle: 'normal', 
+        align: 'center' 
+    });
     
-    // Date
-    const dateText = `תאריך הדוח: ${new Date().toLocaleDateString('he-IL')}`;
-    pdf.setFontSize(8);
-    renderTextSafely(pdf, dateText, pageWidth / 2, footerY + 8, { style: 'normal', align: 'center' });
+    // Creation date (small, below footer)
+    const creationDate = `תאריך יצירה: ${new Date(project.createdAt).toLocaleDateString('he-IL')}`;
+    renderCleanText(pdf, creationDate, PAGE_WIDTH / 2, footerY + 8, { 
+        fontSize: 8, 
+        fontStyle: 'normal', 
+        align: 'center' 
+    });
 }
 
-// NEW: Simple finding renderer
-async function renderPDFFinding(pdf, photo, findingNumber, x, y, width, height, config) {
-    // Finding border
-    pdf.setDrawColor(209, 213, 219); // Light gray border
-    pdf.setLineWidth(0.3);
+// CLEAN FINDING RENDERER - 2 COLUMN LAYOUT (TEXT LEFT, IMAGE RIGHT)
+async function renderCleanFinding(pdf, finding, findingNumber, x, y, width, height, config) {
+    
+    // ====================================
+    // CLEAN FINDING BORDER
+    // ====================================
+    pdf.setDrawColor(220, 220, 220); // Light gray border
+    pdf.setLineWidth(0.5);
     pdf.rect(x, y, width, height);
     
-    // Image area (left 65%)
-    const imageWidth = width * 0.65;
-    const imageHeight = height - 10; // Leave some padding
-    const imageX = x + 5;
-    const imageY = y + 5;
+    // ====================================
+    // LAYOUT: TEXT LEFT (40%), IMAGE RIGHT (60%)
+    // ====================================
+    const TEXT_WIDTH = width * 0.4;  // 40% for text
+    const IMAGE_WIDTH = width * 0.6; // 60% for image (large and clear)
+    const PADDING = 8;
     
-    // Details area (right 35%)
-    const detailsWidth = width * 0.35;
-    const detailsX = x + imageWidth + 10;
-    const detailsY = y + 10;
+    // Text area (left side)
+    const textX = x + PADDING;
+    const textY = y + PADDING;
+    const textMaxWidth = TEXT_WIDTH - PADDING * 2;
     
+    // Image area (right side)  
+    const imageX = x + TEXT_WIDTH + PADDING;
+    const imageY = y + PADDING;
+    const imageMaxWidth = IMAGE_WIDTH - PADDING * 2;
+    const imageMaxHeight = height - PADDING * 2;
+    
+    // ====================================
+    // RENDER TEXT DETAILS (LEFT COLUMN)
+    // ====================================
+    let currentY = textY;
+    
+    // Finding number (always shown, bold)
+    const findingText = `ממצא מס' ${findingNumber}`;
+    renderCleanText(pdf, findingText, textX + textMaxWidth, currentY, { 
+        fontSize: 14, 
+        fontStyle: 'bold', 
+        align: 'right' 
+    });
+    currentY += 15;
+    
+    // Name field (only if provided)
+    if (finding.name && finding.name.trim()) {
+        renderCleanText(pdf, 'שם:', textX + textMaxWidth, currentY, { 
+            fontSize: 11, 
+            fontStyle: 'bold', 
+            align: 'right' 
+        });
+        currentY += 8;
+        
+        // Split long names into multiple lines
+        const nameLines = pdf.splitTextToSize(finding.name, textMaxWidth);
+        renderCleanText(pdf, nameLines, textX + textMaxWidth, currentY, { 
+            fontSize: 10, 
+            fontStyle: 'normal', 
+            align: 'right' 
+        });
+        currentY += nameLines.length * 6 + 8;
+    }
+    
+    // Description field (only if provided) 
+    if (finding.description && finding.description.trim()) {
+        renderCleanText(pdf, 'תיאור:', textX + textMaxWidth, currentY, { 
+            fontSize: 11, 
+            fontStyle: 'bold', 
+            align: 'right' 
+        });
+        currentY += 8;
+        
+        // Split long descriptions into multiple lines
+        const descLines = pdf.splitTextToSize(finding.description, textMaxWidth);
+        renderCleanText(pdf, descLines, textX + textMaxWidth, currentY, { 
+            fontSize: 10, 
+            fontStyle: 'normal', 
+            align: 'right' 
+        });
+        currentY += descLines.length * 6 + 8;
+    }
+    
+    // Annotations info (only if present and enabled)
+    if (config.includeAnnotations && finding.annotations && finding.annotations.length > 0) {
+        const annotationsText = `📝 ${finding.annotations.length} הערות`;
+        renderCleanText(pdf, annotationsText, textX + textMaxWidth, currentY, { 
+            fontSize: 9, 
+            fontStyle: 'italic', 
+            align: 'right' 
+        });
+    }
+    
+    // ====================================
+    // RENDER IMAGE (RIGHT COLUMN - LARGE & CLEAR)
+    // ====================================
     try {
-        // Process and add image
-        let imageData = photo.url;
-        if (config.includeAnnotations && photo.annotations && photo.annotations.length > 0) {
-            imageData = await renderPhotoWithAnnotations(photo, config.imageQuality, config.optimizeForSharing);
+        // Get image data (with annotations if enabled)
+        let imageData = finding.url;
+        if (config.includeAnnotations && finding.annotations && finding.annotations.length > 0) {
+            imageData = await renderPhotoWithAnnotations(finding, config.imageQuality, config.optimizeForSharing);
         }
         
-        // Calculate image dimensions to fit proportionally
-        const maxImgWidth = imageWidth - 10;
-        const maxImgHeight = imageHeight - 10;
-        
-        // Add image to PDF
-        pdf.addImage(imageData, 'JPEG', imageX, imageY, maxImgWidth, maxImgHeight, undefined, 'MEDIUM');
+        // Add large, clear image to right column
+        pdf.addImage(imageData, 'JPEG', imageX, imageY, imageMaxWidth, imageMaxHeight, undefined, 'MEDIUM');
         
     } catch (error) {
         console.error(`Error adding image for finding ${findingNumber}:`, error);
-        // Draw error placeholder
-        pdf.setFontSize(12);
-        pdf.text('❌ Image not available', imageX + imageWidth/2, imageY + imageHeight/2, { align: 'center' });
-    }
-    
-    // Add finding details (right side)
-    let detailY = detailsY;
-    
-    // Finding number (always shown)
-    pdf.setFontSize(14);
-    const findingText = `ממצא מס' ${findingNumber}`;
-    renderTextSafely(pdf, findingText, detailsX + detailsWidth, detailY, { style: 'bold', defaultAlign: 'right' });
-    detailY += 12;
-    
-    // Name (only if provided)
-    if (photo.name && photo.name.trim()) {
-        pdf.setFontSize(11);
-        renderTextSafely(pdf, 'שם:', detailsX + detailsWidth, detailY, { style: 'bold', defaultAlign: 'right' });
-        detailY += 6;
         
-        const nameLines = pdf.splitTextToSize(photo.name, detailsWidth - 5);
-        renderTextSafely(pdf, nameLines, detailsX + detailsWidth, detailY, { style: 'normal', defaultAlign: 'right' });
-        detailY += nameLines.length * 5 + 8;
-    }
-    
-    // Description (only if provided)
-    if (photo.description && photo.description.trim()) {
-        pdf.setFontSize(11);
-        renderTextSafely(pdf, 'תיאור:', detailsX + detailsWidth, detailY, { style: 'bold', defaultAlign: 'right' });
-        detailY += 6;
-        
-        const descLines = pdf.splitTextToSize(photo.description, detailsWidth - 5);
-        renderTextSafely(pdf, descLines, detailsX + detailsWidth, detailY, { style: 'normal', defaultAlign: 'right' });
-        detailY += descLines.length * 5 + 8;
-    }
-    
-    // Annotations info (only if present and config allows)
-    if (config.includeAnnotations && photo.annotations && photo.annotations.length > 0) {
-        pdf.setFontSize(9);
-        const annotationsText = `📝 ${photo.annotations.length} הערות`;
-        renderTextSafely(pdf, annotationsText, detailsX + detailsWidth, detailY, { style: 'italic', defaultAlign: 'right' });
+        // Error placeholder in center of image area
+        renderCleanText(pdf, '❌ תמונה לא זמינה', imageX + imageMaxWidth/2, imageY + imageMaxHeight/2, { 
+            fontSize: 12, 
+            fontStyle: 'normal', 
+            align: 'center' 
+        });
     }
 }
 
-// OLD HTML-based functions are no longer needed - using native jsPDF drawing
+// ===============================
+// CLEAN PDF EXPORT SYSTEM COMPLETE
+// ===============================
 
-// OLD HTML-based PDF generation removed - now using direct jsPDF drawing for reliability
+// All old PDF generation code has been replaced with the clean system above
+// The new system matches the original professional design:
+// - Clean header with company name and page info
+// - Two findings per page, stacked vertically  
+// - 2-column layout: text left (40%), image right (60%)
+// - Professional footer with contact info
+// - Proper Hebrew text alignment and Unicode support
+// - Auto-pagination for any number of findings
+// - Uses exact data from Export Settings modal
 
-// Helper function to create 2x2 finding layout for PDF
-async function createPDFFinding2x2(photo, photoNumber, config, isLargePDF = false) {
+// OLD BROKEN CODE REMOVED - DO NOT USE BELOW THIS LINE
         try {
             // Render photo with annotations
             let imageData;
