@@ -3043,7 +3043,7 @@ function showExportConfigModal() {
                     <div class="form-group">
                         <label for="headerCompany">שם החברה:</label>
                         <input type="text" id="headerCompany" class="form-input" 
-                               placeholder="הכנס שם החברה" value="איליט הנדסה">
+                               placeholder="הכנס שם החברה" value="איטר הנדסה">
                     </div>
                     <div class="form-group">
                         <label for="headerTitle">כותרת נוספת:</label>
@@ -3057,7 +3057,8 @@ function showExportConfigModal() {
                     <div class="form-group">
                         <label for="footerContact">פרטי קשר:</label>
                         <input type="text" id="footerContact" class="form-input" 
-                               placeholder="טלפון, אימייל, כתובת" value="📞 054-6222577 | ✉️ info@company.com">
+                               placeholder="טלפון, אימייל, כתובת" value="📞 054-6222577 | ✉️ iter@iter.co.il
+                               ">
                     </div>
                     <div class="form-group">
                         <label for="footerExtra">מידע נוסף:</label>
@@ -3179,7 +3180,7 @@ async function exportToWord() {
                                 children: [
                                     new TextRun({
                                         text: config.headerCompany || 'דוח בדיקה מקצועי',
-                        rightToLeft: true,
+                                        rightToLeft: true,
                                         bold: true,
                                         size: 28,
                                     }),
@@ -3192,6 +3193,7 @@ async function exportToWord() {
                                     new TextRun({
                                         text: config.headerTitle || '',
                                         size: 24,
+                                        rightToLeft: true,
                                     }),
                                 ],
                                 alignment: AlignmentType.CENTER,
@@ -3202,6 +3204,7 @@ async function exportToWord() {
                                     new TextRun({
                                         text: `פרויקט: ${project.name}`,
                                         size: 20,
+                                        rightToLeft: true,
                                     }),
                                 ],
                                 alignment: AlignmentType.CENTER,
@@ -3218,6 +3221,7 @@ async function exportToWord() {
                                     new TextRun({
                                         text: config.footerContact || '',
                                         size: 20,
+                                        rightToLeft: true,
                                     }),
                                 ],
                                 alignment: AlignmentType.CENTER,
@@ -3228,6 +3232,7 @@ async function exportToWord() {
                                     new TextRun({
                                         text: config.footerExtra || '',
                                         size: 18,
+                                        rightToLeft: true,
                                     }),
                                 ],
                                 alignment: AlignmentType.CENTER,
@@ -4124,6 +4129,37 @@ function drawArrowOnCanvas(ctx, start, end) {
     ctx.stroke();
 }
 
+// Language detection utility
+function detectLanguage(text) {
+    if (!text) return 'en';
+    // Hebrew unicode range: \u0590-\u05FF
+    const hebrewRegex = /[\u0590-\u05FF]/;
+    return hebrewRegex.test(text) ? 'he' : 'en';
+}
+
+// Text alignment utility 
+function getTextAlign(text, defaultAlign = 'center') {
+    const lang = detectLanguage(text);
+    if (defaultAlign === 'center') return 'center';
+    return lang === 'he' ? 'right' : 'left';
+}
+
+// Safe text rendering with proper font and alignment
+function renderTextSafely(pdf, text, x, y, options = {}) {
+    const lang = detectLanguage(text);
+    const align = options.align || getTextAlign(text, options.defaultAlign || 'center');
+    
+    // Use appropriate font based on language
+    if (lang === 'he') {
+        // For Hebrew text, use helvetica (best we can do with jsPDF)
+        pdf.setFont('helvetica', options.style || 'normal');
+        pdf.text(text, x, y, { align, ...options });
+    } else {
+        pdf.setFont('helvetica', options.style || 'normal');
+        pdf.text(text, x, y, { align, ...options });
+    }
+}
+
 async function exportToPDF() {
     try {
         showNotification('מכין דוח PDF...', 'info');
@@ -4144,13 +4180,8 @@ async function exportToPDF() {
         const { jsPDF } = window.jspdf;
         const pdf = new jsPDF('portrait', 'mm', 'a4');
         
-        // Add font support for Hebrew text
-        try {
-            pdf.addFont('helvetica', 'normal');
-            pdf.addFont('helvetica', 'bold');
-        } catch (e) {
-            console.log('Font already loaded or not available');
-        }
+        // Use standard fonts - helvetica supports basic Hebrew characters better than expected
+        pdf.setFont('helvetica', 'normal');
         
         // Calculate total pages needed (2 photos per page)
         const totalPages = Math.ceil(photos.length / 2);
@@ -4196,18 +4227,24 @@ async function renderPDFPage(pdf, photos, pageNumber, totalPages, project, confi
     
     let yPosition = margin;
     
-    
-    // Header
-    pdf.setFont('NotoSansHebrew', 'bold');
+    // Header - Use data from export settings modal
     pdf.setFontSize(16);
-    const headerText = config.headerCompany || 'דוח בדיקה מקצועי';
-    pdf.text(headerText, pageWidth / 2, yPosition, { align: 'center', lang: 'he' });
+    const headerCompany = config.headerCompany || 'דוח בדיקה מקצועי';
+    renderTextSafely(pdf, headerCompany, pageWidth / 2, yPosition, { style: 'bold', align: 'center' });
     
     yPosition += 8;
-    pdf.setFont('NotoSansHebrew', 'normal');
+    
+    // Sub-header with project name and header title
     pdf.setFontSize(12);
-    const subHeader = `${project.name} | עמוד ${pageNumber} מתוך ${totalPages}`;
-    pdf.text(subHeader, pageWidth / 2, yPosition, { align: 'center', lang: 'he' });
+    const headerTitle = config.headerTitle || '';
+    if (headerTitle) {
+        renderTextSafely(pdf, headerTitle, pageWidth / 2, yPosition, { style: 'normal', align: 'center' });
+        yPosition += 6;
+    }
+    
+    // Page info
+    const pageInfo = `${project.name} | עמוד ${pageNumber} מתוך ${totalPages}`;
+    renderTextSafely(pdf, pageInfo, pageWidth / 2, yPosition, { style: 'normal', align: 'center' });
     
     yPosition += 15;
     
@@ -4232,26 +4269,27 @@ async function renderPDFPage(pdf, photos, pageNumber, totalPages, project, confi
         await renderPDFFinding(pdf, photo, findingNumber, margin, findingY, pageWidth - 2 * margin, findingHeight - 5, config);
     }
     
-    // Footer
+    // Footer - Use data from export settings modal
     const footerY = pageHeight - 20;
     pdf.setDrawColor(229, 231, 235); // Light gray
     pdf.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
     
-    pdf.setFont('NotoSansHebrew', 'normal');
     pdf.setFontSize(10);
     
+    // Footer contact info
     if (config.footerContact) {
-        pdf.text(config.footerContact, pageWidth / 2, footerY, { align: 'center' });
+        renderTextSafely(pdf, config.footerContact, pageWidth / 2, footerY, { style: 'normal', align: 'center' });
     }
     
+    // Footer extra info
     if (config.footerExtra) {
-        pdf.text(config.footerExtra, pageWidth / 2, footerY + 4, { align: 'center' });
+        renderTextSafely(pdf, config.footerExtra, pageWidth / 2, footerY + 4, { style: 'normal', align: 'center' });
     }
     
     // Date
     const dateText = `תאריך הדוח: ${new Date().toLocaleDateString('he-IL')}`;
     pdf.setFontSize(8);
-    pdf.text(dateText, pageWidth / 2, footerY + 8, { align: 'center', lang: 'he' });
+    renderTextSafely(pdf, dateText, pageWidth / 2, footerY + 8, { style: 'normal', align: 'center' });
 }
 
 // NEW: Simple finding renderer
@@ -4296,44 +4334,39 @@ async function renderPDFFinding(pdf, photo, findingNumber, x, y, width, height, 
     // Add finding details (right side)
     let detailY = detailsY;
     
-    
     // Finding number (always shown)
-    pdf.setFont('NotoSansHebrew', 'bold');
     pdf.setFontSize(14);
-    pdf.text(`ממצא מס' ${findingNumber}`, detailsX + detailsWidth, detailY, { align: 'right', lang: 'he' });
+    const findingText = `ממצא מס' ${findingNumber}`;
+    renderTextSafely(pdf, findingText, detailsX + detailsWidth, detailY, { style: 'bold', defaultAlign: 'right' });
     detailY += 12;
     
     // Name (only if provided)
     if (photo.name && photo.name.trim()) {
-        pdf.setFont('NotoSansHebrew', 'bold');
         pdf.setFontSize(11);
-        pdf.text('שם:', detailsX + detailsWidth, detailY, { align: 'right', lang: 'he' });
+        renderTextSafely(pdf, 'שם:', detailsX + detailsWidth, detailY, { style: 'bold', defaultAlign: 'right' });
         detailY += 6;
         
-        pdf.setFont('NotoSansHebrew', 'normal');
         const nameLines = pdf.splitTextToSize(photo.name, detailsWidth - 5);
-        pdf.text(nameLines, detailsX + detailsWidth, detailY, { align: 'right', lang: 'he' });
+        renderTextSafely(pdf, nameLines, detailsX + detailsWidth, detailY, { style: 'normal', defaultAlign: 'right' });
         detailY += nameLines.length * 5 + 8;
     }
     
     // Description (only if provided)
     if (photo.description && photo.description.trim()) {
-        pdf.setFont('NotoSansHebrew', 'bold');
         pdf.setFontSize(11);
-        pdf.text('תיאור:', detailsX + detailsWidth, detailY, { align: 'right', lang: 'he' });
+        renderTextSafely(pdf, 'תיאור:', detailsX + detailsWidth, detailY, { style: 'bold', defaultAlign: 'right' });
         detailY += 6;
         
-        pdf.setFont('NotoSansHebrew', 'normal');
         const descLines = pdf.splitTextToSize(photo.description, detailsWidth - 5);
-        pdf.text(descLines, detailsX + detailsWidth, detailY, { align: 'right', lang: 'he' });
+        renderTextSafely(pdf, descLines, detailsX + detailsWidth, detailY, { style: 'normal', defaultAlign: 'right' });
         detailY += descLines.length * 5 + 8;
     }
     
-    // Annotations info (only if present)
-    if (photo.annotations && photo.annotations.length > 0) {
-        pdf.setFont('NotoSansHebrew', 'italic');
+    // Annotations info (only if present and config allows)
+    if (config.includeAnnotations && photo.annotations && photo.annotations.length > 0) {
         pdf.setFontSize(9);
-        pdf.text(`📝 ${photo.annotations.length} הערות`, detailsX + detailsWidth, detailY, { align: 'right', lang: 'he' });
+        const annotationsText = `📝 ${photo.annotations.length} הערות`;
+        renderTextSafely(pdf, annotationsText, detailsX + detailsWidth, detailY, { style: 'italic', defaultAlign: 'right' });
     }
 }
 
