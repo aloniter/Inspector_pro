@@ -4196,17 +4196,18 @@ async function renderPDFPage(pdf, photos, pageNumber, totalPages, project, confi
     
     let yPosition = margin;
     
-    // Header - Use simple ASCII text for testing Hebrew support
+    
+    // Header
+    pdf.setFont('NotoSansHebrew', 'bold');
     pdf.setFontSize(16);
-    pdf.setFont('helvetica', 'bold');
-    const headerText = config.headerCompany || 'Inspection Report';
-    pdf.text(headerText, pageWidth / 2, yPosition, { align: 'center' });
+    const headerText = config.headerCompany || 'דוח בדיקה מקצועי';
+    pdf.text(headerText, pageWidth / 2, yPosition, { align: 'center', lang: 'he' });
     
     yPosition += 8;
+    pdf.setFont('NotoSansHebrew', 'normal');
     pdf.setFontSize(12);
-    pdf.setFont('helvetica', 'normal');
-    const subHeader = `${project.name} | Page ${pageNumber} of ${totalPages}`;
-    pdf.text(subHeader, pageWidth / 2, yPosition, { align: 'center' });
+    const subHeader = `${project.name} | עמוד ${pageNumber} מתוך ${totalPages}`;
+    pdf.text(subHeader, pageWidth / 2, yPosition, { align: 'center', lang: 'he' });
     
     yPosition += 15;
     
@@ -4236,8 +4237,8 @@ async function renderPDFPage(pdf, photos, pageNumber, totalPages, project, confi
     pdf.setDrawColor(229, 231, 235); // Light gray
     pdf.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
     
+    pdf.setFont('NotoSansHebrew', 'normal');
     pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'normal');
     
     if (config.footerContact) {
         pdf.text(config.footerContact, pageWidth / 2, footerY, { align: 'center' });
@@ -4248,9 +4249,9 @@ async function renderPDFPage(pdf, photos, pageNumber, totalPages, project, confi
     }
     
     // Date
-    const dateText = `Report Date: ${new Date().toLocaleDateString('en-US')}`;
+    const dateText = `תאריך הדוח: ${new Date().toLocaleDateString('he-IL')}`;
     pdf.setFontSize(8);
-    pdf.text(dateText, pageWidth / 2, footerY + 8, { align: 'center' });
+    pdf.text(dateText, pageWidth / 2, footerY + 8, { align: 'center', lang: 'he' });
 }
 
 // NEW: Simple finding renderer
@@ -4295,43 +4296,44 @@ async function renderPDFFinding(pdf, photo, findingNumber, x, y, width, height, 
     // Add finding details (right side)
     let detailY = detailsY;
     
+    
     // Finding number (always shown)
+    pdf.setFont('NotoSansHebrew', 'bold');
     pdf.setFontSize(14);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text(`Finding #${findingNumber}`, detailsX + detailsWidth, detailY, { align: 'right' });
+    pdf.text(`ממצא מס' ${findingNumber}`, detailsX + detailsWidth, detailY, { align: 'right', lang: 'he' });
     detailY += 12;
     
     // Name (only if provided)
     if (photo.name && photo.name.trim()) {
+        pdf.setFont('NotoSansHebrew', 'bold');
         pdf.setFontSize(11);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('Name:', detailsX + detailsWidth, detailY, { align: 'right' });
+        pdf.text('שם:', detailsX + detailsWidth, detailY, { align: 'right', lang: 'he' });
         detailY += 6;
         
-        pdf.setFont('helvetica', 'normal');
+        pdf.setFont('NotoSansHebrew', 'normal');
         const nameLines = pdf.splitTextToSize(photo.name, detailsWidth - 5);
-        pdf.text(nameLines, detailsX + detailsWidth, detailY, { align: 'right' });
+        pdf.text(nameLines, detailsX + detailsWidth, detailY, { align: 'right', lang: 'he' });
         detailY += nameLines.length * 5 + 8;
     }
     
     // Description (only if provided)
     if (photo.description && photo.description.trim()) {
+        pdf.setFont('NotoSansHebrew', 'bold');
         pdf.setFontSize(11);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('Description:', detailsX + detailsWidth, detailY, { align: 'right' });
+        pdf.text('תיאור:', detailsX + detailsWidth, detailY, { align: 'right', lang: 'he' });
         detailY += 6;
         
-        pdf.setFont('helvetica', 'normal');
+        pdf.setFont('NotoSansHebrew', 'normal');
         const descLines = pdf.splitTextToSize(photo.description, detailsWidth - 5);
-        pdf.text(descLines, detailsX + detailsWidth, detailY, { align: 'right' });
+        pdf.text(descLines, detailsX + detailsWidth, detailY, { align: 'right', lang: 'he' });
         detailY += descLines.length * 5 + 8;
     }
     
     // Annotations info (only if present)
     if (photo.annotations && photo.annotations.length > 0) {
+        pdf.setFont('NotoSansHebrew', 'italic');
         pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'italic');
-        pdf.text(`📝 ${photo.annotations.length} notes`, detailsX + detailsWidth, detailY, { align: 'right' });
+        pdf.text(`📝 ${photo.annotations.length} הערות`, detailsX + detailsWidth, detailY, { align: 'right', lang: 'he' });
     }
 }
 
