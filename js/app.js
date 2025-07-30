@@ -4141,153 +4141,210 @@ function drawArrowOnCanvas(ctx, start, end) {
 
 async function exportToPDF() {
     try {
-        showNotification('מכין דוח PDF מקצועי...', 'info');
+        showNotification('מכין דוח PDF...', 'info');
         
-        const pdfConfig = getExportConfig();
+        const config = getExportConfig();
         const project = appState.currentProject;
-        const projectPhotos = getPhotosByProject(project.id);
+        const photos = getPhotosByProject(project.id);
         
-        if (projectPhotos.length === 0) {
+        if (photos.length === 0) {
             showNotification('אין תמונות לייצוא', 'error');
             return;
         }
         
-        console.log(`[PDF] Starting export for ${projectPhotos.length} photos`);
         closeModal(document.querySelector('.modal-overlay'));
-
+        
+        console.log(`🔄 Starting PDF export for ${photos.length} photos`);
+        
         const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const totalPages = Math.ceil(projectPhotos.length / 2);
-
-        // Render each page individually for robustness
-        for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
-            if (pageIndex > 0) {
+        const pdf = new jsPDF('portrait', 'mm', 'a4');
+        
+        // Calculate total pages needed (2 photos per page)
+        const totalPages = Math.ceil(photos.length / 2);
+        console.log(`📄 Will create ${totalPages} pages`);
+        
+        // Process each page
+        for (let pageNum = 0; pageNum < totalPages; pageNum++) {
+            console.log(`📝 Creating page ${pageNum + 1}/${totalPages}`);
+            
+            // Add new page (except for first page)
+            if (pageNum > 0) {
                 pdf.addPage();
             }
-
-            const pagePhotos = projectPhotos.slice(pageIndex * 2, pageIndex * 2 + 2);
-            console.log(`[PDF] Rendering page ${pageIndex + 1}/${totalPages} with ${pagePhotos.length} photo(s)`);
             
-            // Create HTML content for just ONE page
-            const pageHtml = await createPDFPageHTML(project, pagePhotos, pageIndex, totalPages, pdfConfig);
+            // Get photos for this page (max 2)
+            const startIndex = pageNum * 2;
+            const pagePhotos = photos.slice(startIndex, startIndex + 2);
             
-            // Create a temporary div for this single page
-            const tempPageDiv = document.createElement('div');
-            tempPageDiv.innerHTML = pageHtml;
-            tempPageDiv.style.position = 'absolute';
-            tempPageDiv.style.left = '-9999px';
-            tempPageDiv.style.top = '-9999px';
-            tempPageDiv.style.width = '210mm';
-            tempPageDiv.style.height = '297mm';
-            tempPageDiv.style.background = 'white';
-            document.body.appendChild(tempPageDiv);
-
-            // Wait for images on this specific page to load
-            const images = tempPageDiv.querySelectorAll('img');
-            const imagePromises = Array.from(images).map(img =>
-                new Promise((resolve) => {
-                    if (img.complete) resolve();
-                    else {
-                        img.onload = resolve;
-                        img.onerror = resolve;
-                    }
-                })
-            );
-            await Promise.all(imagePromises);
-
-            // Render the single page to a canvas
-            const canvas = await html2canvas(tempPageDiv, {
-                useCORS: true,
-                scale: pdfConfig.optimizeForSharing ? 1.8 : 2.5, // Higher scale for clarity
-                backgroundColor: '#ffffff',
-                logging: false,
-                removeContainer: true,
-            });
-
-            document.body.removeChild(tempPageDiv);
-
-            const imgData = canvas.toDataURL('image/jpeg', 0.92); // Use JPEG for better compression
-            pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297); // A4 dimensions
+            console.log(`   Photos on this page: ${pagePhotos.length} (${pagePhotos.map(p => p.id).join(', ')})`);
+            
+            // Create the page content
+            await renderPDFPage(pdf, pagePhotos, pageNum + 1, totalPages, project, config);
         }
-
-        // Save the complete PDF
-        const fileName = `${project.name}_דוח_מלא_${new Date().toISOString().split('T')[0]}.pdf`;
+        
+        // Save the PDF
+        const fileName = `${project.name}_Report_${new Date().toISOString().split('T')[0]}.pdf`;
         pdf.save(fileName);
         
-        showNotification('דוח PDF מקצועי נוצר בהצלחה!', 'success');
+        showNotification(`✅ דוח PDF נוצר עם ${totalPages} עמודים!`, 'success');
+        console.log(`✅ PDF export completed: ${totalPages} pages, ${photos.length} photos`);
         
     } catch (error) {
-        console.error('Error exporting to professional PDF:', error);
-        showNotification('שגיאה קריטית ביצירת דוח PDF', 'error');
+        console.error('❌ PDF Export Error:', error);
+        showNotification('שגיאה ביצירת PDF', 'error');
     }
 }
 
-// NEW Helper function to create HTML for a SINGLE PDF page
-async function createPDFPageHTML(project, photos, pageIndex, totalPages, config) {
-    let htmlContent = `
-        <div class="pdf-page" style="
-            font-family: Arial, sans-serif; 
-            direction: rtl; 
-            background: white; 
-            width: 210mm; 
-            height: 297mm; 
-            margin: 0; 
-            padding: 12mm 15mm; 
-            box-sizing: border-box; 
-            display: flex; 
-            flex-direction: column;
-        ">
-            <!-- Compact Header -->
-            <div style="text-align: center; margin-bottom: 15px; border-bottom: 2px solid #2563eb; padding-bottom: 10px;">
-                <h1 style="color: #2563eb; margin: 0; font-size: 20px; font-weight: bold; line-height: 1.2;">
-                    ${config.headerCompany || 'דוח בדיקה מקצועי'}
-                </h1>
-                <div style="margin: 3px 0; font-size: 14px; color: #374151;">
-                    <strong>${project.name}</strong> | עמוד ${pageIndex + 1} / ${totalPages}
-                </div>
-            </div>
-            
-            <div style="flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
-    `;
+// NEW: Simple, reliable PDF page renderer
+async function renderPDFPage(pdf, photos, pageNumber, totalPages, project, config) {
+    const pageWidth = 210; // A4 width in mm
+    const pageHeight = 297; // A4 height in mm
+    const margin = 15;
     
-    // First finding on the page
-    if (photos[0]) {
-        htmlContent += await createPDFFinding2x2(photos[0], pageIndex * 2 + 1, config, true);
+    let yPosition = margin;
+    
+    // Header
+    pdf.setFontSize(16);
+    pdf.setFont('helvetica', 'bold');
+    const headerText = config.headerCompany || 'דוח בדיקה מקצועי';
+    pdf.text(headerText, pageWidth / 2, yPosition, { align: 'center' });
+    
+    yPosition += 8;
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'normal');
+    const subHeader = `${project.name} | עמוד ${pageNumber} מתוך ${totalPages}`;
+    pdf.text(subHeader, pageWidth / 2, yPosition, { align: 'center' });
+    
+    yPosition += 15;
+    
+    // Draw separator line
+    pdf.setDrawColor(37, 99, 235); // Blue color
+    pdf.setLineWidth(0.5);
+    pdf.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 10;
+    
+    // Content area height (leaving space for footer)
+    const contentHeight = pageHeight - yPosition - 30;
+    const findingHeight = contentHeight / 2; // Split page in half for 2 findings
+    
+    // Render each finding
+    for (let i = 0; i < photos.length; i++) {
+        const photo = photos[i];
+        const findingNumber = (pageNumber - 1) * 2 + i + 1;
+        
+        console.log(`   📸 Rendering finding ${findingNumber}: ${photo.name || 'Unnamed'}`);
+        
+        const findingY = yPosition + (i * findingHeight);
+        await renderPDFFinding(pdf, photo, findingNumber, margin, findingY, pageWidth - 2 * margin, findingHeight - 5, config);
     }
     
-    // Second finding on the page
-    if (photos[1]) {
-        htmlContent += '<div style="height: 10mm;"></div>';
-        htmlContent += await createPDFFinding2x2(photos[1], pageIndex * 2 + 2, config, true);
-    } else {
-        htmlContent += '<div style="flex-grow: 1;"></div>'; // Spacer for single-finding pages
+    // Footer
+    const footerY = pageHeight - 20;
+    pdf.setDrawColor(229, 231, 235); // Light gray
+    pdf.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
+    
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'normal');
+    
+    if (config.footerContact) {
+        pdf.text(config.footerContact, pageWidth / 2, footerY, { align: 'center' });
     }
     
-    htmlContent += `
-            </div>
-            
-            <!-- Professional Footer -->
-            <div style="margin-top: 8mm; border-top: 1px solid #e5e7eb; padding-top: 8mm;">
-                <div style="text-align: center; color: #374151; font-size: 12px; line-height: 1.4;">
-                    ${config.footerContact ? `<div style="margin-bottom: 4mm; font-weight: 600;">${config.footerContact}</div>` : ''}
-                    ${config.footerExtra ? `<div style="margin-bottom: 4mm; color: #6b7280;">${config.footerExtra}</div>` : ''}
-                    <div style="color: #9ca3af; font-size: 10px; margin-top: 6mm;">
-                        תאריך הדוח: ${new Date().toLocaleDateString('he-IL')}
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
+    if (config.footerExtra) {
+        pdf.text(config.footerExtra, pageWidth / 2, footerY + 4, { align: 'center' });
+    }
     
-    return htmlContent;
+    // Date
+    const dateText = `תאריך הדוח: ${new Date().toLocaleDateString('he-IL')}`;
+    pdf.setFontSize(8);
+    pdf.text(dateText, pageWidth / 2, footerY + 8, { align: 'center' });
 }
 
-// This function is no longer needed as we render page by page
-// async function createPDFHTMLContent(project, photos, config) { ... }
+// NEW: Simple finding renderer
+async function renderPDFFinding(pdf, photo, findingNumber, x, y, width, height, config) {
+    // Finding border
+    pdf.setDrawColor(209, 213, 219); // Light gray border
+    pdf.setLineWidth(0.3);
+    pdf.rect(x, y, width, height);
+    
+    // Image area (left 65%)
+    const imageWidth = width * 0.65;
+    const imageHeight = height - 10; // Leave some padding
+    const imageX = x + 5;
+    const imageY = y + 5;
+    
+    // Details area (right 35%)
+    const detailsWidth = width * 0.35;
+    const detailsX = x + imageWidth + 10;
+    const detailsY = y + 10;
+    
+    try {
+        // Process and add image
+        let imageData = photo.url;
+        if (config.includeAnnotations && photo.annotations && photo.annotations.length > 0) {
+            imageData = await renderPhotoWithAnnotations(photo, config.imageQuality, config.optimizeForSharing);
+        }
+        
+        // Calculate image dimensions to fit proportionally
+        const maxImgWidth = imageWidth - 10;
+        const maxImgHeight = imageHeight - 10;
+        
+        // Add image to PDF
+        pdf.addImage(imageData, 'JPEG', imageX, imageY, maxImgWidth, maxImgHeight, undefined, 'MEDIUM');
+        
+    } catch (error) {
+        console.error(`Error adding image for finding ${findingNumber}:`, error);
+        // Draw error placeholder
+        pdf.setFontSize(12);
+        pdf.text('❌ תמונה לא זמינה', imageX + imageWidth/2, imageY + imageHeight/2, { align: 'center' });
+    }
+    
+    // Add finding details (right side)
+    let detailY = detailsY;
+    
+    // Finding number (always shown)
+    pdf.setFontSize(14);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(`ממצא מס' ${findingNumber}`, detailsX + detailsWidth, detailY, { align: 'right' });
+    detailY += 12;
+    
+    // Name (only if provided)
+    if (photo.name && photo.name.trim()) {
+        pdf.setFontSize(11);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('שם:', detailsX + detailsWidth, detailY, { align: 'right' });
+        detailY += 6;
+        
+        pdf.setFont('helvetica', 'normal');
+        const nameLines = pdf.splitTextToSize(photo.name, detailsWidth - 5);
+        pdf.text(nameLines, detailsX + detailsWidth, detailY, { align: 'right' });
+        detailY += nameLines.length * 5 + 8;
+    }
+    
+    // Description (only if provided)
+    if (photo.description && photo.description.trim()) {
+        pdf.setFontSize(11);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('תיאור:', detailsX + detailsWidth, detailY, { align: 'right' });
+        detailY += 6;
+        
+        pdf.setFont('helvetica', 'normal');
+        const descLines = pdf.splitTextToSize(photo.description, detailsWidth - 5);
+        pdf.text(descLines, detailsX + detailsWidth, detailY, { align: 'right' });
+        detailY += descLines.length * 5 + 8;
+    }
+    
+    // Annotations info (only if present)
+    if (photo.annotations && photo.annotations.length > 0) {
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'italic');
+        pdf.text(`📝 ${photo.annotations.length} הערות`, detailsX + detailsWidth, detailY, { align: 'right' });
+    }
+}
 
+// OLD HTML-based functions are no longer needed - using native jsPDF drawing
 
-// This function is no longer needed as we render page by page
-// async function createPDFHTMLContent(project, photos, config) { ... }
+// OLD HTML-based PDF generation removed - now using direct jsPDF drawing for reliability
 
 // Helper function to create 2x2 finding layout for PDF
 async function createPDFFinding2x2(photo, photoNumber, config, isLargePDF = false) {
