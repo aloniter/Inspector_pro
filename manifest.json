@@ -13,57 +13,57 @@
   "categories": ["productivity", "business", "utilities"],
   "icons": [
     {
-      "src": "assets/icons/favicon.svg",
+      "src": "inspector_icon.png",
       "sizes": "72x72",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icons/favicon.svg",
+      "src": "inspector_icon.png",
       "sizes": "96x96",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icons/favicon.svg",
+      "src": "inspector_icon.png",
       "sizes": "128x128",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icons/icon-144x144.svg",
+      "src": "inspector_icon.png",
       "sizes": "144x144",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icons/favicon.svg",
+      "src": "inspector_icon.png",
       "sizes": "152x152",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icons/icon-192x192.svg",
+      "src": "inspector_icon.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icons/favicon.svg",
+      "src": "inspector_icon.png",
       "sizes": "384x384",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icons/icon-512x512.svg",
+      "src": "inspector_icon.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icons/apple-touch-icon.svg",
+      "src": "inspector_icon.png",
       "sizes": "180x180",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
     }
   ],
@@ -98,9 +98,9 @@
       "url": "/Inspector_pro/?action=new-project",
       "icons": [
         {
-          "src": "assets/icons/icon-192x192.svg",
+          "src": "inspector_icon.png",
           "sizes": "192x192",
-          "type": "image/svg+xml"
+          "type": "image/png"
         }
       ]
     },
@@ -111,9 +111,9 @@
       "url": "/Inspector_pro/?action=quick-capture",
       "icons": [
         {
-          "src": "assets/icons/icon-192x192.svg",
+          "src": "inspector_icon.png",
           "sizes": "192x192",
-          "type": "image/svg+xml"
+          "type": "image/png"
         }
       ]
     }

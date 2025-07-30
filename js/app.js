@@ -82,10 +82,17 @@ const STORAGE_KEYS = {
 
 // App State
 let appState = {
-    currentUser: null,
+    currentUser: {
+        id: 'default_user',
+        name: 'משתמש מקומי',
+        email: 'user@inspector.local',
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+        cloudSync: false
+    },
     currentProject: null,
-    currentPage: 'auth',
-    isAuthenticated: false,
+    currentPage: 'dashboard',
+    isAuthenticated: true,
     projects: [],
     photos: [],
     isOnline: navigator.onLine,
@@ -119,12 +126,8 @@ function initApp() {
     setTimeout(() => {
         hideLoadingScreen();
         
-        // Check authentication state
-        if (appState.isAuthenticated) {
-            navigateToPage('dashboard');
-        } else {
-            navigateToPage('auth');
-        }
+        // Always navigate to dashboard (no authentication required)
+        navigateToPage('dashboard');
     }, APP_CONFIG.loadingDuration);
 }
 
@@ -139,26 +142,12 @@ function cacheElements() {
         modalsContainer: document.getElementById('modalsContainer'),
         
         // Pages
-        authPage: document.getElementById('authPage'),
         dashboardPage: document.getElementById('dashboardPage'),
         projectPage: document.getElementById('projectPage'),
         
         // Navigation
         menuToggle: document.getElementById('menuToggle'),
         userMenuBtn: document.getElementById('userMenuBtn'),
-        
-        // Authentication forms
-        loginForm: document.getElementById('loginForm'),
-        registerForm: document.getElementById('registerForm'),
-        showRegister: document.getElementById('showRegister'),
-        showLogin: document.getElementById('showLogin'),
-        
-        // Authentication inputs
-        loginEmail: document.getElementById('loginEmail'),
-        loginPassword: document.getElementById('loginPassword'),
-        registerName: document.getElementById('registerName'),
-        registerEmail: document.getElementById('registerEmail'),
-        registerPassword: document.getElementById('registerPassword'),
         
         // Dashboard elements
         createProjectBtn: document.getElementById('createProjectBtn'),
@@ -193,20 +182,16 @@ function initializeComponents() {
  */
 function loadSavedData() {
     try {
-        // Load user data
-        const userData = getStorageItem(STORAGE_KEYS.user);
-        if (userData) {
-            appState.currentUser = userData;
-            appState.isAuthenticated = true;
-            
-            // Load user's projects from new storage system
-            const userProjects = getAllProjects();
-            appState.projects = userProjects;
-            
-            // Load user's photos from new storage system
-            const userPhotos = getAllPhotos();
-            appState.photos = userPhotos;
-        }
+        // Load user's projects from storage system
+        const userProjects = getAllProjects();
+        appState.projects = userProjects;
+        
+        // Load user's photos from storage system
+        const userPhotos = getAllPhotos();
+        appState.photos = userPhotos;
+        
+        // Save default user data
+        setStorageItem(STORAGE_KEYS.user, appState.currentUser);
         
         console.log('Data loaded successfully');
     } catch (error) {
@@ -219,29 +204,6 @@ function loadSavedData() {
  * Setup event listeners
  */
 function setupEventListeners() {
-    // Authentication events
-    if (elements.loginForm) {
-        elements.loginForm.addEventListener('submit', handleLogin);
-    }
-    
-    if (elements.registerForm) {
-        elements.registerForm.addEventListener('submit', handleRegister);
-    }
-    
-    if (elements.showRegister) {
-        elements.showRegister.addEventListener('click', (e) => {
-            e.preventDefault();
-            toggleAuthForm('register');
-        });
-    }
-    
-    if (elements.showLogin) {
-        elements.showLogin.addEventListener('click', (e) => {
-            e.preventDefault();
-            toggleAuthForm('login');
-        });
-    }
-    
     // Navigation events
     if (elements.backToDashboard) {
         elements.backToDashboard.addEventListener('click', () => {
@@ -280,194 +242,11 @@ function setupEventListeners() {
     window.addEventListener('offline', handleOfflineStatus);
 }
 
-/**
- * Handle login form submission
- */
-async function handleLogin(e) {
-    e.preventDefault();
-    
-    // Clear previous errors
-    clearFormErrors();
-    
-    const email = elements.loginEmail.value.trim();
-    const password = elements.loginPassword.value;
-    
-    // Validate inputs
-    const validationErrors = validateLoginForm(email, password);
-    if (validationErrors.length > 0) {
-        showFormErrors(validationErrors);
-        return;
-    }
-    
-    // Show loading state
-    const submitBtn = e.target.querySelector('button[type="submit"]');
-    const originalText = submitBtn.textContent;
-    submitBtn.textContent = 'מתחבר...';
-    submitBtn.disabled = true;
-    
-    try {
-        let userData = null;
-        
-        // Try cloud authentication first
-        if (window.FirebaseSync && window.FirebaseSync.isEnabled()) {
-            try {
-                submitBtn.textContent = 'מתחבר לענן...';
-                const cloudUser = await window.FirebaseSync.signIn(email, password);
-                userData = {
-                    id: cloudUser.uid,
-                    email: cloudUser.email,
-                    name: cloudUser.displayName || email.split('@')[0],
-                    cloudSync: true,
-                    createdAt: new Date().toISOString()
-                };
-                console.log('Logged in with cloud sync:', userData.email);
-                
-                // Sync data from cloud
-                submitBtn.textContent = 'מסנכרן נתונים...';
-                await performDataSync();
-                
-            } catch (cloudError) {
-                console.log('Cloud login failed, trying offline:', cloudError.message);
-                // Fall back to local authentication
-                userData = await authenticateUser(email, password);
-                if (userData) {
-                    userData.cloudSync = false;
-                }
-            }
-        } else {
-            // Use local authentication only
-            userData = await authenticateUser(email, password);
-            if (userData) {
-                userData.cloudSync = false;
-            }
-        }
-        
-        if (userData) {
-            appState.currentUser = userData;
-            appState.isAuthenticated = true;
-            
-            // Save user data
-            setStorageItem(STORAGE_KEYS.user, userData);
-            
-            const syncStatus = userData.cloudSync ? ' (מסונכרן בענן ☁️)' : ' (אופליין 📱)';
-            showNotification(`ברוך הבא, ${userData.name}!` + syncStatus, 'success');
-            navigateToPage('dashboard');
-        } else {
-            showNotification('כתובת אימייל או סיסמה שגויים', 'error');
-            highlightFieldError(elements.loginEmail);
-            highlightFieldError(elements.loginPassword);
-        }
-    } catch (error) {
-        console.error('Login error:', error);
-        showNotification('שגיאה בהתחברות לשרת. אנא נסה שוב.', 'error');
-    } finally {
-        // Reset button state
-        submitBtn.textContent = originalText;
-        submitBtn.disabled = false;
-    }
-}
 
-/**
- * Handle registration form submission
- */
-async function handleRegister(e) {
-    e.preventDefault();
-    
-    // Clear previous errors
-    clearFormErrors();
-    
-    const name = elements.registerName.value.trim();
-    const email = elements.registerEmail.value.trim();
-    const password = elements.registerPassword.value;
-    
-    // Validate inputs
-    const validationErrors = validateRegisterForm(name, email, password);
-    if (validationErrors.length > 0) {
-        showFormErrors(validationErrors);
-        return;
-    }
-    
-    // Show loading state
-    const submitBtn = e.target.querySelector('button[type="submit"]');
-    const originalText = submitBtn.textContent;
-    submitBtn.textContent = 'נרשם...';
-    submitBtn.disabled = true;
-    
-    try {
-        // Check if email already exists
-        const existingUser = checkEmailExists(email);
-        if (existingUser) {
-            showNotification('כתובת האימייל כבר קיימת במערכת', 'error');
-            highlightFieldError(elements.registerEmail);
-            return;
-        }
-        
-        let userData = null;
-        
-        // Try cloud registration first
-        if (window.FirebaseSync && window.FirebaseSync.isEnabled()) {
-            try {
-                submitBtn.textContent = 'נרשם בענן...';
-                const cloudUser = await window.FirebaseSync.signUp(email, password, name);
-                userData = {
-                    id: cloudUser.uid,
-                    email: cloudUser.email,
-                    name: name,
-                    cloudSync: true,
-                    createdAt: new Date().toISOString()
-                };
-                console.log('Registered with cloud sync:', userData.email);
-            } catch (cloudError) {
-                console.log('Cloud registration failed, using offline:', cloudError.message);
-                // Fall back to local registration
-                userData = await registerUser(name, email, password);
-                if (userData) {
-                    userData.cloudSync = false;
-                }
-            }
-        } else {
-            // Use local registration only
-            userData = await registerUser(name, email, password);
-            if (userData) {
-                userData.cloudSync = false;
-            }
-        }
-        
-        if (userData) {
-            appState.currentUser = userData;
-            appState.isAuthenticated = true;
-            
-            // Save user data
-            setStorageItem(STORAGE_KEYS.user, userData);
-            
-            const syncStatus = userData.cloudSync ? ' (מסונכרן בענן ☁️)' : ' (אופליין 📱)';
-            showNotification(`ברוך הבא, ${userData.name}! נרשמת בהצלחה.` + syncStatus, 'success');
-            navigateToPage('dashboard');
-        } else {
-            showNotification('שגיאה בהרשמה. אנא נסה שוב.', 'error');
-        }
-    } catch (error) {
-        console.error('Registration error:', error);
-        showNotification('שגיאה בהרשמה לשרת. אנא נסה שוב.', 'error');
-    } finally {
-        // Reset button state
-        submitBtn.textContent = originalText;
-        submitBtn.disabled = false;
-    }
-}
 
-/**
- * Toggle between login and register forms
- */
-function toggleAuthForm(form) {
-    if (form === 'register') {
-        elements.loginForm.classList.add('hidden');
-        elements.registerForm.classList.remove('hidden');
-    } else {
-        elements.registerForm.classList.add('hidden');
-        elements.loginForm.classList.remove('hidden');
-    }
-}
+
+
+
 
 /**
  * Navigate to a specific page
@@ -499,11 +278,6 @@ function updatePageContent(page) {
             break;
         case 'project':
             updateProjectContent();
-            break;
-        case 'auth':
-            // Reset forms
-            if (elements.loginForm) elements.loginForm.reset();
-            if (elements.registerForm) elements.registerForm.reset();
             break;
     }
 }
@@ -1068,229 +842,11 @@ function showNotification(message, type = 'info', duration = 3000) {
     }, duration);
 }
 
-/**
- * Authentication functions (mock implementation)
- */
-async function authenticateUser(email, password) {
-    // Mock authentication - replace with real API call
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Check credentials against saved users
-    const allUsers = getStorageItem('all_users') || [];
-    const user = allUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-    
-    if (user) {
-        // In a real app, you'd verify the password hash here
-        // For demo purposes, we'll accept any password for existing users
-        return {
-            ...user,
-            lastLogin: new Date().toISOString()
-        };
-    }
-    
-    // For demo purposes, create a new user if email/password is provided
-    if (email && password) {
-        return {
-            id: Date.now().toString(),
-            name: 'משתמש לדוגמה',
-            email: email,
-            createdAt: new Date().toISOString(),
-            lastLogin: new Date().toISOString()
-        };
-    }
-    
-    return null;
-}
 
-async function registerUser(name, email, password) {
-    // Mock registration - replace with real API call
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const userData = {
-        id: Date.now().toString(),
-        name: name,
-        email: email,
-        createdAt: new Date().toISOString(),
-        lastLogin: new Date().toISOString()
-    };
-    
-    // Save user to all users list
-    const allUsers = getStorageItem('all_users') || [];
-    allUsers.push(userData);
-    setStorageItem('all_users', allUsers);
-    
-    return userData;
-}
 
-/**
- * Form validation functions
- */
-function validateLoginForm(email, password) {
-    const errors = [];
-    
-    if (!email.trim()) {
-        errors.push({
-            field: 'email',
-            message: 'כתובת אימייל נדרשת'
-        });
-    } else if (!isValidEmail(email)) {
-        errors.push({
-            field: 'email',
-            message: 'כתובת אימייל לא תקינה'
-        });
-    }
-    
-    if (!password) {
-        errors.push({
-            field: 'password',
-            message: 'סיסמה נדרשת'
-        });
-    }
-    
-    return errors;
-}
 
-function validateRegisterForm(name, email, password) {
-    const errors = [];
-    
-    if (!name.trim()) {
-        errors.push({
-            field: 'name',
-            message: 'שם מלא נדרש'
-        });
-    } else if (name.trim().length < 2) {
-        errors.push({
-            field: 'name',
-            message: 'השם חייב להכיל לפחות 2 תווים'
-        });
-    }
-    
-    if (!email.trim()) {
-        errors.push({
-            field: 'email',
-            message: 'כתובת אימייל נדרשת'
-        });
-    } else if (!isValidEmail(email)) {
-        errors.push({
-            field: 'email',
-            message: 'כתובת אימייל לא תקינה'
-        });
-    }
-    
-    if (!password) {
-        errors.push({
-            field: 'password',
-            message: 'סיסמה נדרשת'
-        });
-    } else if (password.length < 6) {
-        errors.push({
-            field: 'password',
-            message: 'הסיסמה חייבת להכיל לפחות 6 תווים'
-        });
-    } else if (!isValidPassword(password)) {
-        errors.push({
-            field: 'password',
-            message: 'הסיסמה חייבת להכיל לפחות אות אחת ומספר אחד'
-        });
-    }
-    
-    return errors;
-}
 
-function isValidEmail(email) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-}
 
-function isValidPassword(password) {
-    // Password must contain at least one letter and one number
-    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/;
-    return passwordRegex.test(password);
-}
-
-function checkEmailExists(email) {
-    // Check if email already exists in localStorage
-    const users = getStorageItem('all_users') || [];
-    return users.find(user => user.email.toLowerCase() === email.toLowerCase());
-}
-
-/**
- * Form error handling
- */
-function clearFormErrors() {
-    // Remove error styling from all form fields
-    document.querySelectorAll('.form-group input, .form-group textarea').forEach(field => {
-        field.classList.remove('error');
-        const errorMsg = field.parentNode.querySelector('.error-message');
-        if (errorMsg) {
-            errorMsg.remove();
-        }
-    });
-}
-
-function showFormErrors(errors) {
-    errors.forEach(error => {
-        const fieldName = error.field;
-        let fieldElement;
-        
-        // Map field names to elements
-        switch (fieldName) {
-            case 'name':
-                fieldElement = elements.registerName;
-                break;
-            case 'email':
-                fieldElement = appState.currentPage === 'auth' ? 
-                    (elements.loginForm.classList.contains('hidden') ? elements.registerEmail : elements.loginEmail) :
-                    elements.loginEmail;
-                break;
-            case 'password':
-                fieldElement = appState.currentPage === 'auth' ? 
-                    (elements.loginForm.classList.contains('hidden') ? elements.registerPassword : elements.loginPassword) :
-                    elements.loginPassword;
-                break;
-        }
-        
-        if (fieldElement) {
-            highlightFieldError(fieldElement);
-            showFieldError(fieldElement, error.message);
-        }
-    });
-    
-    // Show first error as notification
-    if (errors.length > 0) {
-        showNotification(errors[0].message, 'error');
-    }
-}
-
-function highlightFieldError(fieldElement) {
-    fieldElement.classList.add('error');
-    
-    // Remove error styling after 5 seconds
-    setTimeout(() => {
-        fieldElement.classList.remove('error');
-    }, 5000);
-}
-
-function showFieldError(fieldElement, message) {
-    // Remove existing error message
-    const existingError = fieldElement.parentNode.querySelector('.error-message');
-    if (existingError) {
-        existingError.remove();
-    }
-    
-    // Create new error message
-    const errorElement = document.createElement('div');
-    errorElement.className = 'error-message';
-    errorElement.textContent = message;
-    fieldElement.parentNode.appendChild(errorElement);
-    
-    // Remove error message after 5 seconds
-    setTimeout(() => {
-        if (errorElement.parentNode) {
-            errorElement.parentNode.removeChild(errorElement);
-        }
-    }, 5000);
-}
 
 /**
  * Storage utilities
@@ -1712,9 +1268,9 @@ function showUserMenu() {
                 <span class="btn-icon">📁</span>
                 יצוא נתונים
             </button>
-            <button class="btn btn-danger" onclick="logout()">
-                <span class="btn-icon">🚪</span>
-                התנתק
+             <button class="btn btn-secondary" onclick="clearAppData()">
+                <span class="btn-icon">🗑️</span>
+                מחק נתונים
             </button>
         </div>
     `;
@@ -4788,10 +4344,10 @@ function saveAppState() {
 /**
  * User management functions
  */
-function logout() {
+function clearAppData() {
     const modal = createModal(
-        'התנתקות', 
-        'האם אתה בטוח שברצונך להתנתק?',
+        'מחק נתונים', 
+        'האם אתה בטוח שברצונך למחוק את כל הנתונים? פעולה זו לא ניתנת לביטול!',
         [
             {
                 text: 'ביטול',
@@ -4799,9 +4355,9 @@ function logout() {
                 action: 'closeModal(this.closest(\'.modal-overlay\'))'
             },
             {
-                text: 'התנתק',
+                text: 'מחק הכל',
                 class: 'btn-danger',
-                action: 'confirmLogout()'
+                action: 'confirmClearData()'
             }
         ]
     );
@@ -4809,34 +4365,39 @@ function logout() {
     showModal(modal);
 }
 
-async function confirmLogout() {
-    // Sign out from Firebase if connected
-    if (appState.currentUser?.cloudSync && window.FirebaseSync) {
-        try {
-            await window.FirebaseSync.signOut();
-            console.log('Signed out from Firebase');
-        } catch (error) {
-            console.error('Firebase signout error:', error);
-        }
-    }
+function confirmClearData() {
+    // Clear all local storage data
+    Object.keys(localStorage).filter(key => key.startsWith(APP_CONFIG.storagePrefix)).forEach(key => {
+        localStorage.removeItem(key);
+    });
     
-    // Clear user data
-    appState.currentUser = null;
-    appState.isAuthenticated = false;
+    // Reset app state to default
     appState.currentProject = null;
+    appState.projects = [];
+    appState.photos = [];
     appState.lastSyncTime = null;
     
-    // Clear stored user data
-    localStorage.removeItem(APP_CONFIG.storagePrefix + STORAGE_KEYS.user);
+    // Reset user to default
+    appState.currentUser = {
+        id: 'default_user',
+        name: 'משתמש מקומי',
+        email: 'user@inspector.local',
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+        cloudSync: false
+    };
     
-    // Close any open modals
+    // Save default user
+    setStorageItem(STORAGE_KEYS.user, appState.currentUser);
+    
+    // Close all modals
     document.querySelectorAll('.modal-overlay').forEach(modal => {
         closeModal(modal);
     });
     
-    // Show notification and redirect
-    showNotification('התנתקת בהצלחה', 'info');
-    navigateToPage('auth');
+    // Show notification and refresh dashboard
+    showNotification('כל הנתונים נמחקו', 'success');
+    navigateToPage('dashboard');
 }
 
 function editProfile() {

@@ -21,10 +21,10 @@
     <link rel="manifest" href="manifest.json">
     
     <!-- Icons -->
-    <link rel="icon" type="image/svg+xml" href="assets/icons/favicon.svg">
-    <link rel="icon" type="image/svg+xml" sizes="32x32" href="assets/icons/favicon-32x32.svg">
-    <link rel="icon" type="image/svg+xml" sizes="16x16" href="assets/icons/favicon-16x16.svg">
-    <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.svg">
+    <link rel="icon" type="image/png" href="inspector_icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="inspector_icon.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="inspector_icon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="inspector_icon.png">
     
     <!-- Preload Hebrew Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -34,11 +34,7 @@
     <!-- Styles -->
     <link rel="stylesheet" href="css/styles.css">
     
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+
     
     <!-- Service Worker Registration -->
     <script>
@@ -87,61 +83,8 @@
 
         <!-- Main Content -->
         <main class="app-main">
-            <!-- Page: Authentication -->
-            <section class="page active" id="authPage">
-                <div class="auth-container">
-                    <div class="auth-header">
-                        <div class="auth-logo">
-                            <div class="logo-icon">📋</div>
-                            <h1>Inspectort Pro</h1>
-                            <p>אפליקציית בדיקות מקצועית</p>
-                        </div>
-                    </div>
-                    
-                    <div class="auth-forms">
-                        <!-- Login Form -->
-                        <form class="auth-form" id="loginForm">
-                            <h2>התחברות</h2>
-                            <div class="form-group">
-                                <label for="loginEmail">כתובת אימייל</label>
-                                <input type="email" id="loginEmail" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="loginPassword">סיסמה</label>
-                                <input type="password" id="loginPassword" required>
-                            </div>
-                            <button type="submit" class="btn btn-primary">התחבר</button>
-                            <p class="auth-switch">
-                                אין לך חשבון? <a href="#" id="showRegister">הרשם כאן</a>
-                            </p>
-                        </form>
-                        
-                        <!-- Registration Form -->
-                        <form class="auth-form hidden" id="registerForm">
-                            <h2>הרשמה</h2>
-                            <div class="form-group">
-                                <label for="registerName">שם מלא</label>
-                                <input type="text" id="registerName" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="registerEmail">כתובת אימייל</label>
-                                <input type="email" id="registerEmail" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="registerPassword">סיסמה</label>
-                                <input type="password" id="registerPassword" required>
-                            </div>
-                            <button type="submit" class="btn btn-primary">הרשם</button>
-                            <p class="auth-switch">
-                                יש לך חשבון? <a href="#" id="showLogin">התחבר כאן</a>
-                            </p>
-                        </form>
-                    </div>
-                </div>
-            </section>
-
             <!-- Page: Dashboard -->
-            <section class="page" id="dashboardPage">
+            <section class="page active" id="dashboardPage">
                 <div class="dashboard-container">
                     <div class="dashboard-header">
                         <h2>הפרויקטים שלי</h2>
@@ -251,7 +194,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
     <!-- Scripts -->
-    <script src="js/firebase-config.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html> 
