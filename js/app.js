@@ -127,7 +127,7 @@ function initApp() {
         hideLoadingScreen();
         
         // Always navigate to dashboard (no authentication required)
-        navigateToPage('dashboard');
+            navigateToPage('dashboard');
     }, APP_CONFIG.loadingDuration);
 }
 
@@ -183,12 +183,12 @@ function initializeComponents() {
 function loadSavedData() {
     try {
         // Load user's projects from storage system
-        const userProjects = getAllProjects();
-        appState.projects = userProjects;
-        
+            const userProjects = getAllProjects();
+            appState.projects = userProjects;
+            
         // Load user's photos from storage system
-        const userPhotos = getAllPhotos();
-        appState.photos = userPhotos;
+            const userPhotos = getAllPhotos();
+            appState.photos = userPhotos;
         
         // Save default user data
         setStorageItem(STORAGE_KEYS.user, appState.currentUser);
@@ -1323,7 +1323,7 @@ function capturePhoto() {
                     <canvas id="cameraCanvas" style="display: none;"></canvas>
                     <div class="camera-overlay">
                         <div class="viewfinder"></div>
-                    </div>
+                </div>
                 </div>
                 <div class="camera-controls" id="cameraControls" style="display: none;">
                     <button id="takePictureBtn" class="btn btn-primary camera-btn">
@@ -1358,7 +1358,7 @@ function capturePhoto() {
         
         // Initialize camera with delay to ensure modal is rendered
         setTimeout(() => {
-            initializeCamera();
+        initializeCamera();
         }, 100);
         
     } catch (error) {
@@ -1471,7 +1471,7 @@ function startCameraCapture() {
 
     showModal(modal);
     
-    setTimeout(() => {
+        setTimeout(() => {
         initializeCamera();
     }, 100);
 }
@@ -1549,14 +1549,14 @@ async function initializeCamera() {
                 } else {
                     // Standard mobile constraints
                     constraints = {
-                        video: {
-                            facingMode: deviceId ? undefined : 'environment',
-                            deviceId: deviceId ? { exact: deviceId } : undefined,
-                            width: { ideal: isMobile ? 1280 : 1920 },
-                            height: { ideal: isMobile ? 720 : 1080 }
+                    video: {
+                        facingMode: deviceId ? undefined : 'environment',
+                        deviceId: deviceId ? { exact: deviceId } : undefined,
+                        width: { ideal: isMobile ? 1280 : 1920 },
+                        height: { ideal: isMobile ? 720 : 1080 }
                         },
                         audio: false
-                    };
+                };
                 }
                 
                 console.log('Starting camera with constraints:', constraints);
@@ -1588,10 +1588,10 @@ async function initializeCamera() {
                             if (cameraControls) cameraControls.style.display = 'flex';
                             
                             // Show/hide switch button
-                            if (switchCameraBtn) {
-                                switchCameraBtn.style.display = videoDevices.length > 1 ? 'block' : 'none';
-                            }
-                            
+                if (switchCameraBtn) {
+                    switchCameraBtn.style.display = videoDevices.length > 1 ? 'block' : 'none';
+                }
+                
                             // Store stream reference for cleanup
                             window.currentCameraStream = stream;
                             
@@ -1915,7 +1915,7 @@ function handlePhotoUpload(event) {
                 console.log(`Processing file ${index + 1}/${totalFiles}: ${file.name}`);
                 
                 // Process the photo
-                processPhoto(file);
+            processPhoto(file);
                 
                 processedCount++;
                 
@@ -3511,8 +3511,8 @@ async function createWordContentProfessional(photos, config, project) {
             
             // Add page break after every page (except the last one)
             if (pageIndex < totalPages - 1) {
-                content.push(new PageBreak());
-            }
+                 content.push(new PageBreak());
+             }
         }
         
     } catch (contentError) {
@@ -3890,7 +3890,7 @@ async function createPhoto2x2Table(photo, photoNumber, config) {
     if (photo.annotations && photo.annotations.length > 0) {
         descriptionCellContent.push(
             new Paragraph({
-                children: [
+        children: [
                     new TextRun({
                         text: `הערות: ${photo.annotations.length} ציורים על התמונה`,
                         size: 18,
@@ -3920,12 +3920,12 @@ async function createPhoto2x2Table(photo, photoNumber, config) {
             new TableRow({
                 children: [
                     // Image cell (left)
-                    new TableCell({
+            new TableCell({
                         children: imageCellContent,
-                        width: {
+                width: {
                             size: 50,
-                            type: WidthType.PERCENTAGE,
-                        },
+                    type: WidthType.PERCENTAGE,
+                },
                         verticalAlign: 'center',
                         margins: {
                             top: 100,
@@ -3935,12 +3935,12 @@ async function createPhoto2x2Table(photo, photoNumber, config) {
                         },
                     }),
                     // Description cell (right)
-                    new TableCell({
+            new TableCell({
                         children: descriptionCellContent,
-                        width: {
+                width: {
                             size: 50,
-                            type: WidthType.PERCENTAGE,
-                        },
+                    type: WidthType.PERCENTAGE,
+                },
                         verticalAlign: 'top',
                         margins: {
                             top: 150,
@@ -4151,7 +4151,7 @@ async function exportToPDF() {
             showNotification('אין תמונות לייצוא', 'error');
             return;
         }
-        
+
         closeModal(document.querySelector('.modal-overlay'));
         
         console.log(`🔄 Starting PDF export for ${photos.length} photos`);
@@ -4348,15 +4348,15 @@ async function renderPDFFinding(pdf, photo, findingNumber, x, y, width, height, 
 
 // Helper function to create 2x2 finding layout for PDF
 async function createPDFFinding2x2(photo, photoNumber, config, isLargePDF = false) {
-    try {
-        // Render photo with annotations
-        let imageData;
-        if (config.includeAnnotations && photo.annotations && photo.annotations.length > 0) {
+        try {
+            // Render photo with annotations
+            let imageData;
+            if (config.includeAnnotations && photo.annotations && photo.annotations.length > 0) {
             imageData = await renderPhotoWithAnnotations(photo, config.imageQuality, config.optimizeForSharing);
-        } else {
-            imageData = photo.url;
-        }
-        
+            } else {
+                imageData = photo.url;
+            }
+            
         // Enhanced styling for large PDF format
         if (isLargePDF) {
             return `
@@ -4381,7 +4381,7 @@ async function createPDFFinding2x2(photo, photoNumber, config, isLargePDF = fals
                                 border-right: 1px solid #e5e7eb;
                                 background: #fafafa;
                             ">
-                                <img src="${imageData}" 
+                        <img src="${imageData}" 
                                      style="
                                          max-width: 100%; 
                                          max-height: 75mm; 
@@ -4392,7 +4392,7 @@ async function createPDFFinding2x2(photo, photoNumber, config, isLargePDF = fals
                                          object-fit: contain;
                                      "
                                      alt="ממצא ${photoNumber}">
-                            </td>
+                    </td>
                             
                             <!-- Description Cell (Right) - 35% width -->
                             <td style="
@@ -4435,7 +4435,7 @@ async function createPDFFinding2x2(photo, photoNumber, config, isLargePDF = fals
                                         📝 ${photo.annotations.length} הערות
                                     </div>
                                 ` : ''}
-                            </td>
+                    </td>
                         </tr>
                     </table>
                 </div>
@@ -4459,14 +4459,14 @@ async function createPDFFinding2x2(photo, photoNumber, config, isLargePDF = fals
                             <!-- Finding Number - Always shown -->
                             <div style="margin-bottom: ${(photo.description && photo.description.trim()) || (photo.name && photo.name.trim()) ? '12px' : '0'};">
                                 <span style="color: #2563eb; font-size: 20px; font-weight: bold;">ממצא מס' ${photoNumber}</span>
-                            </div>
-                            
+            </div>
+            
                             ${(photo.name && photo.name.trim()) ? `
                                 <!-- Name - Only if provided -->
-                                <div style="margin-bottom: 10px;">
+                <div style="margin-bottom: 10px;">
                                     <span style="font-weight: bold; color: #374151;">שם: </span>
                                     <span style="color: #4b5563;">${photo.name}</span>
-                                </div>
+                </div>
                             ` : ''}
                             
                             ${(photo.description && photo.description.trim()) ? `
@@ -4475,15 +4475,15 @@ async function createPDFFinding2x2(photo, photoNumber, config, isLargePDF = fals
                                     <span style="font-weight: bold; color: #374151;">תיאור: </span>
                                     <div style="color: #4b5563; line-height: 1.4; margin-top: 5px;">
                                         ${photo.description}
-                                    </div>
-                                </div>
+                </div>
+                </div>
                             ` : ''}
                             
                             ${photo.annotations && photo.annotations.length > 0 ? `
                                 <!-- Annotations - Only if present -->
                                 <div style="margin-top: 15px; color: #059669; font-size: 13px; font-style: italic;">
                                     📝 ${photo.annotations.length} הערות על התמונה
-                                </div>
+            </div>
                             ` : ''}
                         </td>
                     </tr>
