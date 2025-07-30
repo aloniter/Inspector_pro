@@ -1294,7 +1294,7 @@ function capturePhoto() {
         const usage = getStorageUsage();
         if (usage.total > 4) {
             showNotification('אחסון מלא! מחק תמונות ישנות לפני צילום חדש', 'error');
-            showStorageWarning();
+            showStorageManagementModal();
             return;
         }
         
@@ -1811,7 +1811,7 @@ function uploadPhoto() {
         const usage = getStorageUsage();
         if (usage.total > 4) {
             showNotification('אחסון מלא! מחק תמונות ישנות לפני העלאת חדשות', 'error');
-            showStorageWarning();
+            showStorageManagementModal();
             return;
         }
         
@@ -3093,9 +3093,15 @@ function showExportConfigModal() {
                         <label for="imageQuality">איכות תמונות:</label>
                         <select id="imageQuality" class="form-select">
                             <option value="high">גבוהה (קובץ גדול יותר)</option>
-                            <option value="medium" selected>בינונית (מומלץ)</option>
-                            <option value="low">נמוכה (קובץ קטן)</option>
+                            <option value="medium">בינונית (מומלץ)</option>
+                            <option value="low" selected>נמוכה (קובץ קטן לשיתוף)</option>
                         </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="optimizeForSharing">
+                            <input type="checkbox" id="optimizeForSharing" checked>
+                            <span class="checkbox-label">אופטימיזציה לשיתוף (קבצים קטנים יותר)</span>
+                        </label>
                     </div>
                 </div>
             </div>
@@ -3134,7 +3140,8 @@ function getExportConfig() {
         footerContact: document.getElementById('footerContact')?.value || '',
         footerExtra: document.getElementById('footerExtra')?.value || '',
         includeAnnotations: document.getElementById('includeAnnotations')?.checked || false,
-        imageQuality: document.getElementById('imageQuality')?.value || 'medium'
+        imageQuality: document.getElementById('imageQuality')?.value || 'low',
+        optimizeForSharing: document.getElementById('optimizeForSharing')?.checked ?? true
     };
 }
 
@@ -3266,7 +3273,10 @@ async function exportToWord() {
             saveAs(blob, fileName);
         }
         
-        showNotification('דוח Word נוצר בהצלחה!', 'success');
+        const message = config.optimizeForSharing ? 
+            'דוח Word נוצר בהצלחה! (אופטימיזציה לשיתוף - קובץ קטן יותר)' : 
+            'דוח Word נוצר בהצלחה!';
+        showNotification(message, 'success');
         
     } catch (error) {
         console.error('Error exporting to Word:', error);
@@ -3449,7 +3459,7 @@ async function createPhoto2x2Table(photo, photoNumber, config) {
     try {
         let imageData;
         if (config.includeAnnotations && photo.annotations && photo.annotations.length > 0) {
-            imageData = await renderPhotoWithAnnotations(photo, config.imageQuality);
+            imageData = await renderPhotoWithAnnotations(photo, config.imageQuality, config.optimizeForSharing);
         } else {
             imageData = photo.url;
         }
@@ -3471,8 +3481,8 @@ async function createPhoto2x2Table(photo, photoNumber, config) {
                     new ImageRun({
                         data: imageBuffer,
                         transformation: {
-                            width: 300,
-                            height: 225,
+                            width: config.optimizeForSharing ? 200 : 300,
+                            height: config.optimizeForSharing ? 150 : 225,
                         },
                     }),
                 ],
@@ -3648,7 +3658,7 @@ function createErrorRow(photoNumber, photoName) {
     });
 }
 
-async function renderPhotoWithAnnotations(photo, quality) {
+async function renderPhotoWithAnnotations(photo, quality, optimizeForSharing = false) {
     return new Promise((resolve, reject) => {
         try {
             const canvas = document.createElement('canvas');
@@ -3656,10 +3666,34 @@ async function renderPhotoWithAnnotations(photo, quality) {
             const img = new Image();
             
             img.onload = function() {
-                // Set canvas size based on quality with higher resolution for Word export
-                const qualityScale = quality === 'high' ? 1.2 : quality === 'medium' ? 1.0 : 0.8;
-                canvas.width = img.width * qualityScale;
-                canvas.height = img.height * qualityScale;
+                // Set canvas size based on quality and sharing optimization
+                let qualityScale;
+                if (optimizeForSharing) {
+                    // Smaller sizes for sharing
+                    qualityScale = quality === 'high' ? 0.8 : quality === 'medium' ? 0.6 : 0.4;
+                } else {
+                    // Standard sizes
+                    qualityScale = quality === 'high' ? 1.2 : quality === 'medium' ? 1.0 : 0.8;
+                }
+                
+                // Limit maximum dimensions for sharing
+                const maxWidth = optimizeForSharing ? 800 : 1200;
+                const maxHeight = optimizeForSharing ? 600 : 900;
+                
+                let targetWidth = img.width * qualityScale;
+                let targetHeight = img.height * qualityScale;
+                
+                // Scale down if exceeding maximum dimensions
+                if (targetWidth > maxWidth || targetHeight > maxHeight) {
+                    const widthRatio = maxWidth / targetWidth;
+                    const heightRatio = maxHeight / targetHeight;
+                    const ratio = Math.min(widthRatio, heightRatio);
+                    targetWidth *= ratio;
+                    targetHeight *= ratio;
+                }
+                
+                canvas.width = targetWidth;
+                canvas.height = targetHeight;
                 
                 // Draw image
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -3689,8 +3723,9 @@ async function renderPhotoWithAnnotations(photo, quality) {
                     });
                 }
                 
-                // Convert to data URL with higher quality
-                const dataURL = canvas.toDataURL('image/jpeg', 0.92);
+                // Convert to data URL with optimized quality for sharing
+                const jpegQuality = optimizeForSharing ? 0.75 : 0.92;
+                const dataURL = canvas.toDataURL('image/jpeg', jpegQuality);
                 resolve(dataURL);
             };
             
@@ -3783,7 +3818,7 @@ async function exportToPDF() {
     try {
         showNotification('מכין דוח PDF...', 'info');
         
-        const config = getExportConfig();
+        const pdfConfig = getExportConfig();
         const project = appState.currentProject;
         const projectPhotos = getPhotosByProject(project.id);
         
@@ -3796,7 +3831,7 @@ async function exportToPDF() {
         closeModal(document.querySelector('.modal-overlay'));
         
         // Create HTML template for PDF
-        const htmlContent = await createPDFHTMLContent(project, projectPhotos, config);
+        const htmlContent = await createPDFHTMLContent(project, projectPhotos, pdfConfig);
         
         // Create temporary div to hold the content
         const tempDiv = document.createElement('div');
@@ -3825,14 +3860,22 @@ async function exportToPDF() {
         
         await Promise.all(imagePromises);
         
-        // Generate PDF using html2canvas + jsPDF
+        // Generate PDF using html2canvas + jsPDF with optimized settings
         const { jsPDF } = window.jspdf;
+        
+        // Get config for optimization
+        const exportConfig = getExportConfig();
+        const scale = exportConfig.optimizeForSharing ? 1.5 : 2;
+        
         const canvas = await html2canvas(tempDiv, {
             useCORS: true,
-            scale: 2,
+            scale: scale,
             scrollX: 0,
             scrollY: 0,
-            backgroundColor: '#ffffff'
+            backgroundColor: '#ffffff',
+            logging: false,
+            imageTimeout: 15000,
+            removeContainer: true
         });
         
         // Remove temporary div
@@ -3868,7 +3911,10 @@ async function exportToPDF() {
         const fileName = `${project.name}_דוח_${new Date().toISOString().split('T')[0]}.pdf`;
         pdf.save(fileName);
         
-        showNotification('דוח PDF נוצר בהצלחה!', 'success');
+        const message = pdfConfig.optimizeForSharing ? 
+            'דוח PDF נוצר בהצלחה! (אופטימיזציה לשיתוף - קובץ קטן יותר)' : 
+            'דוח PDF נוצר בהצלחה!';
+        showNotification(message, 'success');
         
     } catch (error) {
         console.error('Error exporting to PDF:', error);
@@ -3949,7 +3995,7 @@ async function createPDFFinding2x2(photo, photoNumber, config) {
         // Render photo with annotations
         let imageData;
         if (config.includeAnnotations && photo.annotations && photo.annotations.length > 0) {
-            imageData = await renderPhotoWithAnnotations(photo, config.imageQuality);
+            imageData = await renderPhotoWithAnnotations(photo, config.imageQuality, config.optimizeForSharing);
         } else {
             imageData = photo.url;
         }
@@ -3961,7 +4007,7 @@ async function createPDFFinding2x2(photo, photoNumber, config) {
                         <!-- Image Cell (Left) -->
                         <td style="width: 50%; padding: 15px; text-align: center; vertical-align: middle; border-right: 1px solid #e5e7eb;">
                             <img src="${imageData}" 
-                                 style="max-width: 100%; max-height: 200px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"
+                                 style="max-width: 100%; max-height: ${config.optimizeForSharing ? '150px' : '200px'}; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"
                                  alt="ממצא ${photoNumber}">
                         </td>
                         
