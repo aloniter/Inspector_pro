@@ -3881,31 +3881,71 @@ async function exportToPDF() {
         // Remove temporary div
         document.body.removeChild(tempDiv);
         
-        // Create PDF
-        const imgData = canvas.toDataURL('image/png');
+        // Create PDF with proper A4 dimensions and multi-page support
+        const imgData = canvas.toDataURL('image/png', 0.95);
         const pdf = new jsPDF('p', 'mm', 'a4');
         
-        const pageWidth = pdf.internal.pageSize.getWidth();
-        const pageHeight = pdf.internal.pageSize.getHeight();
+        const pageWidth = 210; // A4 width in mm
+        const pageHeight = 297; // A4 height in mm
         
-        // Calculate dimensions to fit page
+        // Calculate dimensions for better quality
         const canvasWidth = canvas.width;
         const canvasHeight = canvas.height;
-        const ratio = canvasWidth / canvasHeight;
         
-        let imgWidth = pageWidth;
-        let imgHeight = pageWidth / ratio;
+        // Check if we need multiple pages
+        const pagesNeeded = Math.ceil(canvasHeight / (canvasWidth * (pageHeight / pageWidth)));
         
-        if (imgHeight > pageHeight) {
-            imgHeight = pageHeight;
-            imgWidth = pageHeight * ratio;
+        if (pagesNeeded === 1) {
+            // Single page - fit to page with margins
+            const margin = 5; // 5mm margins
+            const availableWidth = pageWidth - (2 * margin);
+            const availableHeight = pageHeight - (2 * margin);
+            
+            const ratio = canvasWidth / canvasHeight;
+            let imgWidth = availableWidth;
+            let imgHeight = availableWidth / ratio;
+            
+            if (imgHeight > availableHeight) {
+                imgHeight = availableHeight;
+                imgWidth = availableHeight * ratio;
+            }
+            
+            // Center the image
+            const x = (pageWidth - imgWidth) / 2;
+            const y = (pageHeight - imgHeight) / 2;
+            
+            pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
+        } else {
+            // Multi-page handling for large content
+            const pageHeightInPixels = (canvasWidth * pageHeight) / pageWidth;
+            let yPosition = 0;
+            let pageNumber = 0;
+            
+            while (yPosition < canvasHeight) {
+                if (pageNumber > 0) {
+                    pdf.addPage();
+                }
+                
+                // Calculate the slice of canvas for this page
+                const sliceHeight = Math.min(pageHeightInPixels, canvasHeight - yPosition);
+                
+                // Create a temporary canvas for this page slice
+                const pageCanvas = document.createElement('canvas');
+                const pageCtx = pageCanvas.getContext('2d');
+                pageCanvas.width = canvasWidth;
+                pageCanvas.height = sliceHeight;
+                
+                // Draw the slice
+                pageCtx.drawImage(canvas, 0, yPosition, canvasWidth, sliceHeight, 0, 0, canvasWidth, sliceHeight);
+                
+                // Convert to image and add to PDF
+                const pageImgData = pageCanvas.toDataURL('image/png', 0.95);
+                pdf.addImage(pageImgData, 'PNG', 0, 0, pageWidth, pageHeight);
+                
+                yPosition += pageHeightInPixels;
+                pageNumber++;
+            }
         }
-        
-        // Center the image on the page
-        const x = (pageWidth - imgWidth) / 2;
-        const y = (pageHeight - imgHeight) / 2;
-        
-        pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
         
         // Save PDF
         const fileName = `${project.name}_דוח_${new Date().toISOString().split('T')[0]}.pdf`;
@@ -3924,7 +3964,7 @@ async function exportToPDF() {
 
 async function createPDFHTMLContent(project, photos, config) {
     let htmlContent = `
-        <div style="font-family: Arial, sans-serif; direction: rtl; background: white; width: 210mm; margin: 0; padding: 0;">
+        <div style="font-family: Arial, sans-serif; direction: rtl; background: white; width: 210mm; height: 297mm; margin: 0; padding: 0; box-sizing: border-box;">
     `;
     
     // Process photos in pairs for 2 per page layout
@@ -3933,52 +3973,59 @@ async function createPDFHTMLContent(project, photos, config) {
         const photo2 = photos[pageIndex * 2 + 1]; // May be undefined
         
         htmlContent += `
-            <div class="pdf-page" style="min-height: 297mm; padding: 20mm; page-break-after: always; position: relative;">
-                <!-- Header -->
-                <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #2563eb; padding-bottom: 15px;">
-                    <h1 style="color: #2563eb; margin: 0; font-size: 22px; font-weight: bold;">
+            <div class="pdf-page" style="
+                width: 210mm; 
+                height: 297mm; 
+                padding: 12mm 15mm; 
+                page-break-after: always; 
+                position: relative; 
+                box-sizing: border-box; 
+                display: flex; 
+                flex-direction: column;
+                background: white;
+            ">
+                <!-- Compact Header -->
+                <div style="text-align: center; margin-bottom: 15px; border-bottom: 2px solid #2563eb; padding-bottom: 10px;">
+                    <h1 style="color: #2563eb; margin: 0; font-size: 20px; font-weight: bold; line-height: 1.2;">
                         ${config.headerCompany || 'דוח בדיקה מקצועי'}
                     </h1>
-                    <h2 style="color: #64748b; margin: 5px 0; font-size: 16px;">
-                        ${config.headerTitle || 'מסמך טכני'}
-                    </h2>
-                    <div style="margin: 5px 0; font-size: 14px; color: #374151;">
-                        <strong>פרויקט:</strong> ${project.name} | <strong>עמוד:</strong> ${pageIndex + 1}
+                    <div style="margin: 3px 0; font-size: 14px; color: #374151;">
+                        <strong>${project.name}</strong> | עמוד ${pageIndex + 1}
                     </div>
                 </div>
         `;
         
-        // First finding (always exists)
-        htmlContent += await createPDFFinding2x2(photo1, pageIndex * 2 + 1, config);
+        // Content area that fills remaining space
+        htmlContent += `<div style="flex: 1; display: flex; flex-direction: column; justify-content: space-between;">`;
+        
+        // First finding (always exists) - takes up about 45-48% of content area
+        htmlContent += await createPDFFinding2x2(photo1, pageIndex * 2 + 1, config, true);
         
         if (photo2) {
-            htmlContent += `<div style="margin: 30px 0;"></div>`;
-            htmlContent += await createPDFFinding2x2(photo2, pageIndex * 2 + 2, config);
+            // Small separator
+            htmlContent += `<div style="height: 8mm; border-bottom: 1px solid #e5e7eb; margin: 5mm 0;"></div>`;
+            // Second finding - takes up remaining 45-48% of content area
+            htmlContent += await createPDFFinding2x2(photo2, pageIndex * 2 + 2, config, true);
+        } else {
+            // If only one finding, add some space
+            htmlContent += `<div style="flex: 1;"></div>`;
         }
         
-        // Footer and company stamp area
+        htmlContent += `</div>`; // Close content area
+        
+        // Compact Footer
         htmlContent += `
-                <!-- Footer and Company Stamp Area -->
-                <div style="position: absolute; bottom: 15mm; left: 15mm; right: 15mm;">
+                <!-- Compact Footer -->
+                <div style="margin-top: 10mm; border-top: 1px solid #e5e7eb; padding-top: 5mm;">
                     <!-- Company Stamp Area -->
-                    <div style="border: 2px dashed #d1d5db; height: 40mm; margin-bottom: 10mm; text-align: center; display: flex; align-items: center; justify-content: center; background: #f9f9f9;">
-                        <div style="color: #9ca3af; font-size: 14px; font-style: italic;">
-                            <div>📄 מקום לחותמת החברה</div>
-                            <div style="font-size: 12px; margin-top: 5px;">Company Stamp Area</div>
-                        </div>
+                    <div style="border: 1px dashed #d1d5db; height: 15mm; margin-bottom: 3mm; text-align: center; display: flex; align-items: center; justify-content: center; background: #fafafa;">
+                        <span style="color: #9ca3af; font-size: 11px; font-style: italic;">חותמת החברה</span>
                     </div>
                     
-                    <!-- Contact Footer -->
-                    <div style="text-align: center; border-top: 1px solid #e5e7eb; padding-top: 10px; color: #6b7280; font-size: 12px;">
-                        <div style="margin-bottom: 5px;">
-                            <strong>${config.footerContact || 'פרטי קשר'}</strong>
-                        </div>
-                        <div style="margin-bottom: 5px;">
-                            ${config.footerExtra || 'מסמך זה נוצר באמצעות מערכת Inspectort Pro'}
-                        </div>
-                        <div style="font-size: 10px; color: #9ca3af;">
-                            תאריך יצירת הדוח: ${new Date().toLocaleString('he-IL')}
-                        </div>
+                    <!-- Contact Info -->
+                    <div style="text-align: center; color: #6b7280; font-size: 10px; line-height: 1.3;">
+                        <div><strong>${config.footerContact || 'פרטי קשר'}</strong></div>
+                        <div>${new Date().toLocaleDateString('he-IL')}</div>
                     </div>
                 </div>
             </div>
@@ -3990,7 +4037,7 @@ async function createPDFHTMLContent(project, photos, config) {
 }
 
 // Helper function to create 2x2 finding layout for PDF
-async function createPDFFinding2x2(photo, photoNumber, config) {
+async function createPDFFinding2x2(photo, photoNumber, config, isLargePDF = false) {
     try {
         // Render photo with annotations
         let imageData;
@@ -4000,6 +4047,91 @@ async function createPDFFinding2x2(photo, photoNumber, config) {
             imageData = photo.url;
         }
         
+        // Enhanced styling for large PDF format
+        if (isLargePDF) {
+            return `
+                <div style="
+                    border: 1px solid #d1d5db; 
+                    border-radius: 6px; 
+                    overflow: hidden; 
+                    background: white; 
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                    margin-bottom: 5mm;
+                    height: auto;
+                    min-height: 80mm;
+                ">
+                    <table style="width: 100%; border-collapse: collapse; height: 100%;">
+                        <tr style="height: 100%;">
+                            <!-- Image Cell (Left) - 65% width for prominence -->
+                            <td style="
+                                width: 65%; 
+                                padding: 8mm; 
+                                text-align: center; 
+                                vertical-align: middle; 
+                                border-right: 1px solid #e5e7eb;
+                                background: #fafafa;
+                            ">
+                                <img src="${imageData}" 
+                                     style="
+                                         max-width: 100%; 
+                                         max-height: 70mm; 
+                                         width: auto; 
+                                         height: auto; 
+                                         border-radius: 4px; 
+                                         box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+                                         object-fit: contain;
+                                     "
+                                     alt="ממצא ${photoNumber}">
+                            </td>
+                            
+                            <!-- Description Cell (Right) - 35% width -->
+                            <td style="
+                                width: 35%; 
+                                padding: 8mm; 
+                                vertical-align: top; 
+                                text-align: right;
+                                background: white;
+                            ">
+                                <div style="margin-bottom: 8mm;">
+                                    <span style="color: #2563eb; font-size: 18px; font-weight: bold; line-height: 1.2;">
+                                        ממצא מס' ${photoNumber}
+                                    </span>
+                                </div>
+                                
+                                <div style="margin-bottom: 5mm;">
+                                    <div style="font-weight: bold; color: #374151; font-size: 14px; margin-bottom: 2mm;">שם:</div>
+                                    <div style="color: #4b5563; font-size: 13px; line-height: 1.3;">
+                                        ${photo.name || 'ללא שם'}
+                                    </div>
+                                </div>
+                                
+                                <div style="margin-bottom: 5mm;">
+                                    <div style="font-weight: bold; color: #374151; font-size: 14px; margin-bottom: 2mm;">תיאור:</div>
+                                    <div style="color: #4b5563; font-size: 12px; line-height: 1.4; word-wrap: break-word;">
+                                        ${photo.description || 'ללא תיאור'}
+                                    </div>
+                                </div>
+                                
+                                <div style="margin-bottom: 3mm;">
+                                    <div style="font-weight: bold; color: #374151; font-size: 13px; margin-bottom: 1mm;">תאריך:</div>
+                                    <div style="color: #6b7280; font-size: 11px;">
+                                        ${new Date(photo.createdAt).toLocaleDateString('he-IL')}
+                                    </div>
+                                </div>
+                                
+                                ${photo.annotations && photo.annotations.length > 0 ? `
+                                    <div style="margin-top: 4mm; color: #059669; font-size: 11px; font-style: italic; line-height: 1.2;">
+                                        📝 ${photo.annotations.length} הערות
+                                    </div>
+                                ` : ''}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            `;
+        }
+        
+        // Standard format (smaller, for compatibility)
         return `
             <div style="border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden; margin-bottom: 15px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                 <table style="width: 100%; border-collapse: collapse;">
@@ -4049,8 +4181,9 @@ async function createPDFFinding2x2(photo, photoNumber, config) {
         
     } catch (error) {
         console.error('Error creating PDF finding:', error);
+        const errorHeight = isLargePDF ? 'min-height: 60mm;' : '';
         return `
-            <div style="border: 1px solid #ef4444; border-radius: 8px; padding: 20px; margin-bottom: 15px; background: #fef2f2; text-align: center;">
+            <div style="border: 1px solid #ef4444; border-radius: 8px; padding: 20px; margin-bottom: 15px; background: #fef2f2; text-align: center; ${errorHeight}">
                 <div style="color: #ef4444; font-weight: bold; font-size: 18px;">
                     שגיאה בעיבוד ממצא ${photoNumber}
                 </div>
