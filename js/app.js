@@ -3172,8 +3172,8 @@ async function exportToWord() {
         // Create Word document with simpler approach
         const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, Header, Footer, AlignmentType, WidthType, ImageRun } = window.docx;
         
-        // Create content first
-        const content = await createWordContentSimple(projectPhotos, config);
+        // Create professional content matching PDF layout exactly
+        const content = await createWordContentProfessional(projectPhotos, config, project);
         
         const doc = new Document({
             sections: [{
@@ -3193,12 +3193,14 @@ async function exportToWord() {
                             new Paragraph({
                                 children: [
                                     new TextRun({
-                                        text: config.headerCompany || 'דוח בדיקה',
+                                        text: config.headerCompany || 'דוח בדיקה מקצועי',
+                        rightToLeft: true,
                                         bold: true,
                                         size: 28,
                                     }),
                                 ],
                                 alignment: AlignmentType.CENTER,
+                                rightToLeft: true,
                             }),
                             new Paragraph({
                                 children: [
@@ -3208,6 +3210,7 @@ async function exportToWord() {
                                     }),
                                 ],
                                 alignment: AlignmentType.CENTER,
+                                rightToLeft: true,
                             }),
                             new Paragraph({
                                 children: [
@@ -3217,6 +3220,7 @@ async function exportToWord() {
                                     }),
                                 ],
                                 alignment: AlignmentType.CENTER,
+                                rightToLeft: true,
                             }),
                         ],
                     }),
@@ -3232,6 +3236,7 @@ async function exportToWord() {
                                     }),
                                 ],
                                 alignment: AlignmentType.CENTER,
+                                rightToLeft: true,
                             }),
                             new Paragraph({
                                 children: [
@@ -3241,6 +3246,7 @@ async function exportToWord() {
                                     }),
                                 ],
                                 alignment: AlignmentType.CENTER,
+                                rightToLeft: true,
                             }),
                         ],
                     }),
@@ -3448,6 +3454,325 @@ async function createWordContentSimple(photos, config) {
     }
     
     return content;
+}
+
+// NEW: Professional Word content creation matching PDF layout exactly
+async function createWordContentProfessional(photos, config, project) {
+    const content = [];
+    const { Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, WidthType, ImageRun, PageBreak, BorderStyle } = window.docx;
+    
+    console.log(`Creating professional Word content for ${photos.length} photos`);
+    
+    try {
+        // Process photos in pairs for 2-per-page layout (exactly like PDF)
+        const totalPages = Math.ceil(photos.length / 2);
+        
+        for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+            const photo1 = photos[pageIndex * 2];
+            const photo2 = photos[pageIndex * 2 + 1]; // May be undefined for last page
+            
+            console.log(`Page ${pageIndex + 1}: Processing photos ${pageIndex * 2 + 1}${photo2 ? ` and ${pageIndex * 2 + 2}` : ''}`);
+            
+            // First finding on page (always exists)
+            try {
+                const finding1Table = await createWordFinding2x2Professional(photo1, pageIndex * 2 + 1, config);
+                content.push(finding1Table);
+                
+                // Add spacing between findings
+                content.push(
+                    new Paragraph({
+                        children: [new TextRun({ text: '' })],
+                        spacing: { after: 300 },
+                    })
+                );
+            } catch (error) {
+                console.error(`Error processing finding ${pageIndex * 2 + 1}:`, error);
+                content.push(createWordFindingError(pageIndex * 2 + 1, photo1.name));
+            }
+            
+            // Second finding on page (if exists)
+            if (photo2) {
+                try {
+                    const finding2Table = await createWordFinding2x2Professional(photo2, pageIndex * 2 + 2, config);
+                    content.push(finding2Table);
+                    
+                    // Add spacing after second finding
+                    content.push(
+                        new Paragraph({
+                            children: [new TextRun({ text: '' })],
+                            spacing: { after: 300 },
+                        })
+                    );
+                } catch (error) {
+                    console.error(`Error processing finding ${pageIndex * 2 + 2}:`, error);
+                    content.push(createWordFindingError(pageIndex * 2 + 2, photo2.name));
+                }
+            }
+            
+            // Add page break after every page (except the last one)
+            if (pageIndex < totalPages - 1) {
+                content.push(new PageBreak());
+            }
+        }
+        
+    } catch (contentError) {
+        console.error('Error creating professional Word content:', contentError);
+        
+        // Fallback content
+        content.push(
+            new Paragraph({
+                children: [
+                    new TextRun({
+                        text: 'שגיאה ביצירת התוכן המקצועי - אנא נסה שוב',
+                        color: 'FF0000',
+                        size: 24,
+                        bold: true,
+                        rightToLeft: true,
+                    }),
+                ],
+                alignment: AlignmentType.CENTER,
+                rightToLeft: true,
+            })
+        );
+    }
+    
+    return content;
+}
+
+// Helper: Create professional 2x2 finding table matching PDF layout
+async function createWordFinding2x2Professional(photo, photoNumber, config) {
+    const { Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, WidthType, ImageRun, BorderStyle } = window.docx;
+    
+    // Process image with professional compression
+    let imageBuffer = null;
+    try {
+        let imageData;
+        if (config.includeAnnotations && photo.annotations && photo.annotations.length > 0) {
+            imageData = await renderPhotoWithAnnotations(photo, config.imageQuality, config.optimizeForSharing);
+        } else {
+            imageData = photo.url;
+        }
+        
+        // Convert base64 to buffer for Word with professional quality
+        const base64Data = imageData.split(',')[1];
+        imageBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+    } catch (imageError) {
+        console.error('Error processing image for Word:', imageError);
+        imageBuffer = null;
+    }
+    
+    // Create image cell content (left side - 65% width like PDF)
+    const imageCellContent = [];
+    if (imageBuffer) {
+        imageCellContent.push(
+            new Paragraph({
+                children: [
+                    new ImageRun({
+                        data: imageBuffer,
+                        transformation: {
+                            width: config.optimizeForSharing ? 280 : 350,  // Professional sizing
+                            height: config.optimizeForSharing ? 210 : 260,
+                        },
+                    }),
+                ],
+                alignment: AlignmentType.CENTER,
+            })
+        );
+    } else {
+        imageCellContent.push(
+            new Paragraph({
+                children: [
+                    new TextRun({
+                        text: '🖼️ שגיאה בטעינת תמונה',
+                        color: 'FF0000',
+                        size: 22,
+                        rightToLeft: true,
+                    }),
+                ],
+                alignment: AlignmentType.CENTER,
+                rightToLeft: true,
+            })
+        );
+    }
+    
+    // Create description cell content (right side - 35% width) - CLEAN, NO EMPTY FIELDS
+    const descriptionCellContent = [];
+    
+    // Finding number - always shown
+    descriptionCellContent.push(
+        new Paragraph({
+            children: [
+                new TextRun({
+                    text: `ממצא מס' ${photoNumber}`,
+                    bold: true,
+                    size: 26,
+                    color: '2563eb',
+                    rightToLeft: true,
+                }),
+            ],
+            alignment: AlignmentType.RIGHT,
+            rightToLeft: true,
+            spacing: { after: photo.name?.trim() || photo.description?.trim() ? 200 : 0 },
+        })
+    );
+    
+    // Name - only if provided (no placeholder)
+    if (photo.name && photo.name.trim()) {
+        descriptionCellContent.push(
+            new Paragraph({
+                children: [
+                    new TextRun({
+                        text: 'שם:',
+                        bold: true,
+                        size: 20,
+                        rightToLeft: true,
+                    }),
+                ],
+                alignment: AlignmentType.RIGHT,
+                rightToLeft: true,
+                spacing: { after: 50 },
+            })
+        );
+        descriptionCellContent.push(
+            new Paragraph({
+                children: [
+                    new TextRun({
+                        text: photo.name,
+                        size: 18,
+                        rightToLeft: true,
+                    }),
+                ],
+                alignment: AlignmentType.RIGHT,
+                rightToLeft: true,
+                spacing: { after: 150 },
+            })
+        );
+    }
+    
+    // Description - only if provided (no placeholder)  
+    if (photo.description && photo.description.trim()) {
+        descriptionCellContent.push(
+            new Paragraph({
+                children: [
+                    new TextRun({
+                        text: 'תיאור:',
+                        bold: true,
+                        size: 20,
+                        rightToLeft: true,
+                    }),
+                ],
+                alignment: AlignmentType.RIGHT,
+                rightToLeft: true,
+                spacing: { after: 50 },
+            })
+        );
+        descriptionCellContent.push(
+            new Paragraph({
+                children: [
+                    new TextRun({
+                        text: photo.description,
+                        size: 16,
+                        rightToLeft: true,
+                    }),
+                ],
+                alignment: AlignmentType.RIGHT,
+                rightToLeft: true,
+                spacing: { after: 150 },
+            })
+        );
+    }
+    
+    // Annotations - only if present (no date stamps)
+    if (photo.annotations && photo.annotations.length > 0) {
+        descriptionCellContent.push(
+            new Paragraph({
+                children: [
+                    new TextRun({
+                        text: `📝 ${photo.annotations.length} הערות`,
+                        size: 16,
+                        color: '059669',
+                        italics: true,
+                        rightToLeft: true,
+                    }),
+                ],
+                alignment: AlignmentType.RIGHT,
+                rightToLeft: true,
+            })
+        );
+    }
+    
+    // Create professional 2x2 table matching PDF layout exactly
+    return new Table({
+        width: {
+            size: 100,
+            type: WidthType.PERCENTAGE,
+        },
+        borders: {
+            top: { style: BorderStyle.SINGLE, size: 4, color: 'd1d5db' },
+            bottom: { style: BorderStyle.SINGLE, size: 4, color: 'd1d5db' },
+            left: { style: BorderStyle.SINGLE, size: 4, color: 'd1d5db' },
+            right: { style: BorderStyle.SINGLE, size: 4, color: 'd1d5db' },
+        },
+        rows: [
+            new TableRow({
+                children: [
+                    // Image cell (left) - 65% like PDF
+                    new TableCell({
+                        children: imageCellContent,
+                        width: {
+                            size: 65,
+                            type: WidthType.PERCENTAGE,
+                        },
+                        verticalAlign: 'center',
+                        margins: {
+                            top: 200,
+                            bottom: 200,
+                            left: 200,
+                            right: 100,
+                        },
+                        shading: {
+                            fill: 'fafafa',
+                        },
+                    }),
+                    // Description cell (right) - 35% like PDF
+                    new TableCell({
+                        children: descriptionCellContent,
+                        width: {
+                            size: 35,
+                            type: WidthType.PERCENTAGE,
+                        },
+                        verticalAlign: (photo.description?.trim() || photo.name?.trim()) ? 'top' : 'center',
+                        margins: {
+                            top: 200,
+                            bottom: 200,
+                            left: 100,
+                            right: 200,
+                        },
+                    }),
+                ],
+            }),
+        ],
+    });
+}
+
+// Helper: Create error finding for Word
+function createWordFindingError(photoNumber, photoName) {
+    const { Paragraph, TextRun, AlignmentType } = window.docx;
+    
+    return new Paragraph({
+        children: [
+            new TextRun({
+                text: `⚠️ שגיאה בעיבוד ממצא ${photoNumber}: ${photoName || 'ללא שם'}`,
+                color: 'ef4444',
+                size: 22,
+                bold: true,
+                rightToLeft: true,
+            }),
+        ],
+        alignment: AlignmentType.CENTER,
+        rightToLeft: true,
+        spacing: { after: 400 },
+    });
 }
 
 // Helper function to create a 2x2 photo table (image left, description right)
@@ -3816,7 +4141,7 @@ function drawArrowOnCanvas(ctx, start, end) {
 
 async function exportToPDF() {
     try {
-        showNotification('מכין דוח PDF...', 'info');
+        showNotification('מכין דוח PDF מקצועי...', 'info');
         
         const pdfConfig = getExportConfig();
         const project = appState.currentProject;
@@ -3827,215 +4152,142 @@ async function exportToPDF() {
             return;
         }
         
-        console.log(`Exporting ${projectPhotos.length} photos to PDF`);
-
-        // Close the config modal
+        console.log(`[PDF] Starting export for ${projectPhotos.length} photos`);
         closeModal(document.querySelector('.modal-overlay'));
-        
-        // Create HTML template for PDF
-        const htmlContent = await createPDFHTMLContent(project, projectPhotos, pdfConfig);
-        
-        // Create temporary div to hold the content
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = htmlContent;
-        tempDiv.style.position = 'absolute';
-        tempDiv.style.left = '-9999px';
-        tempDiv.style.top = '-9999px';
-        tempDiv.style.width = '210mm'; // A4 width
-        tempDiv.style.background = 'white';
-        tempDiv.style.fontFamily = 'Arial, sans-serif';
-        tempDiv.style.direction = 'rtl';
-        document.body.appendChild(tempDiv);
-        
-        // Wait for images to load
-        const images = tempDiv.querySelectorAll('img');
-        const imagePromises = Array.from(images).map(img => {
-            return new Promise((resolve) => {
-                if (img.complete) {
-                    resolve();
-                } else {
-                    img.onload = resolve;
-                    img.onerror = resolve;
-                }
-            });
-        });
-        
-        await Promise.all(imagePromises);
-        
-        // Generate PDF using html2canvas + jsPDF with optimized settings
+
         const { jsPDF } = window.jspdf;
-        
-        // Get config for optimization - use consistent variable naming
-        const scale = pdfConfig.optimizeForSharing ? 1.5 : 2;
-        
-        const canvas = await html2canvas(tempDiv, {
-            useCORS: true,
-            scale: scale,
-            scrollX: 0,
-            scrollY: 0,
-            backgroundColor: '#ffffff',
-            logging: false,
-            imageTimeout: 15000,
-            removeContainer: true
-        });
-        
-        // Remove temporary div
-        document.body.removeChild(tempDiv);
-        
-        // Create PDF with proper A4 dimensions and multi-page support
-        const imgData = canvas.toDataURL('image/png', 0.95);
         const pdf = new jsPDF('p', 'mm', 'a4');
-        
-        const pageWidth = 210; // A4 width in mm
-        const pageHeight = 297; // A4 height in mm
-        
-        // Calculate dimensions for better quality
-        const canvasWidth = canvas.width;
-        const canvasHeight = canvas.height;
-        
-        // Check if we need multiple pages
-        const pagesNeeded = Math.ceil(canvasHeight / (canvasWidth * (pageHeight / pageWidth)));
-        
-        if (pagesNeeded === 1) {
-            // Single page - fit to page with margins
-            const margin = 5; // 5mm margins
-            const availableWidth = pageWidth - (2 * margin);
-            const availableHeight = pageHeight - (2 * margin);
-            
-            const ratio = canvasWidth / canvasHeight;
-            let imgWidth = availableWidth;
-            let imgHeight = availableWidth / ratio;
-            
-            if (imgHeight > availableHeight) {
-                imgHeight = availableHeight;
-                imgWidth = availableHeight * ratio;
+        const totalPages = Math.ceil(projectPhotos.length / 2);
+
+        // Render each page individually for robustness
+        for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+            if (pageIndex > 0) {
+                pdf.addPage();
             }
+
+            const pagePhotos = projectPhotos.slice(pageIndex * 2, pageIndex * 2 + 2);
+            console.log(`[PDF] Rendering page ${pageIndex + 1}/${totalPages} with ${pagePhotos.length} photo(s)`);
             
-            // Center the image
-            const x = (pageWidth - imgWidth) / 2;
-            const y = (pageHeight - imgHeight) / 2;
+            // Create HTML content for just ONE page
+            const pageHtml = await createPDFPageHTML(project, pagePhotos, pageIndex, totalPages, pdfConfig);
             
-            pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
-        } else {
-            // Multi-page handling for large content
-            const pageHeightInPixels = (canvasWidth * pageHeight) / pageWidth;
-            let yPosition = 0;
-            let pageNumber = 0;
-            
-            while (yPosition < canvasHeight) {
-                if (pageNumber > 0) {
-                    pdf.addPage();
-                }
-                
-                // Calculate the slice of canvas for this page
-                const sliceHeight = Math.min(pageHeightInPixels, canvasHeight - yPosition);
-                
-                // Create a temporary canvas for this page slice
-                const pageCanvas = document.createElement('canvas');
-                const pageCtx = pageCanvas.getContext('2d');
-                pageCanvas.width = canvasWidth;
-                pageCanvas.height = sliceHeight;
-                
-                // Draw the slice
-                pageCtx.drawImage(canvas, 0, yPosition, canvasWidth, sliceHeight, 0, 0, canvasWidth, sliceHeight);
-                
-                // Convert to image and add to PDF
-                const pageImgData = pageCanvas.toDataURL('image/png', 0.95);
-                pdf.addImage(pageImgData, 'PNG', 0, 0, pageWidth, pageHeight);
-                
-                yPosition += pageHeightInPixels;
-                pageNumber++;
-            }
+            // Create a temporary div for this single page
+            const tempPageDiv = document.createElement('div');
+            tempPageDiv.innerHTML = pageHtml;
+            tempPageDiv.style.position = 'absolute';
+            tempPageDiv.style.left = '-9999px';
+            tempPageDiv.style.top = '-9999px';
+            tempPageDiv.style.width = '210mm';
+            tempPageDiv.style.height = '297mm';
+            tempPageDiv.style.background = 'white';
+            document.body.appendChild(tempPageDiv);
+
+            // Wait for images on this specific page to load
+            const images = tempPageDiv.querySelectorAll('img');
+            const imagePromises = Array.from(images).map(img =>
+                new Promise((resolve) => {
+                    if (img.complete) resolve();
+                    else {
+                        img.onload = resolve;
+                        img.onerror = resolve;
+                    }
+                })
+            );
+            await Promise.all(imagePromises);
+
+            // Render the single page to a canvas
+            const canvas = await html2canvas(tempPageDiv, {
+                useCORS: true,
+                scale: pdfConfig.optimizeForSharing ? 1.8 : 2.5, // Higher scale for clarity
+                backgroundColor: '#ffffff',
+                logging: false,
+                removeContainer: true,
+            });
+
+            document.body.removeChild(tempPageDiv);
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.92); // Use JPEG for better compression
+            pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297); // A4 dimensions
         }
-        
-        // Save PDF
-        const fileName = `${project.name}_דוח_${new Date().toISOString().split('T')[0]}.pdf`;
+
+        // Save the complete PDF
+        const fileName = `${project.name}_דוח_מלא_${new Date().toISOString().split('T')[0]}.pdf`;
         pdf.save(fileName);
         
-        const message = pdfConfig.optimizeForSharing ? 
-            'דוח PDF נוצר בהצלחה! (אופטימיזציה לשיתוף - קובץ קטן יותר)' : 
-            'דוח PDF נוצר בהצלחה!';
-        showNotification(message, 'success');
+        showNotification('דוח PDF מקצועי נוצר בהצלחה!', 'success');
         
     } catch (error) {
-        console.error('Error exporting to PDF:', error);
-        showNotification('שגיאה ביצירת דוח PDF', 'error');
+        console.error('Error exporting to professional PDF:', error);
+        showNotification('שגיאה קריטית ביצירת דוח PDF', 'error');
     }
 }
 
-async function createPDFHTMLContent(project, photos, config) {
+// NEW Helper function to create HTML for a SINGLE PDF page
+async function createPDFPageHTML(project, photos, pageIndex, totalPages, config) {
     let htmlContent = `
-        <div style="font-family: Arial, sans-serif; direction: rtl; background: white; width: 210mm; height: 297mm; margin: 0; padding: 0; box-sizing: border-box;">
+        <div class="pdf-page" style="
+            font-family: Arial, sans-serif; 
+            direction: rtl; 
+            background: white; 
+            width: 210mm; 
+            height: 297mm; 
+            margin: 0; 
+            padding: 12mm 15mm; 
+            box-sizing: border-box; 
+            display: flex; 
+            flex-direction: column;
+        ">
+            <!-- Compact Header -->
+            <div style="text-align: center; margin-bottom: 15px; border-bottom: 2px solid #2563eb; padding-bottom: 10px;">
+                <h1 style="color: #2563eb; margin: 0; font-size: 20px; font-weight: bold; line-height: 1.2;">
+                    ${config.headerCompany || 'דוח בדיקה מקצועי'}
+                </h1>
+                <div style="margin: 3px 0; font-size: 14px; color: #374151;">
+                    <strong>${project.name}</strong> | עמוד ${pageIndex + 1} / ${totalPages}
+                </div>
+            </div>
+            
+            <div style="flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
     `;
     
-    // Process photos in pairs for 2 per page layout - ensure all photos included  
-    const totalPages = Math.ceil(photos.length / 2);
-    console.log(`Creating ${totalPages} pages for ${photos.length} photos`);
+    // First finding on the page
+    if (photos[0]) {
+        htmlContent += await createPDFFinding2x2(photos[0], pageIndex * 2 + 1, config, true);
+    }
     
-    for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
-        const photo1 = photos[pageIndex * 2];
-        const photo2 = photos[pageIndex * 2 + 1]; // May be undefined for last page
-        
-        htmlContent += `
-            <div class="pdf-page" style="
-                width: 210mm; 
-                height: 297mm; 
-                padding: 12mm 15mm; 
-                page-break-after: always; 
-                position: relative; 
-                box-sizing: border-box; 
-                display: flex; 
-                flex-direction: column;
-                background: white;
-            ">
-                <!-- Compact Header -->
-                <div style="text-align: center; margin-bottom: 15px; border-bottom: 2px solid #2563eb; padding-bottom: 10px;">
-                    <h1 style="color: #2563eb; margin: 0; font-size: 20px; font-weight: bold; line-height: 1.2;">
-                        ${config.headerCompany || 'דוח בדיקה מקצועי'}
-                    </h1>
-                    <div style="margin: 3px 0; font-size: 14px; color: #374151;">
-                        <strong>${project.name}</strong> | עמוד ${pageIndex + 1}
-                    </div>
-                </div>
-        `;
-        
-        // Content area that fills remaining space
-        htmlContent += `<div style="flex: 1; display: flex; flex-direction: column; justify-content: space-between;">`;
-        
-        // First finding (always exists) - takes up about 45-48% of content area
-        htmlContent += await createPDFFinding2x2(photo1, pageIndex * 2 + 1, config, true);
-        
-        if (photo2) {
-            // Small separator
-            htmlContent += `<div style="height: 8mm; border-bottom: 1px solid #e5e7eb; margin: 5mm 0;"></div>`;
-            // Second finding - takes up remaining 45-48% of content area
-            htmlContent += await createPDFFinding2x2(photo2, pageIndex * 2 + 2, config, true);
-        } else {
-            // If only one finding, add some space
-            htmlContent += `<div style="flex: 1;"></div>`;
-        }
-        
-        htmlContent += `</div>`; // Close content area
-        
-        // Clean Professional Footer
-        htmlContent += `
-                <!-- Professional Footer -->
-                <div style="margin-top: 8mm; border-top: 1px solid #e5e7eb; padding-top: 8mm;">
-                    <div style="text-align: center; color: #374151; font-size: 12px; line-height: 1.4;">
-                        ${config.footerContact ? `<div style="margin-bottom: 4mm; font-weight: 600;">${config.footerContact}</div>` : ''}
-                        ${config.footerExtra ? `<div style="margin-bottom: 4mm; color: #6b7280;">${config.footerExtra}</div>` : ''}
-                        <div style="color: #9ca3af; font-size: 10px; margin-top: 6mm;">
-                            תאריך הדוח: ${new Date().toLocaleDateString('he-IL')}
-                        </div>
+    // Second finding on the page
+    if (photos[1]) {
+        htmlContent += '<div style="height: 10mm;"></div>';
+        htmlContent += await createPDFFinding2x2(photos[1], pageIndex * 2 + 2, config, true);
+    } else {
+        htmlContent += '<div style="flex-grow: 1;"></div>'; // Spacer for single-finding pages
+    }
+    
+    htmlContent += `
+            </div>
+            
+            <!-- Professional Footer -->
+            <div style="margin-top: 8mm; border-top: 1px solid #e5e7eb; padding-top: 8mm;">
+                <div style="text-align: center; color: #374151; font-size: 12px; line-height: 1.4;">
+                    ${config.footerContact ? `<div style="margin-bottom: 4mm; font-weight: 600;">${config.footerContact}</div>` : ''}
+                    ${config.footerExtra ? `<div style="margin-bottom: 4mm; color: #6b7280;">${config.footerExtra}</div>` : ''}
+                    <div style="color: #9ca3af; font-size: 10px; margin-top: 6mm;">
+                        תאריך הדוח: ${new Date().toLocaleDateString('he-IL')}
                     </div>
                 </div>
             </div>
-        `;
-    }
+        </div>
+    `;
     
-    htmlContent += `</div>`;
     return htmlContent;
 }
+
+// This function is no longer needed as we render page by page
+// async function createPDFHTMLContent(project, photos, config) { ... }
+
+
+// This function is no longer needed as we render page by page
+// async function createPDFHTMLContent(project, photos, config) { ... }
 
 // Helper function to create 2x2 finding layout for PDF
 async function createPDFFinding2x2(photo, photoNumber, config, isLargePDF = false) {
