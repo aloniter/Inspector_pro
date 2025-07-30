@@ -1298,68 +1298,10 @@ function capturePhoto() {
             return;
         }
         
-        console.log('Starting photo capture');
+        console.log('Starting photo capture - using native camera');
         
-        // Detect iOS and PWA mode
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        const isPWA = window.matchMedia('(display-mode: standalone)').matches;
-        
-        // For iOS PWA, prefer file input fallback first
-        if (isIOS && isPWA) {
-            console.log('iOS PWA detected - using file input method');
-            showCameraChoiceModal();
-            return;
-        }
-        
-        // Create camera modal with enhanced UI
-        const modalContent = `
-            <div class="camera-container">
-                <div class="camera-status" id="cameraStatus">
-                    <div class="loading-spinner"></div>
-                    <p>מתחבר למצלמה...</p>
-                </div>
-                <div class="camera-view" id="cameraView" style="display: none;">
-                    <video id="cameraVideo" autoplay playsinline muted webkit-playsinline></video>
-                    <canvas id="cameraCanvas" style="display: none;"></canvas>
-                    <div class="camera-overlay">
-                        <div class="viewfinder"></div>
-                </div>
-                </div>
-                <div class="camera-controls" id="cameraControls" style="display: none;">
-                    <button id="takePictureBtn" class="btn btn-primary camera-btn">
-                        <span class="btn-icon">📸</span>
-                        צלם
-                    </button>
-                    <button id="switchCameraBtn" class="btn btn-secondary camera-btn" style="display: none;">
-                        <span class="btn-icon">🔄</span>
-                        החלף מצלמה
-                    </button>
-                    <button id="useFileBtn" class="btn btn-outline camera-btn">
-                        <span class="btn-icon">📁</span>
-                        בחר מגלריה
-                    </button>
-                </div>
-            </div>
-        `;
-
-        const modal = createModal(
-            'צילום תמונה',
-            modalContent,
-            [
-                {
-                    text: 'ביטול',
-                    class: 'btn-secondary',
-                    action: 'stopCamera(); closeModal(this.closest(\'.modal-overlay\'))'
-                }
-            ]
-        );
-
-        showModal(modal);
-        
-        // Initialize camera with delay to ensure modal is rendered
-        setTimeout(() => {
-        initializeCamera();
-        }, 100);
+        // Use native camera approach (same as upload photo but with camera-first UI)
+        showCameraChoiceModal();
         
     } catch (error) {
         console.error('Error in capturePhoto:', error);
@@ -1411,19 +1353,62 @@ function showCameraChoiceModal() {
         if (useCameraBtn) {
             useCameraBtn.addEventListener('click', () => {
                 closeModal(document.querySelector('.modal-overlay'));
-                setTimeout(() => {
-                    startCameraCapture();
-                }, 300);
+                // Use the same reliable method as upload photo but with camera capture
+                openNativeCamera();
             });
         }
         
         if (useGalleryBtn) {
             useGalleryBtn.addEventListener('click', () => {
                 closeModal(document.querySelector('.modal-overlay'));
-                uploadPhoto();
+                openNativeGallery();
             });
         }
     }, 100);
+}
+
+// NEW: Reliable native camera method
+function openNativeCamera() {
+    console.log('📸 Opening native camera');
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.capture = 'environment'; // Use back camera
+    fileInput.style.display = 'none';
+    
+    fileInput.addEventListener('change', (event) => {
+        const files = event.target.files;
+        if (files && files.length > 0) {
+            console.log('📸 Photo captured from camera:', files[0].name);
+            handlePhotoUpload({ target: { files: files } });
+        }
+        document.body.removeChild(fileInput);
+    });
+    
+    document.body.appendChild(fileInput);
+    fileInput.click();
+}
+
+// NEW: Reliable native gallery method  
+function openNativeGallery() {
+    console.log('📁 Opening native gallery');
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.multiple = true; // Allow multiple photos
+    fileInput.style.display = 'none';
+    
+    fileInput.addEventListener('change', (event) => {
+        const files = event.target.files;
+        if (files && files.length > 0) {
+            console.log('📁 Photos selected from gallery:', files.length);
+            handlePhotoUpload({ target: { files: files } });
+        }
+        document.body.removeChild(fileInput);
+    });
+    
+    document.body.appendChild(fileInput);
+    fileInput.click();
 }
 
 function startCameraCapture() {

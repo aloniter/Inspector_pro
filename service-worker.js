@@ -3,7 +3,7 @@
  * PWA Offline Support and Caching
  */
 
-const CACHE_NAME = 'inspectort-pro-v3.0.1';
+const CACHE_NAME = 'inspectort-pro-v3.1.0';
 const OFFLINE_PAGE = '/Inspector_pro/offline.html';
 
 // Files to cache for offline functionality
