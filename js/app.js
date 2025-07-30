@@ -1815,53 +1815,31 @@ function uploadPhoto() {
             return;
         }
         
-        console.log('Starting photo upload');
+        console.log('Starting photo upload from gallery');
         
-        // Detect mobile/iOS for enhanced file input
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        
-        // Create file input with camera support for mobile
+        // Create file input for gallery/file selection (NO capture attribute)
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
-        
-        if (isMobile) {
-            // Mobile devices get camera capture option
-            fileInput.accept = 'image/*';
-            if (isIOS) {
-                // iOS specific attributes for better camera integration
-                fileInput.capture = 'environment'; // Use rear camera
-            } else {
-                // Android and other mobile devices
-                fileInput.capture = 'camera';
-            }
-        } else {
-            // Desktop gets standard image file picker
-            fileInput.accept = 'image/*';
-        }
-        
-        fileInput.multiple = true;
+        fileInput.accept = 'image/*';
+        fileInput.multiple = true; // Allow multiple photo selection
         fileInput.style.display = 'none';
+        
+        // Add descriptive title for better UX
+        fileInput.title = 'בחר תמונות מהגלריה';
         
         fileInput.addEventListener('change', handlePhotoUpload);
         
         document.body.appendChild(fileInput);
         
-        // Add a small delay for iOS to ensure proper setup
-        if (isIOS) {
-            setTimeout(() => {
-                fileInput.click();
-            }, 100);
-        } else {
-            fileInput.click();
-        }
+        // Click to open gallery/file picker
+        fileInput.click();
         
-        // Clean up after a reasonable timeout
+        // Clean up after reasonable timeout
         setTimeout(() => {
             if (document.body.contains(fileInput)) {
                 document.body.removeChild(fileInput);
             }
-        }, 30000); // 30 seconds timeout for camera usage
+        }, 60000); // 60 seconds timeout for file selection
         
     } catch (error) {
         console.error('Error in uploadPhoto:', error);
@@ -1875,38 +1853,87 @@ function handlePhotoUpload(event) {
     try {
         const files = Array.from(event.target.files);
         
-        if (files.length === 0) return;
+        if (files.length === 0) {
+            console.log('No files selected');
+            return;
+        }
         
-        console.log('Uploading files:', files.length);
+        console.log('Processing uploaded files:', files.length);
+        
+        // Show initial processing message
+        if (files.length === 1) {
+            showNotification('מעבד תמונה...', 'info', 2000);
+        } else {
+            showNotification(`מעבד ${files.length} תמונות...`, 'info', 3000);
+        }
         
         // Validate files
-        const validFiles = files.filter(file => {
+        const validFiles = [];
+        const errors = [];
+        
+        files.forEach(file => {
             if (!file.type.startsWith('image/')) {
-                showNotification(`הקובץ ${file.name} אינו תמונה`, 'error');
-                return false;
+                errors.push(`${file.name} - אינו קובץ תמונה`);
+                return;
             }
             
             if (file.size > 10 * 1024 * 1024) { // 10MB limit
-                showNotification(`הקובץ ${file.name} גדול מדי (מעל 10MB)`, 'error');
-                return false;
+                errors.push(`${file.name} - גדול מדי (מעל 10MB)`);
+                return;
             }
             
-            return true;
+            if (file.size === 0) {
+                errors.push(`${file.name} - קובץ ריק`);
+                return;
+            }
+            
+            validFiles.push(file);
         });
         
-        if (validFiles.length === 0) return;
-        
-        console.log('Valid files:', validFiles.length);
-        
-        // Process each valid file
-        validFiles.forEach(file => {
-            processPhoto(file);
-        });
-        
-        // Show success message only for multiple files
-        if (validFiles.length > 1) {
-            showNotification(`הועלו ${validFiles.length} תמונות בהצלחה`, 'success');
+        // Show validation errors if any
+        if (errors.length > 0) {
+            const errorMessage = errors.length === 1 ? 
+                errors[0] : 
+                `${errors.length} קבצים לא תקינים:\n${errors.slice(0, 3).join('\n')}${errors.length > 3 ? '\n...' : ''}`;
+            showNotification(errorMessage, 'error', 4000);
         }
+        
+        if (validFiles.length === 0) {
+            showNotification('לא נבחרו תמונות תקינות', 'error');
+            return;
+        }
+        
+        console.log('Valid files to process:', validFiles.length);
+        
+        // Process valid files with progress tracking
+        let processedCount = 0;
+        const totalFiles = validFiles.length;
+        
+        validFiles.forEach((file, index) => {
+            // Add a small delay between processing files to prevent overwhelming the UI
+            setTimeout(() => {
+                console.log(`Processing file ${index + 1}/${totalFiles}: ${file.name}`);
+                
+                // Process the photo
+                processPhoto(file);
+                
+                processedCount++;
+                
+                // Show progress for multiple files
+                if (totalFiles > 1) {
+                    if (processedCount === totalFiles) {
+                        // All files processed
+                        setTimeout(() => {
+                            showNotification(`${totalFiles} תמונות הועלו בהצלחה!`, 'success', 3000);
+                        }, 1000);
+                    } else {
+                        // Show progress
+                        showNotification(`מעובד ${processedCount}/${totalFiles} תמונות...`, 'info', 1500);
+                    }
+                }
+            }, index * 200); // 200ms delay between each file
+        });
+        
     } catch (error) {
         console.error('Error handling photo upload:', error);
         showNotification('שגיאה בהעלאת התמונות', 'error');
