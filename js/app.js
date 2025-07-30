@@ -4144,6 +4144,14 @@ async function exportToPDF() {
         const { jsPDF } = window.jspdf;
         const pdf = new jsPDF('portrait', 'mm', 'a4');
         
+        // Add font support for Hebrew text
+        try {
+            pdf.addFont('helvetica', 'normal');
+            pdf.addFont('helvetica', 'bold');
+        } catch (e) {
+            console.log('Font already loaded or not available');
+        }
+        
         // Calculate total pages needed (2 photos per page)
         const totalPages = Math.ceil(photos.length / 2);
         console.log(`📄 Will create ${totalPages} pages`);
@@ -4188,16 +4196,16 @@ async function renderPDFPage(pdf, photos, pageNumber, totalPages, project, confi
     
     let yPosition = margin;
     
-    // Header
+    // Header - Use simple ASCII text for testing Hebrew support
     pdf.setFontSize(16);
     pdf.setFont('helvetica', 'bold');
-    const headerText = config.headerCompany || 'דוח בדיקה מקצועי';
+    const headerText = config.headerCompany || 'Inspection Report';
     pdf.text(headerText, pageWidth / 2, yPosition, { align: 'center' });
     
     yPosition += 8;
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'normal');
-    const subHeader = `${project.name} | עמוד ${pageNumber} מתוך ${totalPages}`;
+    const subHeader = `${project.name} | Page ${pageNumber} of ${totalPages}`;
     pdf.text(subHeader, pageWidth / 2, yPosition, { align: 'center' });
     
     yPosition += 15;
@@ -4240,7 +4248,7 @@ async function renderPDFPage(pdf, photos, pageNumber, totalPages, project, confi
     }
     
     // Date
-    const dateText = `תאריך הדוח: ${new Date().toLocaleDateString('he-IL')}`;
+    const dateText = `Report Date: ${new Date().toLocaleDateString('en-US')}`;
     pdf.setFontSize(8);
     pdf.text(dateText, pageWidth / 2, footerY + 8, { align: 'center' });
 }
@@ -4281,7 +4289,7 @@ async function renderPDFFinding(pdf, photo, findingNumber, x, y, width, height, 
         console.error(`Error adding image for finding ${findingNumber}:`, error);
         // Draw error placeholder
         pdf.setFontSize(12);
-        pdf.text('❌ תמונה לא זמינה', imageX + imageWidth/2, imageY + imageHeight/2, { align: 'center' });
+        pdf.text('❌ Image not available', imageX + imageWidth/2, imageY + imageHeight/2, { align: 'center' });
     }
     
     // Add finding details (right side)
@@ -4290,14 +4298,14 @@ async function renderPDFFinding(pdf, photo, findingNumber, x, y, width, height, 
     // Finding number (always shown)
     pdf.setFontSize(14);
     pdf.setFont('helvetica', 'bold');
-    pdf.text(`ממצא מס' ${findingNumber}`, detailsX + detailsWidth, detailY, { align: 'right' });
+    pdf.text(`Finding #${findingNumber}`, detailsX + detailsWidth, detailY, { align: 'right' });
     detailY += 12;
     
     // Name (only if provided)
     if (photo.name && photo.name.trim()) {
         pdf.setFontSize(11);
         pdf.setFont('helvetica', 'bold');
-        pdf.text('שם:', detailsX + detailsWidth, detailY, { align: 'right' });
+        pdf.text('Name:', detailsX + detailsWidth, detailY, { align: 'right' });
         detailY += 6;
         
         pdf.setFont('helvetica', 'normal');
@@ -4310,7 +4318,7 @@ async function renderPDFFinding(pdf, photo, findingNumber, x, y, width, height, 
     if (photo.description && photo.description.trim()) {
         pdf.setFontSize(11);
         pdf.setFont('helvetica', 'bold');
-        pdf.text('תיאור:', detailsX + detailsWidth, detailY, { align: 'right' });
+        pdf.text('Description:', detailsX + detailsWidth, detailY, { align: 'right' });
         detailY += 6;
         
         pdf.setFont('helvetica', 'normal');
@@ -4323,7 +4331,7 @@ async function renderPDFFinding(pdf, photo, findingNumber, x, y, width, height, 
     if (photo.annotations && photo.annotations.length > 0) {
         pdf.setFontSize(9);
         pdf.setFont('helvetica', 'italic');
-        pdf.text(`📝 ${photo.annotations.length} הערות`, detailsX + detailsWidth, detailY, { align: 'right' });
+        pdf.text(`📝 ${photo.annotations.length} notes`, detailsX + detailsWidth, detailY, { align: 'right' });
     }
 }
 
