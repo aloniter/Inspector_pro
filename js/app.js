@@ -3239,7 +3239,7 @@ async function exportToWord() {
                     }),
                 },
                 children: content,
-            }],
+            }]
         });
 
         console.log('Document created, generating blob...');
@@ -3377,51 +3377,49 @@ async function createWordContentSimple(photos, config) {
             })
         );
 
-        // Process photos in pairs (2 photos per page)
-        for (let i = 0; i < photos.length; i += 2) {
-            const photo1 = photos[i];
-            const photo2 = photos[i + 1]; // May be undefined for odd number of photos
+        // Process each photo with proper 2x2 table layout
+        for (let i = 0; i < photos.length; i++) {
+            const photo = photos[i];
             
-            console.log(`Processing photo pair ${Math.floor(i/2) + 1}: photos ${i + 1}${photo2 ? ` and ${i + 2}` : ''}`);
+            console.log(`Processing photo ${i + 1}: ${photo.name || 'ללא שם'}`);
             
-            // Create table rows for this page
-            const tableRows = [];
-            
-            // Process first photo
             try {
-                const photo1Row = await createPhotoRow(photo1, i + 1, config);
-                tableRows.push(photo1Row);
+                // Create 2x2 table for this photo (image left, description right)
+                const photoTable = await createPhoto2x2Table(photo, i + 1, config);
+                content.push(photoTable);
+                
+                // Add spacing paragraph after each photo
+                content.push(
+                    new Paragraph({
+                        children: [new TextRun({ text: '' })],
+                        spacing: { after: 300 },
+                    })
+                );
+                
+                // Add page break after every 2 photos (except the last one)
+                if ((i + 1) % 2 === 0 && i < photos.length - 1) {
+                    content.push(new PageBreak());
+                }
+                
             } catch (error) {
                 console.error(`Error processing photo ${i + 1}:`, error);
-                tableRows.push(createErrorRow(i + 1, photo1?.name || 'ללא שם'));
+                
+                // Add error message instead of photo
+                content.push(
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: `שגיאה בעיבוד ממצא ${i + 1}: ${photo.name || 'ללא שם'}`,
+                                color: 'FF0000',
+                                size: 24,
+                                bold: true,
+                            }),
+                        ],
+                        alignment: AlignmentType.CENTER,
+                        spacing: { after: 300 },
+                    })
+                );
             }
-            
-            // Process second photo if exists
-            if (photo2) {
-                try {
-                    const photo2Row = await createPhotoRow(photo2, i + 2, config);
-                    tableRows.push(photo2Row);
-                } catch (error) {
-                    console.error(`Error processing photo ${i + 2}:`, error);
-                    tableRows.push(createErrorRow(i + 2, photo2?.name || 'ללא שם'));
-                }
-            }
-            
-            // Create table for this page with 2 photos
-            const pageTable = new Table({
-                width: {
-                    size: 100,
-                    type: WidthType.PERCENTAGE,
-                },
-                rows: tableRows,
-            });
-            
-            content.push(pageTable);
-            
-                         // Add page break after each pair (except the last one)
-             if (i + 2 < photos.length) {
-                 content.push(new PageBreak());
-             }
         }
         
     } catch (contentError) {
@@ -3442,9 +3440,9 @@ async function createWordContentSimple(photos, config) {
     return content;
 }
 
-// Helper function to create a photo row with improved layout
-async function createPhotoRow(photo, photoNumber, config) {
-    const { Paragraph, TextRun, TableRow, TableCell, AlignmentType, WidthType, ImageRun } = window.docx;
+// Helper function to create a 2x2 photo table (image left, description right)
+async function createPhoto2x2Table(photo, photoNumber, config) {
+    const { Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, WidthType, ImageRun, BorderStyle } = window.docx;
     
     // Try to create image data with higher quality
     let imageBuffer = null;
@@ -3456,7 +3454,7 @@ async function createPhotoRow(photo, photoNumber, config) {
             imageData = photo.url;
         }
         
-        // Convert base64 to buffer
+        // Convert base64 to buffer for Word
         const base64Data = imageData.split(',')[1];
         imageBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
     } catch (imageError) {
@@ -3464,17 +3462,17 @@ async function createPhotoRow(photo, photoNumber, config) {
         imageBuffer = null;
     }
     
-    // Create image content with higher resolution
-    const leftCellContent = [];
+    // Create image cell (left side)
+    const imageCellContent = [];
     if (imageBuffer) {
-        leftCellContent.push(
+        imageCellContent.push(
             new Paragraph({
                 children: [
                     new ImageRun({
                         data: imageBuffer,
                         transformation: {
-                            width: 380,  // Increased from 300
-                            height: 285, // Increased from 225
+                            width: 300,
+                            height: 225,
                         },
                     }),
                 ],
@@ -3482,7 +3480,7 @@ async function createPhotoRow(photo, photoNumber, config) {
             })
         );
     } else {
-        leftCellContent.push(
+        imageCellContent.push(
             new Paragraph({
                 children: [
                     new TextRun({
@@ -3496,54 +3494,127 @@ async function createPhotoRow(photo, photoNumber, config) {
         );
     }
     
-    // Create more compact text content
-    const rightCellContent = [
+    // Create description cell (right side) with proper Hebrew RTL
+    const descriptionCellContent = [
         new Paragraph({
             children: [
                 new TextRun({
-                    text: `${photoNumber}. ${photo.name || 'ללא שם'}`,
+                    text: `ממצא מס' ${photoNumber}`,
                     bold: true,
-                    size: 20, // Reduced from 24
+                    size: 28,
+                    color: '2563eb',
                 }),
             ],
-            spacing: { after: 100 }, // Reduced from 200
+            alignment: AlignmentType.RIGHT,
+            spacing: { after: 200 },
         }),
         new Paragraph({
             children: [
                 new TextRun({
-                    text: photo.description || 'ללא תיאור',
-                    size: 18, // Reduced from 22
+                    text: `שם: `,
+                    bold: true,
+                    size: 24,
+                }),
+                new TextRun({
+                    text: photo.name || 'ללא שם',
+                    size: 24,
                 }),
             ],
-            spacing: { after: 100 }, // Reduced from 200
+            alignment: AlignmentType.RIGHT,
+            spacing: { after: 150 },
+        }),
+        new Paragraph({
+            children: [
+                new TextRun({
+                    text: `תיאור: `,
+                    bold: true,
+                    size: 22,
+                }),
+                new TextRun({
+                    text: photo.description || 'ללא תיאור',
+                    size: 22,
+                }),
+            ],
+            alignment: AlignmentType.RIGHT,
+            spacing: { after: 150 },
         }),
         new Paragraph({
             children: [
                 new TextRun({
                     text: `תאריך: ${new Date(photo.createdAt).toLocaleDateString('he-IL')}`,
-                    size: 16, // Reduced from 18
-                    color: '666666',
+                    size: 20,
+                    color: '6b7280',
                 }),
             ],
+            alignment: AlignmentType.RIGHT,
+            spacing: { after: 100 },
         }),
     ];
     
-    // Create table row with 70% image, 30% text layout
-    return new TableRow({
-        children: [
-            new TableCell({
-                children: leftCellContent,
-                width: {
-                    size: 70, // Increased from 50% to give more space to image
-                    type: WidthType.PERCENTAGE,
-                },
-            }),
-            new TableCell({
-                children: rightCellContent,
-                width: {
-                    size: 30, // Reduced from 50% to make text more compact
-                    type: WidthType.PERCENTAGE,
-                },
+    // Add annotations info if present
+    if (photo.annotations && photo.annotations.length > 0) {
+        descriptionCellContent.push(
+            new Paragraph({
+                children: [
+                    new TextRun({
+                        text: `הערות: ${photo.annotations.length} ציורים על התמונה`,
+                        size: 18,
+                        color: '059669',
+                        italics: true,
+                    }),
+                ],
+                alignment: AlignmentType.RIGHT,
+                spacing: { after: 100 },
+            })
+        );
+    }
+    
+    // Create the 2x2 table
+    return new Table({
+        width: {
+            size: 100,
+            type: WidthType.PERCENTAGE,
+        },
+        borders: {
+            top: { style: BorderStyle.SINGLE, size: 1, color: '000000' },
+            bottom: { style: BorderStyle.SINGLE, size: 1, color: '000000' },
+            left: { style: BorderStyle.SINGLE, size: 1, color: '000000' },
+            right: { style: BorderStyle.SINGLE, size: 1, color: '000000' },
+        },
+        rows: [
+            new TableRow({
+                children: [
+                    // Image cell (left)
+                    new TableCell({
+                        children: imageCellContent,
+                        width: {
+                            size: 50,
+                            type: WidthType.PERCENTAGE,
+                        },
+                        verticalAlign: 'center',
+                        margins: {
+                            top: 100,
+                            bottom: 100,
+                            left: 100,
+                            right: 100,
+                        },
+                    }),
+                    // Description cell (right)
+                    new TableCell({
+                        children: descriptionCellContent,
+                        width: {
+                            size: 50,
+                            type: WidthType.PERCENTAGE,
+                        },
+                        verticalAlign: 'top',
+                        margins: {
+                            top: 150,
+                            bottom: 150,
+                            left: 150,
+                            right: 150,
+                        },
+                    }),
+                ],
             }),
         ],
     });
@@ -3807,127 +3878,142 @@ async function exportToPDF() {
 
 async function createPDFHTMLContent(project, photos, config) {
     let htmlContent = `
-        <div style="padding: 20px; font-family: Arial, sans-serif; direction: rtl; background: white;">
-            <!-- Header -->
-            <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #2563eb; padding-bottom: 20px;">
-                <h1 style="color: #2563eb; margin: 0; font-size: 24px; font-weight: bold;">
-                    ${config.headerCompany || 'דוח בדיקה מקצועי'}
-                </h1>
-                <h2 style="color: #64748b; margin: 5px 0; font-size: 18px;">
-                    ${config.headerTitle || 'מסמך טכני'}
-                </h2>
-                <div style="margin: 15px 0; font-size: 16px; color: #374151;">
-                    <strong>פרויקט:</strong> ${project.name}
-                </div>
-                <div style="font-size: 14px; color: #6b7280;">
-                    <strong>תאריך:</strong> ${new Date().toLocaleDateString('he-IL')}
-                </div>
-            </div>
-            
-            <!-- Project Summary -->
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
-                <h3 style="color: #374151; margin-top: 0; font-size: 18px; border-bottom: 1px solid #d1d5db; padding-bottom: 10px;">
-                    סיכום הפרויקט
-                </h3>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 14px;">
-                    <div><strong>מספר תמונות:</strong> ${photos.length}</div>
-                    <div><strong>תמונות עם הערות:</strong> ${photos.filter(p => p.isAnnotated).length}</div>
-                    <div><strong>תאריך יצירה:</strong> ${new Date(project.createdAt).toLocaleDateString('he-IL')}</div>
-                    <div><strong>מיקום:</strong> ${project.location || 'לא צוין'}</div>
-                </div>
-                ${project.description ? `<div style="margin-top: 15px;"><strong>תיאור:</strong> ${project.description}</div>` : ''}
-            </div>
-            
-            <!-- Photos Table -->
-            <div style="overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 14px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                    <thead>
-                        <tr style="background: #2563eb; color: white;">
-                            <th style="padding: 15px; text-align: center; border: 1px solid #1e40af; font-weight: bold;">מס'</th>
-                            <th style="padding: 15px; text-align: center; border: 1px solid #1e40af; font-weight: bold;">תמונה</th>
-                            <th style="padding: 15px; text-align: center; border: 1px solid #1e40af; font-weight: bold;">שם התמונה</th>
-                            <th style="padding: 15px; text-align: center; border: 1px solid #1e40af; font-weight: bold;">תיאור</th>
-                            <th style="padding: 15px; text-align: center; border: 1px solid #1e40af; font-weight: bold;">תאריך</th>
-                        </tr>
-                    </thead>
-                    <tbody>`;
+        <div style="font-family: Arial, sans-serif; direction: rtl; background: white; width: 210mm; margin: 0; padding: 0;">
+    `;
     
-    for (let i = 0; i < photos.length; i++) {
-        const photo = photos[i];
-        const rowColor = i % 2 === 0 ? '#ffffff' : '#f8fafc';
+    // Process photos in pairs for 2 per page layout
+    for (let pageIndex = 0; pageIndex < Math.ceil(photos.length / 2); pageIndex++) {
+        const photo1 = photos[pageIndex * 2];
+        const photo2 = photos[pageIndex * 2 + 1]; // May be undefined
         
-        try {
-            // Render photo with annotations
-            let imageData;
-            if (config.includeAnnotations && photo.annotations && photo.annotations.length > 0) {
-                imageData = await renderPhotoWithAnnotations(photo, config.imageQuality);
-            } else {
-                imageData = photo.url;
-            }
-            
-            htmlContent += `
-                <tr style="background: ${rowColor}; border-bottom: 1px solid #e5e7eb;">
-                    <td style="padding: 15px; text-align: center; border: 1px solid #d1d5db; font-weight: bold; font-size: 16px; color: #2563eb;">
-                        ${i + 1}
-                    </td>
-                    <td style="padding: 10px; text-align: center; border: 1px solid #d1d5db;">
-                        <img src="${imageData}" 
-                             style="max-width: 200px; max-height: 150px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);"
-                             alt="תמונה ${i + 1}">
-                    </td>
-                    <td style="padding: 15px; text-align: center; border: 1px solid #d1d5db; font-weight: bold; color: #374151;">
-                        ${photo.name || 'ללא שם'}
-                    </td>
-                    <td style="padding: 15px; text-align: right; border: 1px solid #d1d5db; color: #4b5563; line-height: 1.5;">
-                        ${photo.description || 'ללא תיאור'}
-                    </td>
-                    <td style="padding: 15px; text-align: center; border: 1px solid #d1d5db; color: #6b7280; font-size: 12px;">
-                        ${new Date(photo.createdAt).toLocaleDateString('he-IL')}
-                    </td>
-                </tr>`;
-        } catch (error) {
-            console.error('Error processing photo for PDF:', error);
-            htmlContent += `
-                <tr style="background: ${rowColor}; border-bottom: 1px solid #e5e7eb;">
-                    <td style="padding: 15px; text-align: center; border: 1px solid #d1d5db; font-weight: bold; color: #ef4444;">
-                        ${i + 1}
-                    </td>
-                    <td style="padding: 15px; text-align: center; border: 1px solid #d1d5db; color: #ef4444;">
-                        שגיאה בטעינת תמונה
-                    </td>
-                    <td style="padding: 15px; text-align: center; border: 1px solid #d1d5db; color: #ef4444;">
-                        ${photo.name || 'ללא שם'}
-                    </td>
-                    <td style="padding: 15px; text-align: right; border: 1px solid #d1d5db; color: #ef4444;">
-                        שגיאה בעיבוד התמונה
-                    </td>
-                    <td style="padding: 15px; text-align: center; border: 1px solid #d1d5db; color: #ef4444;">
-                        ${new Date(photo.createdAt).toLocaleDateString('he-IL')}
-                    </td>
-                </tr>`;
+        htmlContent += `
+            <div class="pdf-page" style="min-height: 297mm; padding: 20mm; page-break-after: always; position: relative;">
+                <!-- Header -->
+                <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #2563eb; padding-bottom: 15px;">
+                    <h1 style="color: #2563eb; margin: 0; font-size: 22px; font-weight: bold;">
+                        ${config.headerCompany || 'דוח בדיקה מקצועי'}
+                    </h1>
+                    <h2 style="color: #64748b; margin: 5px 0; font-size: 16px;">
+                        ${config.headerTitle || 'מסמך טכני'}
+                    </h2>
+                    <div style="margin: 5px 0; font-size: 14px; color: #374151;">
+                        <strong>פרויקט:</strong> ${project.name} | <strong>עמוד:</strong> ${pageIndex + 1}
+                    </div>
+                </div>
+        `;
+        
+        // First finding (always exists)
+        htmlContent += await createPDFFinding2x2(photo1, pageIndex * 2 + 1, config);
+        
+        if (photo2) {
+            htmlContent += `<div style="margin: 30px 0;"></div>`;
+            htmlContent += await createPDFFinding2x2(photo2, pageIndex * 2 + 2, config);
         }
+        
+        // Footer and company stamp area
+        htmlContent += `
+                <!-- Footer and Company Stamp Area -->
+                <div style="position: absolute; bottom: 15mm; left: 15mm; right: 15mm;">
+                    <!-- Company Stamp Area -->
+                    <div style="border: 2px dashed #d1d5db; height: 40mm; margin-bottom: 10mm; text-align: center; display: flex; align-items: center; justify-content: center; background: #f9f9f9;">
+                        <div style="color: #9ca3af; font-size: 14px; font-style: italic;">
+                            <div>📄 מקום לחותמת החברה</div>
+                            <div style="font-size: 12px; margin-top: 5px;">Company Stamp Area</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Contact Footer -->
+                    <div style="text-align: center; border-top: 1px solid #e5e7eb; padding-top: 10px; color: #6b7280; font-size: 12px;">
+                        <div style="margin-bottom: 5px;">
+                            <strong>${config.footerContact || 'פרטי קשר'}</strong>
+                        </div>
+                        <div style="margin-bottom: 5px;">
+                            ${config.footerExtra || 'מסמך זה נוצר באמצעות מערכת Inspectort Pro'}
+                        </div>
+                        <div style="font-size: 10px; color: #9ca3af;">
+                            תאריך יצירת הדוח: ${new Date().toLocaleString('he-IL')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
     }
     
-    htmlContent += `
-                    </tbody>
+    htmlContent += `</div>`;
+    return htmlContent;
+}
+
+// Helper function to create 2x2 finding layout for PDF
+async function createPDFFinding2x2(photo, photoNumber, config) {
+    try {
+        // Render photo with annotations
+        let imageData;
+        if (config.includeAnnotations && photo.annotations && photo.annotations.length > 0) {
+            imageData = await renderPhotoWithAnnotations(photo, config.imageQuality);
+        } else {
+            imageData = photo.url;
+        }
+        
+        return `
+            <div style="border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden; margin-bottom: 15px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <!-- Image Cell (Left) -->
+                        <td style="width: 50%; padding: 15px; text-align: center; vertical-align: middle; border-right: 1px solid #e5e7eb;">
+                            <img src="${imageData}" 
+                                 style="max-width: 100%; max-height: 200px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"
+                                 alt="ממצא ${photoNumber}">
+                        </td>
+                        
+                        <!-- Description Cell (Right) -->
+                        <td style="width: 50%; padding: 20px; vertical-align: top; text-align: right;">
+                            <div style="margin-bottom: 12px;">
+                                <span style="color: #2563eb; font-size: 20px; font-weight: bold;">ממצא מס' ${photoNumber}</span>
+                            </div>
+                            
+                            <div style="margin-bottom: 10px;">
+                                <span style="font-weight: bold; color: #374151;">שם: </span>
+                                <span style="color: #4b5563;">${photo.name || 'ללא שם'}</span>
+                            </div>
+                            
+                            <div style="margin-bottom: 10px;">
+                                <span style="font-weight: bold; color: #374151;">תיאור: </span>
+                                <div style="color: #4b5563; line-height: 1.4; margin-top: 5px;">
+                                    ${photo.description || 'ללא תיאור'}
+                                </div>
+                            </div>
+                            
+                            <div style="margin-bottom: 10px;">
+                                <span style="font-weight: bold; color: #374151;">תאריך: </span>
+                                <span style="color: #6b7280; font-size: 14px;">
+                                    ${new Date(photo.createdAt).toLocaleDateString('he-IL')}
+                                </span>
+                            </div>
+                            
+                            ${photo.annotations && photo.annotations.length > 0 ? `
+                                <div style="margin-top: 15px; color: #059669; font-size: 13px; font-style: italic;">
+                                    📝 ${photo.annotations.length} הערות על התמונה
+                                </div>
+                            ` : ''}
+                        </td>
+                    </tr>
                 </table>
             </div>
-            
-            <!-- Footer -->
-            <div style="margin-top: 40px; text-align: center; border-top: 2px solid #2563eb; padding-top: 20px; color: #6b7280; font-size: 12px;">
-                <div style="margin-bottom: 10px;">
-                    <strong>${config.footerContact || 'פרטי קשר'}</strong>
+        `;
+        
+    } catch (error) {
+        console.error('Error creating PDF finding:', error);
+        return `
+            <div style="border: 1px solid #ef4444; border-radius: 8px; padding: 20px; margin-bottom: 15px; background: #fef2f2; text-align: center;">
+                <div style="color: #ef4444; font-weight: bold; font-size: 18px;">
+                    שגיאה בעיבוד ממצא ${photoNumber}
                 </div>
-                <div>
-                    ${config.footerExtra || 'מסמך זה נוצר באמצעות מערכת Inspectort Pro'}
-                </div>
-                <div style="margin-top: 10px; font-size: 10px; color: #9ca3af;">
-                    תאריך יצירת הדוח: ${new Date().toLocaleString('he-IL')}
+                <div style="color: #dc2626; margin-top: 10px;">
+                    ${photo.name || 'ללא שם'} - לא ניתן להציג את התמונה
                 </div>
             </div>
-        </div>`;
-    
-    return htmlContent;
+        `;
+    }
 }
 
 function openPhotoAnnotation(photo) {

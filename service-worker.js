@@ -3,7 +3,7 @@
  * PWA Offline Support and Caching
  */
 
-const CACHE_NAME = 'inspectort-pro-v1.0.0';
+const CACHE_NAME = 'inspectort-pro-v2.1.0';
 const OFFLINE_PAGE = '/Inspector_pro/offline.html';
 
 // Files to cache for offline functionality
@@ -13,10 +13,11 @@ const CACHE_URLS = [
     '/Inspector_pro/css/styles.css',
     '/Inspector_pro/js/app.js',
     '/Inspector_pro/manifest.json',
-    '/Inspector_pro/assets/icons/favicon.svg',
-    '/Inspector_pro/assets/icons/icon-192x192.svg',
-    '/Inspector_pro/assets/icons/icon-512x512.svg',
-    // Add more static assets as needed
+    '/Inspector_pro/inspector_icon.png',
+    // Essential library CDNs for export functionality
+    'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js'
 ];
 
 // Install event - cache essential resources
@@ -60,60 +61,94 @@ self.addEventListener('activate', event => {
     );
 });
 
-// Fetch event - serve cached content when offline
+// Fetch event - smart caching strategy for instant updates
 self.addEventListener('fetch', event => {
     // Skip non-GET requests
     if (event.request.method !== 'GET') {
         return;
     }
     
-    // Skip external requests
-    if (!event.request.url.startsWith(self.location.origin)) {
+    const url = new URL(event.request.url);
+    
+    // Network First for critical app files (HTML, CSS, JS) to ensure instant updates
+    if (isCriticalAppFile(event.request)) {
+        event.respondWith(
+            fetch(event.request)
+                .then(response => {
+                    // Cache successful responses
+                    if (response && response.status === 200) {
+                        const responseToCache = response.clone();
+                        caches.open(CACHE_NAME)
+                            .then(cache => {
+                                cache.put(event.request, responseToCache);
+                            });
+                    }
+                    return response;
+                })
+                .catch(() => {
+                    // Fallback to cache if network fails
+                    return caches.match(event.request)
+                        .then(cachedResponse => {
+                            if (cachedResponse) {
+                                return cachedResponse;
+                            }
+                            // Return offline page for document requests
+                            if (event.request.destination === 'document') {
+                                return caches.match(OFFLINE_PAGE);
+                            }
+                            throw new Error('No cached version available');
+                        });
+                })
+        );
         return;
     }
     
-    event.respondWith(
-        caches.match(event.request)
-            .then(response => {
-                // Return cached version if available
-                if (response) {
-                    return response;
-                }
-                
-                // Otherwise fetch from network
-                return fetch(event.request).then(response => {
-                    // Don't cache non-successful responses
-                    if (!response || response.status !== 200 || response.type !== 'basic') {
+    // Cache First for static assets (images, icons, etc.)
+    if (isStaticAsset(event.request)) {
+        event.respondWith(
+            caches.match(event.request)
+                .then(response => {
+                    if (response) {
                         return response;
                     }
                     
-                    // Clone the response for caching
-                    const responseToCache = response.clone();
-                    
-                    // Cache the response for future use
-                    caches.open(CACHE_NAME)
-                        .then(cache => {
-                            cache.put(event.request, responseToCache);
-                        });
-                    
-                    return response;
-                });
-            })
-            .catch(() => {
-                // If both cache and network fail, show offline page for navigation requests
-                if (event.request.destination === 'document') {
-                    return caches.match(OFFLINE_PAGE);
-                }
-                
-                // For other requests, return a generic offline response
-                return new Response('Offline', {
-                    status: 503,
-                    statusText: 'Service Unavailable',
-                    headers: new Headers({
-                        'Content-Type': 'text/plain; charset=utf-8'
-                    })
-                });
-            })
+                    return fetch(event.request).then(response => {
+                        if (response && response.status === 200) {
+                            const responseToCache = response.clone();
+                            caches.open(CACHE_NAME)
+                                .then(cache => {
+                                    cache.put(event.request, responseToCache);
+                                });
+                        }
+                        return response;
+                    });
+                })
+                .catch(() => {
+                    return new Response('Asset not available offline', {
+                        status: 503,
+                        statusText: 'Service Unavailable'
+                    });
+                })
+        );
+        return;
+    }
+    
+    // Network Only for external CDN requests to ensure latest versions
+    if (isCDNRequest(event.request)) {
+        event.respondWith(
+            fetch(event.request)
+                .catch(() => {
+                    // Try to serve from cache as last resort
+                    return caches.match(event.request);
+                })
+        );
+        return;
+    }
+    
+    // Default strategy for other requests
+    event.respondWith(
+        fetch(event.request)
+            .catch(() => caches.match(event.request))
     );
 });
 
@@ -281,7 +316,48 @@ async function removeOfflinePhoto(photoId) {
     console.log('Service Worker: Offline photo removed', photoId);
 }
 
-// Utility functions
+// Utility functions for cache strategy
+function isCriticalAppFile(request) {
+    const url = new URL(request.url);
+    const pathname = url.pathname;
+    
+    // App files that need instant updates
+    return pathname.endsWith('.html') || 
+           pathname.endsWith('.css') || 
+           pathname.endsWith('.js') ||
+           pathname.includes('/js/app.js') ||
+           pathname.includes('/css/styles.css') ||
+           pathname === '/Inspector_pro/' ||
+           pathname === '/Inspector_pro/index.html';
+}
+
+function isStaticAsset(request) {
+    const url = new URL(request.url);
+    const pathname = url.pathname;
+    
+    // Static assets that can be cached longer
+    return pathname.endsWith('.png') || 
+           pathname.endsWith('.jpg') || 
+           pathname.endsWith('.jpeg') || 
+           pathname.endsWith('.gif') || 
+           pathname.endsWith('.svg') ||
+           pathname.endsWith('.webp') ||
+           pathname.endsWith('.ico') ||
+           pathname.includes('inspector_icon.png') ||
+           pathname.includes('/assets/');
+}
+
+function isCDNRequest(request) {
+    const url = new URL(request.url);
+    
+    // External CDN requests that should always fetch fresh
+    return url.hostname === 'cdnjs.cloudflare.com' ||
+           url.hostname === 'cdn.jsdelivr.net' ||
+           url.hostname === 'unpkg.com' ||
+           url.hostname === 'fonts.googleapis.com' ||
+           url.hostname === 'fonts.gstatic.com';
+}
+
 function isNavigationRequest(request) {
     return request.mode === 'navigate' || 
            (request.method === 'GET' && request.headers.get('accept').includes('text/html'));
@@ -289,22 +365,6 @@ function isNavigationRequest(request) {
 
 function isImageRequest(request) {
     return request.destination === 'image';
-}
-
-function shouldCacheRequest(request) {
-    const url = new URL(request.url);
-    
-    // Cache same-origin requests
-    if (url.origin === self.location.origin) {
-        return true;
-    }
-    
-    // Cache specific external resources (like fonts)
-    if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
-        return true;
-    }
-    
-    return false;
 }
 
 // Periodic background sync (if supported)
