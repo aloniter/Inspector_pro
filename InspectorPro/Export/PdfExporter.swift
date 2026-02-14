@@ -17,7 +17,7 @@ final class PdfExporter {
         let pageRect = CGRect(x: 0, y: 0, width: options.pageWidth, height: options.pageHeight)
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
 
-        let data = try renderer.pdfData { context in
+        let data = renderer.pdfData { context in
             // Cover page
             context.beginPage()
             drawCoverPage(context: context, project: project, options: options)
@@ -25,7 +25,7 @@ final class PdfExporter {
             var findingsOnPage = 0
             var currentY = options.marginTop
 
-            for (findingIndex, finding) in findings.enumerated() {
+            for finding in findings {
                 // Start new page if needed (after every 2 findings)
                 if findingsOnPage >= options.findingsPerPage {
                     context.beginPage()
@@ -105,16 +105,15 @@ final class PdfExporter {
                     }
                 }
 
-                // Check if we need to insert page break after 2 finding tables
-                if findingsOnPage >= options.findingsPerPage && findingIndex < findings.count - 1 {
-                    context.beginPage()
-                    currentY = options.marginTop
-                    findingsOnPage = 0
-                }
             }
         }
 
-        try data.write(to: outputURL)
+        do {
+            try data.write(to: outputURL)
+        } catch {
+            throw ExportError.pdfGenerationFailed
+        }
+
         return outputURL
     }
 
@@ -125,7 +124,6 @@ final class PdfExporter {
         project: Project,
         options: ExportOptions
     ) {
-        let centerX = options.pageWidth / 2
         var y: CGFloat = options.pageHeight * 0.3
 
         // Title

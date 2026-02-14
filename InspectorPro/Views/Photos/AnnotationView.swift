@@ -83,20 +83,20 @@ struct AnnotationView: View {
     private func renderComposite() -> UIImage {
         let imageSize = image.size
         let renderer = UIGraphicsImageRenderer(size: imageSize)
-        return renderer.image { ctx in
+        return renderer.image { _ in
+            // Draw background image at full size
             image.draw(in: CGRect(origin: .zero, size: imageSize))
 
-            // Scale the drawing to match the image size
+            // Render the PencilKit drawing at screen scale, then stretch to fill image
             let canvasSize = canvasView.bounds.size
             guard canvasSize.width > 0, canvasSize.height > 0 else { return }
 
-            let scaleX = imageSize.width / canvasSize.width
-            let scaleY = imageSize.height / canvasSize.height
-
-            ctx.cgContext.scaleBy(x: scaleX, y: scaleY)
-
-            let drawingImage = canvasView.drawing.image(from: canvasView.bounds, scale: 1.0)
-            drawingImage.draw(in: canvasView.bounds)
+            let scale = UIScreen.main.scale
+            let drawingImage = canvasView.drawing.image(
+                from: canvasView.bounds, scale: scale
+            )
+            // Draw the PKDrawing image stretched to match the full image size
+            drawingImage.draw(in: CGRect(origin: .zero, size: imageSize))
         }
     }
 }
