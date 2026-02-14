@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ExportOptionsSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -96,7 +97,7 @@ struct ExportOptionsSheet: View {
             }
             .sheet(isPresented: $showingShareSheet) {
                 if let url = exportedURL {
-                    ShareSheet(items: [url])
+                    ShareSheet(fileURL: url)
                 }
             }
         }
@@ -143,11 +144,56 @@ struct ExportOptionsSheet: View {
 // MARK: - Share Sheet
 
 struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
+    let fileURL: URL
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
+        let itemSource = ExportShareItemSource(fileURL: fileURL)
+        return UIActivityViewController(activityItems: [itemSource], applicationActivities: nil)
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+private final class ExportShareItemSource: NSObject, UIActivityItemSource {
+    private let fileURL: URL
+
+    init(fileURL: URL) {
+        self.fileURL = fileURL
+    }
+
+    func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any {
+        fileURL
+    }
+
+    func activityViewController(
+        _ activityViewController: UIActivityViewController,
+        itemForActivityType activityType: UIActivity.ActivityType?
+    ) -> Any? {
+        // Some Word flows open file URLs as read-only and force "Save a copy".
+        // Returning raw data for these activity types prompts editable import.
+        if shouldForceDataTransfer(for: activityType),
+           let data = try? Data(contentsOf: fileURL) {
+            return data
+        }
+        return fileURL
+    }
+
+    func activityViewController(
+        _ activityViewController: UIActivityViewController,
+        dataTypeIdentifierForActivityType activityType: UIActivity.ActivityType?
+    ) -> String {
+        UTType(filenameExtension: fileURL.pathExtension)?.identifier ?? UTType.data.identifier
+    }
+
+    func activityViewController(
+        _ activityViewController: UIActivityViewController,
+        subjectForActivityType activityType: UIActivity.ActivityType?
+    ) -> String {
+        fileURL.deletingPathExtension().lastPathComponent
+    }
+
+    private func shouldForceDataTransfer(for activityType: UIActivity.ActivityType?) -> Bool {
+        guard let rawType = activityType?.rawValue.lowercased() else { return false }
+        return rawType.contains("microsoft") || rawType.contains("word") || rawType.contains("office")
+    }
 }

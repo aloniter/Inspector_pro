@@ -11,6 +11,7 @@ final class FileManagerService: @unchecked Sendable {
             AppConstants.appBaseURL,
             AppConstants.imagesBaseURL,
             AppConstants.exportCacheURL,
+            AppConstants.exportsURL,
         ]
         for dir in dirs {
             if !fm.fileExists(atPath: dir.path) {

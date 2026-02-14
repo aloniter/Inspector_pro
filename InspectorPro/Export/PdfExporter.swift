@@ -7,8 +7,7 @@ final class PdfExporter {
         options: ExportOptions,
         onProgress: @escaping @Sendable (Double) -> Void
     ) async throws -> URL {
-        let outputURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("\(project.name)_\(dateString(project.date)).pdf")
+        let outputURL = outputFileURL(projectName: project.name, date: project.date, fileExtension: "pdf")
 
         let pageRect = CGRect(x: 0, y: 0, width: options.pageWidth, height: options.pageHeight)
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
@@ -52,7 +51,7 @@ final class PdfExporter {
         }
 
         do {
-            try data.write(to: outputURL)
+            try data.write(to: outputURL, options: .atomic)
         } catch {
             throw ExportError.pdfGenerationFailed
         }
@@ -269,19 +268,19 @@ final class PdfExporter {
     // MARK: - Helpers
 
     private static func descriptionText(photo: PhotoRecord, index: Int) -> String {
-        let normalized = normalizedText(photo.freeText)
-        let lines = normalized
+        let lines = photo.freeText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
             .split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
-        let bulletLines = (lines.isEmpty ? [normalized] : lines)
+        let bulletLines = lines
             .map { line in
                 line.hasPrefix("•") ? line : "• \(line)"
             }
-            .joined(separator: "\n")
 
-        return "\(index). תיאור:\n\(bulletLines)"
+        guard !bulletLines.isEmpty else { return "\(index)." }
+        return "\(index).\n\(bulletLines.joined(separator: "\n"))"
     }
 
     private static func scaledImageSize(for image: UIImage, maxSize: CGSize) -> CGSize {
@@ -293,11 +292,6 @@ final class PdfExporter {
             width: image.size.width * scale,
             height: image.size.height * scale
         )
-    }
-
-    private static func normalizedText(_ text: String) -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "ללא הערה" : trimmed
     }
 
     private static func loadCompressedImage(photo: PhotoRecord, options: ExportOptions) -> UIImage? {
@@ -322,5 +316,28 @@ final class PdfExporter {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: date)
+    }
+
+    private static func outputFileURL(projectName: String, date: Date, fileExtension: String) -> URL {
+        let baseName = "\(safeFilename(projectName))_\(dateString(date))"
+        let outputDir = AppConstants.exportsURL
+        FileManagerService.shared.ensureDirectoryExists(at: outputDir)
+
+        var outputURL = outputDir.appendingPathComponent("\(baseName).\(fileExtension)")
+        var suffix = 1
+        while FileManager.default.fileExists(atPath: outputURL.path) {
+            outputURL = outputDir.appendingPathComponent("\(baseName)_\(suffix).\(fileExtension)")
+            suffix += 1
+        }
+        return outputURL
+    }
+
+    private static func safeFilename(_ value: String) -> String {
+        let invalid = CharacterSet(charactersIn: "/\\?%*|\"<>:")
+        let cleaned = value
+            .components(separatedBy: invalid)
+            .joined(separator: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? "Report" : cleaned
     }
 }

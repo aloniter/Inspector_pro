@@ -95,8 +95,7 @@ final class DocxExporter {
         try DocxTemplateBuilder.stylesXML().write(to: wordDir.appendingPathComponent("styles.xml"), atomically: true, encoding: .utf8)
         try DocxTemplateBuilder.settingsXML().write(to: wordDir.appendingPathComponent("settings.xml"), atomically: true, encoding: .utf8)
 
-        let outputURL = fm.temporaryDirectory
-            .appendingPathComponent("\(project.name)_\(dateString(project.date)).docx")
+        let outputURL = outputFileURL(projectName: project.name, date: project.date, fileExtension: "docx")
 
         try? fm.removeItem(at: outputURL)
         try fm.zipItem(at: tempDir, to: outputURL, shouldKeepParent: false)
@@ -168,5 +167,28 @@ final class DocxExporter {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: date)
+    }
+
+    private static func outputFileURL(projectName: String, date: Date, fileExtension: String) -> URL {
+        let baseName = "\(safeFilename(projectName))_\(dateString(date))"
+        let outputDir = AppConstants.exportsURL
+        FileManagerService.shared.ensureDirectoryExists(at: outputDir)
+
+        var outputURL = outputDir.appendingPathComponent("\(baseName).\(fileExtension)")
+        var suffix = 1
+        while FileManager.default.fileExists(atPath: outputURL.path) {
+            outputURL = outputDir.appendingPathComponent("\(baseName)_\(suffix).\(fileExtension)")
+            suffix += 1
+        }
+        return outputURL
+    }
+
+    private static func safeFilename(_ value: String) -> String {
+        let invalid = CharacterSet(charactersIn: "/\\?%*|\"<>:")
+        let cleaned = value
+            .components(separatedBy: invalid)
+            .joined(separator: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? "Report" : cleaned
     }
 }

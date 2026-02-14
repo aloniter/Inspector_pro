@@ -153,17 +153,17 @@ final class OpenXMLBuilder {
     }
 
     private static func buildDescriptionCell(photoNumber: Int, freeText: String) -> String {
-        let normalized = normalizedText(freeText)
-        let lines = normalized
+        let lines = freeText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
             .split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        let bulletLines = (lines.isEmpty ? [normalized] : lines).map {
+        let bulletLines = lines.map {
             $0.hasPrefix("•") ? $0 : "• \($0)"
         }
 
         var xml = rtlParagraph(
-            text: "\(photoNumber). תיאור:",
+            text: "\(photoNumber).",
             bold: true,
             fontSize: 24,
             alignment: "right",
@@ -219,8 +219,4 @@ final class OpenXMLBuilder {
         """
     }
 
-    private static func normalizedText(_ text: String) -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "ללא הערה" : trimmed
-    }
 }

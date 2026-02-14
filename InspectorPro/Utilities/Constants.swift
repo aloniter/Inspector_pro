@@ -4,6 +4,7 @@ enum AppConstants {
     static let appDirectoryName = "InspectorPro"
     static let imagesDirectoryName = "Images"
     static let exportCacheDirectoryName = "ExportCache"
+    static let exportsDirectoryName = "Exports"
     static let thumbnailMaxSize: CGFloat = 200
     static let thumbnailJPEGQuality: CGFloat = 0.6
     static let importMaxWidth: CGFloat = 2000
@@ -24,5 +25,9 @@ enum AppConstants {
 
     static var exportCacheURL: URL {
         appBaseURL.appendingPathComponent(exportCacheDirectoryName)
+    }
+
+    static var exportsURL: URL {
+        appBaseURL.appendingPathComponent(exportsDirectoryName)
     }
 }
