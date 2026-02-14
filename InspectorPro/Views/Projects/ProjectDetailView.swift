@@ -232,8 +232,13 @@ struct ProjectDetailView: View {
         let sorted = project.sortedPhotos
         for index in offsets {
             let photo = sorted[index]
+            let imagePath = photo.imagePath
+            let annotatedPath = photo.annotatedImagePath
             Task {
-                await ImageStorageService.shared.deletePhotos([photo])
+                await ImageStorageService.shared.deletePhotoFiles(
+                    originalPath: imagePath,
+                    annotatedPath: annotatedPath
+                )
             }
             modelContext.delete(photo)
         }

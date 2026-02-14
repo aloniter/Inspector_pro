@@ -24,7 +24,7 @@ actor ImageStorageService {
         let imageName = "\(uuid).jpg"
         let imageRelPath = "\(dirRelative)/\(imageName)"
         let imageURL = baseURL.appendingPathComponent(imageRelPath)
-        try imageData.write(to: imageURL)
+        try imageData.write(to: imageURL, options: .atomic)
 
         return imageRelPath
     }
@@ -39,13 +39,13 @@ actor ImageStorageService {
         let dirURL = baseURL.appendingPathComponent(dirRelative)
         FileManagerService.shared.ensureDirectoryExists(at: dirURL)
 
-        guard let data = image.pngData() else {
+        guard let data = image.jpegDataStripped(quality: 0.92) else {
             throw ImageStorageError.compressionFailed
         }
-        let annotatedName = "ann_\(originalUUID).png"
+        let annotatedName = "ann_\(originalUUID).jpg"
         let annotatedRelPath = "\(dirRelative)/\(annotatedName)"
         let annotatedURL = baseURL.appendingPathComponent(annotatedRelPath)
-        try data.write(to: annotatedURL)
+        try data.write(to: annotatedURL, options: .atomic)
 
         return annotatedRelPath
     }
@@ -62,21 +62,11 @@ actor ImageStorageService {
         baseURL.appendingPathComponent(relativePath)
     }
 
-    /// Delete all images for a list of photos
-    func deletePhotos(_ photos: [PhotoRecord]) {
-        for photo in photos {
-            deleteFile(at: photo.imagePath)
-            if let annotated = photo.annotatedImagePath {
-                deleteFile(at: annotated)
-            }
-        }
-    }
-
-    /// Clear annotated image from disk and model.
-    func clearAnnotatedImage(for photo: PhotoRecord) {
-        if let path = photo.annotatedImagePath {
-            deleteFile(at: path)
-            photo.annotatedImagePath = nil
+    /// Delete original and optional annotated image files for one photo.
+    func deletePhotoFiles(originalPath: String, annotatedPath: String?) {
+        deleteFile(at: originalPath)
+        if let annotatedPath {
+            deleteFile(at: annotatedPath)
         }
     }
 

@@ -61,8 +61,17 @@ struct PhotoDetailView: View {
             }
         }
         .task(id: photo.displayImagePath) {
-            displayedImage = await ImageStorageService.shared.loadImage(at: photo.displayImagePath)
-            originalImage = await ImageStorageService.shared.loadImage(at: photo.imagePath)
+            let preferredImage = await ImageStorageService.shared.loadImage(at: photo.displayImagePath)
+            let loadedOriginal = await ImageStorageService.shared.loadImage(at: photo.imagePath)
+
+            if preferredImage == nil, photo.annotatedImagePath != nil {
+                // Recover from a stale/missing annotation file path.
+                photo.annotatedImagePath = nil
+                try? modelContext.save()
+            }
+
+            displayedImage = preferredImage ?? loadedOriginal
+            originalImage = loadedOriginal ?? preferredImage
         }
         .fullScreenCover(isPresented: $showingAnnotation) {
             if let image = originalImage ?? displayedImage {
@@ -76,8 +85,13 @@ struct PhotoDetailView: View {
     }
 
     private func deletePhoto() {
+        let imagePath = photo.imagePath
+        let annotatedPath = photo.annotatedImagePath
         Task {
-            await ImageStorageService.shared.deletePhotos([photo])
+            await ImageStorageService.shared.deletePhotoFiles(
+                originalPath: imagePath,
+                annotatedPath: annotatedPath
+            )
         }
         modelContext.delete(photo)
         dismiss()
