@@ -45,11 +45,16 @@ final class OpenXMLBuilder {
         imageWidthEMU: Int,
         imageHeightEMU: Int,
         imageId: Int,
+        rowHeightTwips: Int,
         imageColumnWidthTwips: Int,
         textColumnWidthTwips: Int
     ) -> String {
         """
         <w:tr>
+          <w:trPr>
+            <w:cantSplit/>
+            <w:trHeight w:val="\(rowHeightTwips)" w:hRule="exact"/>
+          </w:trPr>
           <w:tc>
             <w:tcPr>
               <w:tcW w:w="\(imageColumnWidthTwips)" w:type="dxa"/>
@@ -71,6 +76,12 @@ final class OpenXMLBuilder {
             \(buildDescriptionCell(photoNumber: photoNumber, freeText: freeText))
           </w:tc>
         </w:tr>
+        """
+    }
+
+    static func buildPageBreak() -> String {
+        """
+        <w:p><w:r><w:br w:type="page"/></w:r></w:p>
         """
     }
 

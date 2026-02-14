@@ -39,6 +39,7 @@ import UIKit
         imageWidthEMU: 1_500_000,
         imageHeightEMU: 1_000_000,
         imageId: 1,
+        rowHeightTwips: 7200,
         imageColumnWidthTwips: 5000,
         textColumnWidthTwips: 3300
     )

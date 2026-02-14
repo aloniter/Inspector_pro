@@ -29,11 +29,7 @@ final class PdfExporter {
             for (index, photo) in photos.enumerated() {
                 let image = loadCompressedImage(photo: photo, options: options)
                 let description = descriptionText(photo: photo, index: index + 1)
-                let rowHeight = estimatedRowHeight(
-                    for: image,
-                    descriptionText: description,
-                    options: options
-                )
+                let rowHeight = options.targetPhotoRowHeight
 
                 if currentY + rowHeight > pageBottom {
                     context.beginPage()
@@ -170,35 +166,6 @@ final class PdfExporter {
         return tableRect.height
     }
 
-    private static func estimatedRowHeight(
-        for image: UIImage?,
-        descriptionText: String,
-        options: ExportOptions
-    ) -> CGFloat {
-        let textFont = UIFont.systemFont(ofSize: 12)
-        let textHeight = measureRTLTextHeight(
-            descriptionText,
-            width: options.textContentWidth,
-            font: textFont,
-            lineSpacing: 2
-        )
-
-        let textCellHeight = textHeight + (options.tableCellPadding * 2)
-        let imageCellHeight: CGFloat
-        if let image {
-            let maxImageSize = CGSize(
-                width: options.imageContentWidth,
-                height: options.pageHeight * 0.45
-            )
-            imageCellHeight = scaledImageSize(for: image, maxSize: maxImageSize).height
-                + (options.tableCellPadding * 2)
-        } else {
-            imageCellHeight = 90
-        }
-
-        return max(options.minimumPhotoRowHeight, textCellHeight, imageCellHeight)
-    }
-
     private static func drawPhotoRow(
         image: UIImage?,
         descriptionText: String,
@@ -242,7 +209,10 @@ final class PdfExporter {
         if let image {
             let maxImageSize = CGSize(
                 width: options.imageContentWidth,
-                height: max(rowHeight - (options.tableCellPadding * 2), 40)
+                height: min(
+                    max(rowHeight - (options.tableCellPadding * 2), 40),
+                    options.targetPhotoImageHeight
+                )
             )
             let drawSize = scaledImageSize(for: image, maxSize: maxImageSize)
             let imageX = imageCellRect.minX + (imageCellRect.width - drawSize.width) / 2
@@ -294,32 +264,6 @@ final class PdfExporter {
         ]
 
         NSAttributedString(string: text, attributes: attributes).draw(in: rect)
-    }
-
-    private static func measureRTLTextHeight(
-        _ text: String,
-        width: CGFloat,
-        font: UIFont,
-        lineSpacing: CGFloat
-    ) -> CGFloat {
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.alignment = .right
-        paragraphStyle.baseWritingDirection = .rightToLeft
-        paragraphStyle.lineBreakMode = .byWordWrapping
-        paragraphStyle.lineSpacing = lineSpacing
-
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .paragraphStyle: paragraphStyle,
-        ]
-
-        let bounding = NSString(string: text).boundingRect(
-            with: CGSize(width: width, height: .greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: attributes,
-            context: nil
-        )
-        return ceil(bounding.height)
     }
 
     // MARK: - Helpers

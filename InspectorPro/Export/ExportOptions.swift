@@ -43,6 +43,19 @@ struct ExportOptions {
         max(textColumnWidth - (tableCellPadding * 2), 120)
     }
 
+    var photoRowsPerPage: CGFloat {
+        CGFloat(max(photosPerPage, 1))
+    }
+
+    /// Target row height that guarantees the configured photos-per-page density.
+    var targetPhotoRowHeight: CGFloat {
+        max((contentHeight - tableHeaderHeight) / photoRowsPerPage, minimumPhotoRowHeight)
+    }
+
+    var targetPhotoImageHeight: CGFloat {
+        max(targetPhotoRowHeight - (tableCellPadding * 2), 80)
+    }
+
     /// Render width used during compression to keep quality while reducing file size.
     var exportImageMaxRenderWidth: CGFloat {
         min(quality.maxWidth, imageContentWidth * 2.2)
@@ -62,6 +75,10 @@ struct ExportOptions {
 
     var textColumnWidthTwips: Int {
         Int(textColumnWidth * 20.0)
+    }
+
+    var targetPhotoRowHeightTwips: Int {
+        Int(targetPhotoRowHeight * 20.0)
     }
 
     // A4 in EMUs (English Metric Units) for DOCX: 1 inch = 914400 EMUs
@@ -84,5 +101,9 @@ struct ExportOptions {
 
     var imageContentWidthEMU: Int {
         imageColumnWidthEMU - 2 * 91440 // ~0.1 inch padding from both sides
+    }
+
+    var targetPhotoImageHeightEMU: Int {
+        Int(targetPhotoImageHeight * 12700.0)
     }
 }

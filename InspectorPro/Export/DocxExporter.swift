@@ -30,40 +30,60 @@ final class DocxExporter {
         var imageRelId = 10
         var imageId = 1
         var imageRelationships: [String] = []
-        var photoRowsXML = ""
+        var photosContentXML = ""
 
-        for (index, photo) in photos.enumerated() {
-            let result = try processImage(
-                photo: photo,
-                quality: options.quality,
-                mediaDir: mediaDir,
-                relId: imageRelId,
-                maxWidthEMU: options.imageContentWidthEMU,
-                maxRenderWidth: options.exportImageMaxRenderWidth,
-                maxBytes: options.exportImageMaxBytes
-            )
+        let rowsPerPage = max(options.photosPerPage, 1)
+        for chunkStart in stride(from: 0, to: photos.count, by: rowsPerPage) {
+            let chunkEnd = min(chunkStart + rowsPerPage, photos.count)
+            var photoRowsXML = ""
 
-            imageRelationships.append(
-                """
-                <Relationship Id="rId\(imageRelId)" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/\(result.filename)"/>
-                """
-            )
+            for index in chunkStart..<chunkEnd {
+                let photo = photos[index]
+                let result = try processImage(
+                    photo: photo,
+                    quality: options.quality,
+                    mediaDir: mediaDir,
+                    relId: imageRelId,
+                    maxWidthEMU: options.imageContentWidthEMU,
+                    maxHeightEMU: options.targetPhotoImageHeightEMU,
+                    maxRenderWidth: options.exportImageMaxRenderWidth,
+                    maxBytes: options.exportImageMaxBytes
+                )
 
-            photoRowsXML += OpenXMLBuilder.buildPhotoRow(
-                photoNumber: index + 1,
-                freeText: photo.freeText,
-                imageRelId: "rId\(imageRelId)",
-                imageWidthEMU: result.widthEMU,
-                imageHeightEMU: result.heightEMU,
-                imageId: imageId,
+                imageRelationships.append(
+                    """
+                    <Relationship Id="rId\(imageRelId)" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/\(result.filename)"/>
+                    """
+                )
+
+                photoRowsXML += OpenXMLBuilder.buildPhotoRow(
+                    photoNumber: index + 1,
+                    freeText: photo.freeText,
+                    imageRelId: "rId\(imageRelId)",
+                    imageWidthEMU: result.widthEMU,
+                    imageHeightEMU: result.heightEMU,
+                    imageId: imageId,
+                    rowHeightTwips: options.targetPhotoRowHeightTwips,
+                    imageColumnWidthTwips: options.imageColumnWidthTwips,
+                    textColumnWidthTwips: options.textColumnWidthTwips
+                )
+
+                imageRelId += 1
+                imageId += 1
+                processedPhotos += 1
+                onProgress(Double(processedPhotos) / Double(max(totalPhotos, 1)))
+            }
+
+            photosContentXML += OpenXMLBuilder.buildPhotosTable(
+                rowsXML: photoRowsXML,
+                tableWidthTwips: options.contentWidthTwips,
                 imageColumnWidthTwips: options.imageColumnWidthTwips,
                 textColumnWidthTwips: options.textColumnWidthTwips
             )
 
-            imageRelId += 1
-            imageId += 1
-            processedPhotos += 1
-            onProgress(Double(processedPhotos) / Double(max(totalPhotos, 1)))
+            if chunkEnd < photos.count {
+                photosContentXML += OpenXMLBuilder.buildPageBreak()
+            }
         }
 
         let dateFormatter = DateFormatter()
@@ -72,19 +92,12 @@ final class DocxExporter {
 
         let address = normalizedText(project.address)
         let notes = normalizedText(project.notes)
-        let photosTableXML = OpenXMLBuilder.buildPhotosTable(
-            rowsXML: photoRowsXML,
-            tableWidthTwips: options.contentWidthTwips,
-            imageColumnWidthTwips: options.imageColumnWidthTwips,
-            textColumnWidthTwips: options.textColumnWidthTwips
-        )
-
         var documentXML = DocxTemplateBuilder.documentXML()
         documentXML = documentXML.replacingOccurrences(of: "{{PROJECT_TITLE}}", with: OpenXMLBuilder.escapeXML(project.name))
         documentXML = documentXML.replacingOccurrences(of: "{{ADDRESS}}", with: OpenXMLBuilder.escapeXML(address))
         documentXML = documentXML.replacingOccurrences(of: "{{DATE}}", with: OpenXMLBuilder.escapeXML(dateFormatter.string(from: project.date)))
         documentXML = documentXML.replacingOccurrences(of: "{{NOTES}}", with: OpenXMLBuilder.escapeXML(notes))
-        documentXML = documentXML.replacingOccurrences(of: "{{PHOTOS_TABLE}}", with: photosTableXML)
+        documentXML = documentXML.replacingOccurrences(of: "{{PHOTOS_TABLE}}", with: photosContentXML)
 
         try DocxTemplateBuilder.contentTypesXML().write(to: tempDir.appendingPathComponent("[Content_Types].xml"), atomically: true, encoding: .utf8)
         try DocxTemplateBuilder.rootRelsXML().write(to: relsDir.appendingPathComponent(".rels"), atomically: true, encoding: .utf8)
@@ -116,6 +129,7 @@ final class DocxExporter {
         mediaDir: URL,
         relId: Int,
         maxWidthEMU: Int,
+        maxHeightEMU: Int,
         maxRenderWidth: CGFloat,
         maxBytes: Int
     ) throws -> ImageResult {
@@ -140,9 +154,11 @@ final class DocxExporter {
         var widthEMU = Int(image.size.width * pixelToEMU)
         var heightEMU = Int(image.size.height * pixelToEMU)
 
-        if widthEMU > maxWidthEMU {
-            let scale = Double(maxWidthEMU) / Double(widthEMU)
-            widthEMU = maxWidthEMU
+        if widthEMU > maxWidthEMU || heightEMU > maxHeightEMU {
+            let widthScale = Double(maxWidthEMU) / Double(max(widthEMU, 1))
+            let heightScale = Double(maxHeightEMU) / Double(max(heightEMU, 1))
+            let scale = min(widthScale, heightScale)
+            widthEMU = Int(Double(widthEMU) * scale)
             heightEMU = Int(Double(heightEMU) * scale)
         }
 
