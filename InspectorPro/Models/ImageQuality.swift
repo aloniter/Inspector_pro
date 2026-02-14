@@ -23,6 +23,15 @@ enum ImageQuality: String, CaseIterable, Identifiable, Codable {
         }
     }
 
+    /// Hard cap per exported image to keep DOCX/PDF lightweight.
+    var targetExportBytesPerImage: Int {
+        switch self {
+        case .economical: return 170_000
+        case .balanced: return 280_000
+        case .high: return 420_000
+        }
+    }
+
     var hebrewLabel: String {
         switch self {
         case .economical: return "חסכוני"

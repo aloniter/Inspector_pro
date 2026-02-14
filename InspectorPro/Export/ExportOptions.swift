@@ -15,6 +15,9 @@ struct ExportOptions {
 
     let imageColumnRatio: CGFloat = 0.60
     let textColumnRatio: CGFloat = 0.40
+    let tableHeaderHeight: CGFloat = 40
+    let tableCellPadding: CGFloat = 10
+    let minimumPhotoRowHeight: CGFloat = 170
 
     var contentWidth: CGFloat {
         pageWidth - marginLeft - marginRight
@@ -22,6 +25,43 @@ struct ExportOptions {
 
     var contentHeight: CGFloat {
         pageHeight - marginTop - marginBottom
+    }
+
+    var imageColumnWidth: CGFloat {
+        contentWidth * imageColumnRatio
+    }
+
+    var textColumnWidth: CGFloat {
+        contentWidth * textColumnRatio
+    }
+
+    var imageContentWidth: CGFloat {
+        max(imageColumnWidth - (tableCellPadding * 2), 120)
+    }
+
+    var textContentWidth: CGFloat {
+        max(textColumnWidth - (tableCellPadding * 2), 120)
+    }
+
+    /// Render width used during compression to keep quality while reducing file size.
+    var exportImageMaxRenderWidth: CGFloat {
+        min(quality.maxWidth, imageContentWidth * 2.2)
+    }
+
+    var exportImageMaxBytes: Int {
+        quality.targetExportBytesPerImage
+    }
+
+    var contentWidthTwips: Int {
+        Int(contentWidth * 20.0)
+    }
+
+    var imageColumnWidthTwips: Int {
+        Int(imageColumnWidth * 20.0)
+    }
+
+    var textColumnWidthTwips: Int {
+        Int(textColumnWidth * 20.0)
     }
 
     // A4 in EMUs (English Metric Units) for DOCX: 1 inch = 914400 EMUs
@@ -35,10 +75,14 @@ struct ExportOptions {
     }
 
     var imageColumnWidthEMU: Int {
-        Int(Double(contentWidthEMU) * 0.60)
+        Int(Double(contentWidthEMU) * Double(imageColumnRatio))
     }
 
     var textColumnWidthEMU: Int {
-        Int(Double(contentWidthEMU) * 0.40)
+        Int(Double(contentWidthEMU) * Double(textColumnRatio))
+    }
+
+    var imageContentWidthEMU: Int {
+        imageColumnWidthEMU - 2 * 91440 // ~0.1 inch padding from both sides
     }
 }

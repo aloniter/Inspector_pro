@@ -10,46 +10,46 @@ final class PdfExporter {
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("\(project.name)_\(dateString(project.date)).pdf")
 
-        let totalPhotos = photos.count
-        var processedPhotos = 0
-
         let pageRect = CGRect(x: 0, y: 0, width: options.pageWidth, height: options.pageHeight)
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
 
+        let totalPhotos = photos.count
+        var processedPhotos = 0
+
         let data = renderer.pdfData { context in
             context.beginPage()
-            drawCoverPage(context: context, project: project, options: options)
+            drawCoverPage(project: project, options: options)
 
-            var photosOnPage = 0
+            context.beginPage()
             var currentY = options.marginTop
+            let pageBottom = options.pageHeight - options.marginBottom
+
+            currentY += drawTableHeader(options: options, y: currentY)
 
             for (index, photo) in photos.enumerated() {
-                if photosOnPage >= options.photosPerPage {
-                    context.beginPage()
-                    photosOnPage = 0
-                    currentY = options.marginTop
-                }
-
-                let image = loadCompressedImage(photo: photo, quality: options.quality)
-                let blockHeight = estimatedBlockHeight(for: image, options: options)
-
-                if currentY + blockHeight > options.pageHeight - options.marginBottom {
-                    context.beginPage()
-                    photosOnPage = 0
-                    currentY = options.marginTop
-                }
-
-                let usedHeight = drawPhotoBlock(
-                    context: context,
-                    photo: photo,
-                    image: image,
-                    index: index + 1,
-                    options: options,
-                    y: currentY
+                let image = loadCompressedImage(photo: photo, options: options)
+                let description = descriptionText(photo: photo, index: index + 1)
+                let rowHeight = estimatedRowHeight(
+                    for: image,
+                    descriptionText: description,
+                    options: options
                 )
 
-                currentY += usedHeight + 18
-                photosOnPage += 1
+                if currentY + rowHeight > pageBottom {
+                    context.beginPage()
+                    currentY = options.marginTop
+                    currentY += drawTableHeader(options: options, y: currentY)
+                }
+
+                drawPhotoRow(
+                    image: image,
+                    descriptionText: description,
+                    options: options,
+                    y: currentY,
+                    rowHeight: rowHeight
+                )
+
+                currentY += rowHeight
                 processedPhotos += 1
                 onProgress(Double(processedPhotos) / Double(max(totalPhotos, 1)))
             }
@@ -67,29 +67,28 @@ final class PdfExporter {
     // MARK: - Cover Page
 
     private static func drawCoverPage(
-        context: UIGraphicsPDFRendererContext,
         project: Project,
         options: ExportOptions
     ) {
-        var y: CGFloat = options.pageHeight * 0.30
+        var y: CGFloat = options.pageHeight * 0.28
 
         drawRTLText(
             project.name,
-            in: CGRect(x: options.marginLeft, y: y, width: options.contentWidth, height: 40),
+            in: CGRect(x: options.marginLeft, y: y, width: options.contentWidth, height: 46),
             fontSize: 28,
             bold: true,
             alignment: .center
         )
-        y += 50
+        y += 56
 
         if let address = project.address, !address.isEmpty {
             drawRTLText(
                 "כתובת: \(address)",
-                in: CGRect(x: options.marginLeft, y: y, width: options.contentWidth, height: 24),
+                in: CGRect(x: options.marginLeft, y: y, width: options.contentWidth, height: 26),
                 fontSize: 16,
                 alignment: .center
             )
-            y += 30
+            y += 32
         }
 
         let dateFormatter = DateFormatter()
@@ -97,91 +96,176 @@ final class PdfExporter {
         dateFormatter.dateStyle = .long
         drawRTLText(
             "תאריך: \(dateFormatter.string(from: project.date))",
-            in: CGRect(x: options.marginLeft, y: y, width: options.contentWidth, height: 24),
+            in: CGRect(x: options.marginLeft, y: y, width: options.contentWidth, height: 26),
             fontSize: 16,
             alignment: .center
         )
-        y += 30
+        y += 34
 
         if let notes = project.notes, !notes.isEmpty {
             drawRTLText(
                 "הערות: \(notes)",
-                in: CGRect(x: options.marginLeft, y: y, width: options.contentWidth, height: 120),
+                in: CGRect(x: options.marginLeft, y: y, width: options.contentWidth, height: 130),
                 fontSize: 13,
-                alignment: .right
+                alignment: .right,
+                color: .darkGray
             )
         }
     }
 
-    // MARK: - Photo Blocks
+    // MARK: - Table
 
-    private static func estimatedBlockHeight(for image: UIImage?, options: ExportOptions) -> CGFloat {
-        guard let image else { return 210 }
-        let maxWidth = options.contentWidth
-        let maxHeight: CGFloat = 300
-        let scale = min(maxWidth / image.size.width, maxHeight / image.size.height, 1.0)
-        let imageHeight = image.size.height * scale
-        return imageHeight + 130
-    }
-
-    private static func drawPhotoBlock(
-        context: UIGraphicsPDFRendererContext,
-        photo: PhotoRecord,
-        image: UIImage?,
-        index: Int,
+    private static func drawTableHeader(
         options: ExportOptions,
         y: CGFloat
     ) -> CGFloat {
-        var currentY = y
+        let tableRect = CGRect(
+            x: options.marginLeft,
+            y: y,
+            width: options.contentWidth,
+            height: options.tableHeaderHeight
+        )
+        let imageCellRect = CGRect(
+            x: tableRect.minX,
+            y: tableRect.minY,
+            width: options.imageColumnWidth,
+            height: tableRect.height
+        )
+        let textCellRect = CGRect(
+            x: imageCellRect.maxX,
+            y: tableRect.minY,
+            width: options.textColumnWidth,
+            height: tableRect.height
+        )
+
+        UIColor(red: 0.59, green: 0.72, blue: 0.84, alpha: 1).setFill()
+        UIBezierPath(rect: tableRect).fill()
+
+        UIColor.black.setStroke()
+        let borderPath = UIBezierPath(rect: tableRect)
+        borderPath.lineWidth = 1
+        borderPath.stroke()
+
+        let divider = UIBezierPath()
+        divider.move(to: CGPoint(x: imageCellRect.maxX, y: tableRect.minY))
+        divider.addLine(to: CGPoint(x: imageCellRect.maxX, y: tableRect.maxY))
+        divider.lineWidth = 1
+        divider.stroke()
 
         drawRTLText(
-            "תמונה \(index)",
-            in: CGRect(x: options.marginLeft, y: currentY, width: options.contentWidth, height: 22),
-            fontSize: 13,
+            "תמונה",
+            in: imageCellRect.insetBy(dx: options.tableCellPadding, dy: 6),
+            fontSize: 20,
             bold: true,
-            alignment: .right
+            alignment: .center
         )
-        currentY += 24
+        drawRTLText(
+            "תיאור",
+            in: textCellRect.insetBy(dx: options.tableCellPadding, dy: 6),
+            fontSize: 20,
+            bold: true,
+            alignment: .center
+        )
+
+        return tableRect.height
+    }
+
+    private static func estimatedRowHeight(
+        for image: UIImage?,
+        descriptionText: String,
+        options: ExportOptions
+    ) -> CGFloat {
+        let textFont = UIFont.systemFont(ofSize: 12)
+        let textHeight = measureRTLTextHeight(
+            descriptionText,
+            width: options.textContentWidth,
+            font: textFont,
+            lineSpacing: 2
+        )
+
+        let textCellHeight = textHeight + (options.tableCellPadding * 2)
+        let imageCellHeight: CGFloat
+        if let image {
+            let maxImageSize = CGSize(
+                width: options.imageContentWidth,
+                height: options.pageHeight * 0.45
+            )
+            imageCellHeight = scaledImageSize(for: image, maxSize: maxImageSize).height
+                + (options.tableCellPadding * 2)
+        } else {
+            imageCellHeight = 90
+        }
+
+        return max(options.minimumPhotoRowHeight, textCellHeight, imageCellHeight)
+    }
+
+    private static func drawPhotoRow(
+        image: UIImage?,
+        descriptionText: String,
+        options: ExportOptions,
+        y: CGFloat,
+        rowHeight: CGFloat
+    ) {
+        let rowRect = CGRect(
+            x: options.marginLeft,
+            y: y,
+            width: options.contentWidth,
+            height: rowHeight
+        )
+        let imageCellRect = CGRect(
+            x: rowRect.minX,
+            y: rowRect.minY,
+            width: options.imageColumnWidth,
+            height: rowRect.height
+        )
+        let textCellRect = CGRect(
+            x: imageCellRect.maxX,
+            y: rowRect.minY,
+            width: options.textColumnWidth,
+            height: rowRect.height
+        )
+
+        UIColor(white: 0.94, alpha: 1).setFill()
+        UIBezierPath(rect: textCellRect).fill()
+
+        UIColor.black.setStroke()
+        let borderPath = UIBezierPath(rect: rowRect)
+        borderPath.lineWidth = 1
+        borderPath.stroke()
+
+        let divider = UIBezierPath()
+        divider.move(to: CGPoint(x: imageCellRect.maxX, y: rowRect.minY))
+        divider.addLine(to: CGPoint(x: imageCellRect.maxX, y: rowRect.maxY))
+        divider.lineWidth = 1
+        divider.stroke()
 
         if let image {
-            let maxWidth = options.contentWidth
-            let maxHeight: CGFloat = 300
-            let scale = min(maxWidth / image.size.width, maxHeight / image.size.height, 1.0)
-            let drawWidth = image.size.width * scale
-            let drawHeight = image.size.height * scale
-            let imageX = options.marginLeft + (options.contentWidth - drawWidth) / 2
-            let imageRect = CGRect(x: imageX, y: currentY, width: drawWidth, height: drawHeight)
-            image.draw(in: imageRect)
-            currentY += drawHeight + 10
+            let maxImageSize = CGSize(
+                width: options.imageContentWidth,
+                height: max(rowHeight - (options.tableCellPadding * 2), 40)
+            )
+            let drawSize = scaledImageSize(for: image, maxSize: maxImageSize)
+            let imageX = imageCellRect.minX + (imageCellRect.width - drawSize.width) / 2
+            let imageY = imageCellRect.minY + (imageCellRect.height - drawSize.height) / 2
+            image.draw(in: CGRect(x: imageX, y: imageY, width: drawSize.width, height: drawSize.height))
         } else {
             drawRTLText(
                 "לא ניתן לטעון תמונה",
-                in: CGRect(x: options.marginLeft, y: currentY, width: options.contentWidth, height: 26),
+                in: imageCellRect.insetBy(dx: options.tableCellPadding, dy: options.tableCellPadding),
                 fontSize: 12,
                 alignment: .center,
                 color: .systemRed
             )
-            currentY += 34
         }
 
-        let text = normalizedText(photo.freeText)
         drawRTLText(
-            text,
-            in: CGRect(x: options.marginLeft, y: currentY, width: options.contentWidth, height: 90),
+            descriptionText,
+            in: textCellRect.insetBy(dx: options.tableCellPadding, dy: options.tableCellPadding),
             fontSize: 12,
             alignment: .right,
-            color: .darkGray
+            color: .black,
+            lineSpacing: 2
         )
-        currentY += 92
-
-        UIColor.systemGray4.setStroke()
-        let separator = UIBezierPath()
-        separator.move(to: CGPoint(x: options.marginLeft, y: currentY))
-        separator.addLine(to: CGPoint(x: options.marginLeft + options.contentWidth, y: currentY))
-        separator.lineWidth = 0.8
-        separator.stroke()
-
-        return currentY - y
     }
 
     // MARK: - Text Helpers
@@ -192,7 +276,8 @@ final class PdfExporter {
         fontSize: CGFloat,
         bold: Bool = false,
         alignment: NSTextAlignment = .right,
-        color: UIColor = .black
+        color: UIColor = .black,
+        lineSpacing: CGFloat = 0
     ) {
         let font = bold ? UIFont.boldSystemFont(ofSize: fontSize) : UIFont.systemFont(ofSize: fontSize)
 
@@ -200,6 +285,7 @@ final class PdfExporter {
         paragraphStyle.alignment = alignment
         paragraphStyle.baseWritingDirection = .rightToLeft
         paragraphStyle.lineBreakMode = .byWordWrapping
+        paragraphStyle.lineSpacing = lineSpacing
 
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
@@ -210,19 +296,82 @@ final class PdfExporter {
         NSAttributedString(string: text, attributes: attributes).draw(in: rect)
     }
 
+    private static func measureRTLTextHeight(
+        _ text: String,
+        width: CGFloat,
+        font: UIFont,
+        lineSpacing: CGFloat
+    ) -> CGFloat {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .right
+        paragraphStyle.baseWritingDirection = .rightToLeft
+        paragraphStyle.lineBreakMode = .byWordWrapping
+        paragraphStyle.lineSpacing = lineSpacing
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .paragraphStyle: paragraphStyle,
+        ]
+
+        let bounding = NSString(string: text).boundingRect(
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: attributes,
+            context: nil
+        )
+        return ceil(bounding.height)
+    }
+
     // MARK: - Helpers
+
+    private static func descriptionText(photo: PhotoRecord, index: Int) -> String {
+        let normalized = normalizedText(photo.freeText)
+        let lines = normalized
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        let bulletLines = (lines.isEmpty ? [normalized] : lines)
+            .map { line in
+                line.hasPrefix("•") ? line : "• \(line)"
+            }
+            .joined(separator: "\n")
+
+        return "\(index). תיאור:\n\(bulletLines)"
+    }
+
+    private static func scaledImageSize(for image: UIImage, maxSize: CGSize) -> CGSize {
+        let widthScale = maxSize.width / image.size.width
+        let heightScale = maxSize.height / image.size.height
+        let scale = min(widthScale, heightScale, 1.0)
+
+        return CGSize(
+            width: image.size.width * scale,
+            height: image.size.height * scale
+        )
+    }
 
     private static func normalizedText(_ text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "ללא הערה" : trimmed
     }
 
-    private static func loadCompressedImage(photo: PhotoRecord, quality: ImageQuality) -> UIImage? {
+    private static func loadCompressedImage(photo: PhotoRecord, options: ExportOptions) -> UIImage? {
         let imagePath = photo.displayImagePath
         let fullURL = AppConstants.imagesBaseURL.appendingPathComponent(imagePath)
-        guard let data = try? Data(contentsOf: fullURL),
-              let image = UIImage(data: data) else { return nil }
-        return image.resized(maxWidth: quality.maxWidth)
+
+        guard let imageData = try? Data(contentsOf: fullURL),
+              let compressed = ImageCompressor.compressData(
+                  imageData,
+                  quality: options.quality,
+                  maxWidthOverride: options.exportImageMaxRenderWidth,
+                  maxBytes: options.exportImageMaxBytes
+              ),
+              let image = UIImage(data: compressed) else {
+            return nil
+        }
+
+        return image
     }
 
     private static func dateString(_ date: Date) -> String {

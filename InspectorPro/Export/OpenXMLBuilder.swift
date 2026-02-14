@@ -2,40 +2,75 @@ import Foundation
 
 /// Generates OpenXML fragments for DOCX document content.
 final class OpenXMLBuilder {
-    static func buildPhotoBlock(
+    static func buildPhotosTable(
+        rowsXML: String,
+        tableWidthTwips: Int,
+        imageColumnWidthTwips: Int,
+        textColumnWidthTwips: Int
+    ) -> String {
+        """
+        <w:tbl>
+          <w:tblPr>
+            <w:tblW w:w="\(tableWidthTwips)" w:type="dxa"/>
+            <w:tblLayout w:type="fixed"/>
+            <w:tblBorders>
+              <w:top w:val="single" w:sz="8" w:space="0" w:color="000000"/>
+              <w:left w:val="single" w:sz="8" w:space="0" w:color="000000"/>
+              <w:bottom w:val="single" w:sz="8" w:space="0" w:color="000000"/>
+              <w:right w:val="single" w:sz="8" w:space="0" w:color="000000"/>
+              <w:insideH w:val="single" w:sz="8" w:space="0" w:color="000000"/>
+              <w:insideV w:val="single" w:sz="8" w:space="0" w:color="000000"/>
+            </w:tblBorders>
+            <w:tblCellMar>
+              <w:top w:w="100" w:type="dxa"/>
+              <w:left w:w="100" w:type="dxa"/>
+              <w:bottom w:w="100" w:type="dxa"/>
+              <w:right w:w="100" w:type="dxa"/>
+            </w:tblCellMar>
+          </w:tblPr>
+          <w:tblGrid>
+            <w:gridCol w:w="\(imageColumnWidthTwips)"/>
+            <w:gridCol w:w="\(textColumnWidthTwips)"/>
+          </w:tblGrid>
+          \(buildHeaderRow(imageColumnWidthTwips: imageColumnWidthTwips, textColumnWidthTwips: textColumnWidthTwips))
+          \(rowsXML)
+        </w:tbl>
+        """
+    }
+
+    static func buildPhotoRow(
         photoNumber: Int,
         freeText: String,
         imageRelId: String,
         imageWidthEMU: Int,
         imageHeightEMU: Int,
-        imageId: Int
+        imageId: Int,
+        imageColumnWidthTwips: Int,
+        textColumnWidthTwips: Int
     ) -> String {
-        return """
-        \(rtlParagraph(text: "תמונה \(photoNumber)", bold: true, fontSize: 24))
-        <w:p>
-          <w:pPr><w:jc w:val="center"/></w:pPr>
-          <w:r>
-            \(buildInlineImage(relId: imageRelId, widthEMU: imageWidthEMU, heightEMU: imageHeightEMU, imageId: imageId))
-          </w:r>
-        </w:p>
-        \(rtlParagraph(text: normalizedText(freeText), fontSize: 20, color: "444444"))
-        \(buildSpacing(points: 220))
         """
-    }
-
-    static func buildPageBreak() -> String {
-        """
-        <w:p><w:r><w:br w:type="page"/></w:r></w:p>
-        """
-    }
-
-    static func buildSpacing(points: Int = 200) -> String {
-        """
-        <w:p>
-          <w:pPr>
-            <w:spacing w:after="\(points)"/>
-          </w:pPr>
-        </w:p>
+        <w:tr>
+          <w:tc>
+            <w:tcPr>
+              <w:tcW w:w="\(imageColumnWidthTwips)" w:type="dxa"/>
+              <w:vAlign w:val="center"/>
+            </w:tcPr>
+            <w:p>
+              <w:pPr><w:jc w:val="center"/></w:pPr>
+              <w:r>
+                \(buildInlineImage(relId: imageRelId, widthEMU: imageWidthEMU, heightEMU: imageHeightEMU, imageId: imageId))
+              </w:r>
+            </w:p>
+          </w:tc>
+          <w:tc>
+            <w:tcPr>
+              <w:tcW w:w="\(textColumnWidthTwips)" w:type="dxa"/>
+              <w:vAlign w:val="top"/>
+              <w:shd w:val="clear" w:color="auto" w:fill="F2F2F2"/>
+            </w:tcPr>
+            \(buildDescriptionCell(photoNumber: photoNumber, freeText: freeText))
+          </w:tc>
+        </w:tr>
         """
     }
 
@@ -44,16 +79,19 @@ final class OpenXMLBuilder {
         bold: Bool = false,
         fontSize: Int = 20,
         alignment: String = "right",
-        color: String? = nil
+        color: String? = nil,
+        spacingAfter: Int? = nil
     ) -> String {
         let boldTag = bold ? "<w:b/><w:bCs/>" : ""
         let colorTag = color != nil ? "<w:color w:val=\"\(color!)\"/>" : ""
+        let spacingTag = spacingAfter != nil ? "<w:spacing w:after=\"\(spacingAfter!)\"/>" : ""
 
         return """
         <w:p>
           <w:pPr>
             <w:bidi/>
             <w:jc w:val="\(alignment)"/>
+            \(spacingTag)
           </w:pPr>
           <w:r>
             <w:rPr>
@@ -78,13 +116,68 @@ final class OpenXMLBuilder {
             .replacingOccurrences(of: "'", with: "&apos;")
     }
 
+    private static func buildHeaderRow(
+        imageColumnWidthTwips: Int,
+        textColumnWidthTwips: Int
+    ) -> String {
+        """
+        <w:tr>
+          <w:trPr><w:tblHeader/></w:trPr>
+          <w:tc>
+            <w:tcPr>
+              <w:tcW w:w="\(imageColumnWidthTwips)" w:type="dxa"/>
+              <w:shd w:val="clear" w:color="auto" w:fill="95B3D7"/>
+            </w:tcPr>
+            \(rtlParagraph(text: "תמונה", bold: true, fontSize: 32, alignment: "center", spacingAfter: 0))
+          </w:tc>
+          <w:tc>
+            <w:tcPr>
+              <w:tcW w:w="\(textColumnWidthTwips)" w:type="dxa"/>
+              <w:shd w:val="clear" w:color="auto" w:fill="95B3D7"/>
+            </w:tcPr>
+            \(rtlParagraph(text: "תיאור", bold: true, fontSize: 32, alignment: "center", spacingAfter: 0))
+          </w:tc>
+        </w:tr>
+        """
+    }
+
+    private static func buildDescriptionCell(photoNumber: Int, freeText: String) -> String {
+        let normalized = normalizedText(freeText)
+        let lines = normalized
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let bulletLines = (lines.isEmpty ? [normalized] : lines).map {
+            $0.hasPrefix("•") ? $0 : "• \($0)"
+        }
+
+        var xml = rtlParagraph(
+            text: "\(photoNumber). תיאור:",
+            bold: true,
+            fontSize: 24,
+            alignment: "right",
+            spacingAfter: 80
+        )
+        for line in bulletLines {
+            xml += rtlParagraph(
+                text: line,
+                bold: false,
+                fontSize: 22,
+                alignment: "right",
+                color: "222222",
+                spacingAfter: 60
+            )
+        }
+        return xml
+    }
+
     private static func buildInlineImage(
         relId: String,
         widthEMU: Int,
         heightEMU: Int,
         imageId: Int
     ) -> String {
-        return """
+        """
         <w:drawing>
           <wp:inline distT="0" distB="0" distL="0" distR="0">
             <wp:extent cx="\(widthEMU)" cy="\(heightEMU)"/>

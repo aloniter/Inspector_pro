@@ -30,15 +30,17 @@ final class DocxExporter {
         var imageRelId = 10
         var imageId = 1
         var imageRelationships: [String] = []
-        var photosXML = ""
+        var photoRowsXML = ""
 
         for (index, photo) in photos.enumerated() {
-            let result = try await processImage(
+            let result = try processImage(
                 photo: photo,
                 quality: options.quality,
                 mediaDir: mediaDir,
                 relId: imageRelId,
-                maxWidthEMU: options.contentWidthEMU
+                maxWidthEMU: options.imageContentWidthEMU,
+                maxRenderWidth: options.exportImageMaxRenderWidth,
+                maxBytes: options.exportImageMaxBytes
             )
 
             imageRelationships.append(
@@ -47,18 +49,16 @@ final class DocxExporter {
                 """
             )
 
-            photosXML += OpenXMLBuilder.buildPhotoBlock(
+            photoRowsXML += OpenXMLBuilder.buildPhotoRow(
                 photoNumber: index + 1,
                 freeText: photo.freeText,
                 imageRelId: "rId\(imageRelId)",
                 imageWidthEMU: result.widthEMU,
                 imageHeightEMU: result.heightEMU,
-                imageId: imageId
+                imageId: imageId,
+                imageColumnWidthTwips: options.imageColumnWidthTwips,
+                textColumnWidthTwips: options.textColumnWidthTwips
             )
-
-            if (index + 1) % options.photosPerPage == 0 && index < photos.count - 1 {
-                photosXML += OpenXMLBuilder.buildPageBreak()
-            }
 
             imageRelId += 1
             imageId += 1
@@ -72,13 +72,19 @@ final class DocxExporter {
 
         let address = normalizedText(project.address)
         let notes = normalizedText(project.notes)
+        let photosTableXML = OpenXMLBuilder.buildPhotosTable(
+            rowsXML: photoRowsXML,
+            tableWidthTwips: options.contentWidthTwips,
+            imageColumnWidthTwips: options.imageColumnWidthTwips,
+            textColumnWidthTwips: options.textColumnWidthTwips
+        )
 
         var documentXML = DocxTemplateBuilder.documentXML()
         documentXML = documentXML.replacingOccurrences(of: "{{PROJECT_TITLE}}", with: OpenXMLBuilder.escapeXML(project.name))
         documentXML = documentXML.replacingOccurrences(of: "{{ADDRESS}}", with: OpenXMLBuilder.escapeXML(address))
         documentXML = documentXML.replacingOccurrences(of: "{{DATE}}", with: OpenXMLBuilder.escapeXML(dateFormatter.string(from: project.date)))
         documentXML = documentXML.replacingOccurrences(of: "{{NOTES}}", with: OpenXMLBuilder.escapeXML(notes))
-        documentXML = documentXML.replacingOccurrences(of: "{{PHOTOS_BLOCK}}", with: photosXML)
+        documentXML = documentXML.replacingOccurrences(of: "{{PHOTOS_TABLE}}", with: photosTableXML)
 
         try DocxTemplateBuilder.contentTypesXML().write(to: tempDir.appendingPathComponent("[Content_Types].xml"), atomically: true, encoding: .utf8)
         try DocxTemplateBuilder.rootRelsXML().write(to: relsDir.appendingPathComponent(".rels"), atomically: true, encoding: .utf8)
@@ -109,12 +115,20 @@ final class DocxExporter {
         quality: ImageQuality,
         mediaDir: URL,
         relId: Int,
-        maxWidthEMU: Int
-    ) async throws -> ImageResult {
-        guard let imageData = await ExportCache.shared.compressedImageData(
-            for: photo,
-            quality: quality
-        ) else {
+        maxWidthEMU: Int,
+        maxRenderWidth: CGFloat,
+        maxBytes: Int
+    ) throws -> ImageResult {
+        let imagePath = photo.displayImagePath
+        let fullURL = AppConstants.imagesBaseURL.appendingPathComponent(imagePath)
+
+        guard let sourceData = try? Data(contentsOf: fullURL),
+              let imageData = ImageCompressor.compressData(
+                  sourceData,
+                  quality: quality,
+                  maxWidthOverride: maxRenderWidth,
+                  maxBytes: maxBytes
+              ) else {
             throw ExportError.imageLoadFailed(photo.displayImagePath)
         }
 
