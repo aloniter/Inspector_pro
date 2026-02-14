@@ -83,43 +83,54 @@ struct ProjectListView: View {
 }
 
 struct ProjectRowView: View {
-    @Environment(\.layoutDirection) private var layoutDirection
     let project: Project
 
-    private var rowHorizontalAlignment: HorizontalAlignment {
-        AppTextDirection.horizontalAlignment(for: layoutDirection)
-    }
-
-    private var rowTextAlignment: TextAlignment {
-        AppTextDirection.textAlignment(for: layoutDirection)
-    }
-
     var body: some View {
-        VStack(alignment: rowHorizontalAlignment, spacing: 4) {
-            Text(project.name)
-                .font(.headline)
-                .multilineTextAlignment(rowTextAlignment)
+        HStack(alignment: .top, spacing: 12) {
+            Text(AppStrings.format("%d תמונות", project.photos.count))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            HStack {
-                Text(AppStrings.format("%d תמונות", project.photos.count))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Spacer()
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(project.name.directionallyIsolated)
+                    .font(.headline)
+                    .multilineTextAlignment(.trailing)
 
                 Text(project.date, style: .date)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
 
-            if let address = project.address, !address.isEmpty {
-                Text(address)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(rowTextAlignment)
+                if let address = project.address, !address.isEmpty {
+                    Text(address.directionallyIsolated)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(.vertical, 2)
+        // Keep visual positions stable: photos count on the left, project name on the right.
+        .environment(\.layoutDirection, .leftToRight)
+    }
+}
+
+private extension String {
+    var directionallyIsolated: String {
+        guard !isEmpty else { return self }
+        if containsHebrewCharacters {
+            return "\u{2067}\(self)\u{2069}"
+        }
+        return "\u{2066}\(self)\u{2069}"
+    }
+
+    private var containsHebrewCharacters: Bool {
+        unicodeScalars.contains { scalar in
+            (0x0590...0x05FF).contains(scalar.value)
+        }
     }
 }
 
