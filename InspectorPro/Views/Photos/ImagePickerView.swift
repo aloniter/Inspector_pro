@@ -1,29 +1,19 @@
 import SwiftUI
+import PhotosUI
 
 enum PickerSource: Identifiable {
     case photoLibrary
     case camera
 
-    var id: Int { hashValue }
-
-    var uiSourceType: UIImagePickerController.SourceType {
-        switch self {
-        case .photoLibrary:
-            return .photoLibrary
-        case .camera:
-            return .camera
-        }
-    }
+    var id: Self { self }
 }
 
-struct ImagePickerView: UIViewControllerRepresentable {
-    let sourceType: UIImagePickerController.SourceType
-    let onPick: (UIImage) -> Void
-    @Environment(\.dismiss) private var dismiss
+struct CameraImagePickerView: UIViewControllerRepresentable {
+    let onFinish: (UIImage?) -> Void
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
-        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(sourceType) ? sourceType : .photoLibrary
+        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(.camera) ? .camera : .photoLibrary
         picker.mediaTypes = ["public.image"]
         picker.allowsEditing = false
         picker.delegate = context.coordinator
@@ -37,9 +27,9 @@ struct ImagePickerView: UIViewControllerRepresentable {
     }
 
     class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let parent: ImagePickerView
+        let parent: CameraImagePickerView
 
-        init(_ parent: ImagePickerView) {
+        init(_ parent: CameraImagePickerView) {
             self.parent = parent
         }
 
@@ -47,14 +37,45 @@ struct ImagePickerView: UIViewControllerRepresentable {
             _ picker: UIImagePickerController,
             didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
         ) {
-            if let image = info[.originalImage] as? UIImage {
-                parent.onPick(image)
-            }
-            parent.dismiss()
+            parent.onFinish(info[.originalImage] as? UIImage)
         }
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            parent.dismiss()
+            parent.onFinish(nil)
+        }
+    }
+}
+
+struct PhotoLibraryPickerView: UIViewControllerRepresentable {
+    let selectionLimit: Int
+    let onFinish: ([PHPickerResult]) -> Void
+
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var config = PHPickerConfiguration(photoLibrary: .shared())
+        config.selectionLimit = selectionLimit
+        config.filter = .images
+        config.preferredAssetRepresentationMode = .current
+
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    final class Coordinator: NSObject, PHPickerViewControllerDelegate {
+        let parent: PhotoLibraryPickerView
+
+        init(_ parent: PhotoLibraryPickerView) {
+            self.parent = parent
+        }
+
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            parent.onFinish(results)
         }
     }
 }

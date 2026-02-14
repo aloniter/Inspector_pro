@@ -7,6 +7,8 @@ enum AppConstants {
     static let thumbnailMaxSize: CGFloat = 200
     static let thumbnailJPEGQuality: CGFloat = 0.6
     static let importMaxWidth: CGFloat = 2000
+    static let gallerySelectionLimit = 100
+    static let importSaveCheckpoint = 20
 
     static var documentsURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
