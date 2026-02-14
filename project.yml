@@ -1,0 +1,55 @@
+name: InspectorPro
+options:
+  bundleIdPrefix: com.inspectorpro
+  deploymentTarget:
+    iOS: "18.0"
+  groupSortPosition: top
+  createIntermediateGroups: true
+  defaultConfig: Debug
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    INFOPLIST_KEY_UIUserInterfaceStyle: Light
+
+packages:
+  ZIPFoundation:
+    url: https://github.com/weichsel/ZIPFoundation.git
+    from: "0.9.19"
+
+targets:
+  InspectorPro:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: InspectorPro
+        excludes:
+          - "**/.DS_Store"
+    resources:
+      - path: InspectorPro/Resources
+    dependencies:
+      - package: ZIPFoundation
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.inspectorpro.app
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_NSCameraUsageDescription: "המצלמה נדרשת לצילום ממצאי ביקורת"
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "גישה לגלריה נדרשת לייבוא תמונות ביקורת"
+        INFOPLIST_KEY_CFBundleDisplayName: "Inspector Pro"
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+
+  InspectorProTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: InspectorProTests
+    dependencies:
+      - target: InspectorPro
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
