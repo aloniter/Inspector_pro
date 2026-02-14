@@ -32,6 +32,70 @@ enum ImageQuality: String, CaseIterable, Identifiable, Codable {
         }
     }
 
+    /// Minimum bytes per image used by adaptive export budgeting.
+    var minimumExportBytesPerImage: Int {
+        switch self {
+        case .economical: return 55_000
+        case .balanced: return 90_000
+        case .high: return 130_000
+        }
+    }
+
+    /// Target total export payload budget (images + container overhead).
+    var targetTotalExportBytes: Int {
+        switch self {
+        case .economical: return 9_000_000
+        case .balanced: return 18_000_000
+        case .high: return 30_000_000
+        }
+    }
+
+    /// Reserved bytes for PDF/DOCX structure and metadata.
+    var targetContainerOverheadBytes: Int {
+        switch self {
+        case .economical: return 500_000
+        case .balanced: return 800_000
+        case .high: return 1_200_000
+        }
+    }
+
+    /// Limits how aggressively render width can be reduced for large photo sets.
+    var minimumAdaptiveRenderWidth: CGFloat {
+        switch self {
+        case .economical: return 500
+        case .balanced: return 540
+        case .high: return 580
+        }
+    }
+
+    /// Scale applied to export render width for large projects.
+    func adaptiveRenderWidthScale(photoCount: Int) -> CGFloat {
+        let count = max(photoCount, 1)
+        switch self {
+        case .economical:
+            switch count {
+            case 121...: return 0.85
+            case 81...120: return 0.90
+            case 41...80: return 0.95
+            default: return 1.0
+            }
+        case .balanced:
+            switch count {
+            case 141...: return 0.88
+            case 91...140: return 0.93
+            case 51...90: return 0.97
+            default: return 1.0
+            }
+        case .high:
+            switch count {
+            case 161...: return 0.90
+            case 111...160: return 0.95
+            case 71...110: return 0.98
+            default: return 1.0
+            }
+        }
+    }
+
     var hebrewLabel: String {
         switch self {
         case .economical: return "חסכוני"

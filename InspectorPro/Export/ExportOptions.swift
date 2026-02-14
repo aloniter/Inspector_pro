@@ -3,6 +3,7 @@ import Foundation
 struct ExportOptions {
     let format: ExportFormat
     let quality: ImageQuality
+    let photoCount: Int
     let photosPerPage: Int = 2
 
     // A4 page dimensions in points (72 DPI)
@@ -58,11 +59,26 @@ struct ExportOptions {
 
     /// Render width used during compression to keep quality while reducing file size.
     var exportImageMaxRenderWidth: CGFloat {
-        min(quality.maxWidth, imageContentWidth * 2.2)
+        let baseWidth = min(quality.maxWidth, imageContentWidth * 2.2)
+        let adaptiveWidth = baseWidth * quality.adaptiveRenderWidthScale(photoCount: safePhotoCount)
+        let floorWidth = min(quality.minimumAdaptiveRenderWidth, baseWidth)
+        return max(min(baseWidth, adaptiveWidth), floorWidth)
     }
 
     var exportImageMaxBytes: Int {
-        quality.targetExportBytesPerImage
+        let budgetForImages = max(
+            quality.targetTotalExportBytes - quality.targetContainerOverheadBytes,
+            quality.minimumExportBytesPerImage
+        )
+        let adaptiveBytes = budgetForImages / safePhotoCount
+        return min(
+            quality.targetExportBytesPerImage,
+            max(quality.minimumExportBytesPerImage, adaptiveBytes)
+        )
+    }
+
+    private var safePhotoCount: Int {
+        max(photoCount, 1)
     }
 
     var contentWidthTwips: Int {
@@ -105,5 +121,11 @@ struct ExportOptions {
 
     var targetPhotoImageHeightEMU: Int {
         Int(targetPhotoImageHeight * 12700.0)
+    }
+
+    init(format: ExportFormat, quality: ImageQuality, photoCount: Int = 1) {
+        self.format = format
+        self.quality = quality
+        self.photoCount = max(photoCount, 1)
     }
 }

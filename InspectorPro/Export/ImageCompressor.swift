@@ -62,21 +62,27 @@ final class ImageCompressor {
             return image.jpegDataStripped(quality: initialQuality)
         }
 
-        let minQuality: CGFloat = 0.18
+        let hardMinQuality: CGFloat = 0.12
+        let softQualityFloor: CGFloat = max(initialQuality * 0.65, 0.24)
         let minWidth: CGFloat = 320
-        let resizeStep: CGFloat = 0.88
+        let resizeStep: CGFloat = 0.90
+        let qualityStep: CGFloat = 0.06
 
         var quality = initialQuality
-        var data = image.jpegDataStripped(quality: quality)
-
-        while let encoded = data,
-              encoded.count > maxBytes,
-              quality > minQuality {
-            quality = max(quality - 0.08, minQuality)
-            data = image.jpegDataStripped(quality: quality)
+        guard var encoded = image.jpegDataStripped(quality: quality) else { return nil }
+        if encoded.count <= maxBytes {
+            return encoded
         }
 
-        guard var encoded = data else { return nil }
+        // Keep quality reasonably high first, then prefer downscaling for better visual sharpness.
+        while encoded.count > maxBytes, quality > softQualityFloor {
+            quality = max(quality - qualityStep, softQualityFloor)
+            guard let tighter = image.jpegDataStripped(quality: quality) else {
+                break
+            }
+            encoded = tighter
+        }
+
         if encoded.count <= maxBytes {
             return encoded
         }
@@ -95,8 +101,8 @@ final class ImageCompressor {
             encoded = resizedData
         }
 
-        while encoded.count > maxBytes, quality > 0.12 {
-            quality -= 0.08
+        while encoded.count > maxBytes, quality > hardMinQuality {
+            quality = max(quality - qualityStep, hardMinQuality)
             guard let tighter = workingImage.jpegDataStripped(quality: quality) else {
                 break
             }

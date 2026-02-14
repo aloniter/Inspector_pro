@@ -112,7 +112,8 @@ struct ExportOptionsSheet: View {
             do {
                 let options = ExportOptions(
                     format: selectedFormat,
-                    quality: selectedQuality
+                    quality: selectedQuality,
+                    photoCount: project.sortedPhotos.count
                 )
 
                 let url = try await ExportEngine.exportReport(

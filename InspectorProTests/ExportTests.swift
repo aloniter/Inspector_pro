@@ -83,3 +83,28 @@ import UIKit
     #expect(compressed != nil)
     #expect((compressed?.count ?? .max) <= maxBytes)
 }
+
+@Test func exportBudgetStaysAdaptiveForLargePhotoSets() {
+    let options = ExportOptions(
+        format: .pdf,
+        quality: .economical,
+        photoCount: 126
+    )
+
+    #expect(options.exportImageMaxBytes == 67_460)
+    #expect(options.exportImageMaxBytes < ImageQuality.economical.targetExportBytesPerImage)
+
+    let baseRenderWidth = min(ImageQuality.economical.maxWidth, options.imageContentWidth * 2.2)
+    #expect(options.exportImageMaxRenderWidth < baseRenderWidth)
+    #expect(options.exportImageMaxRenderWidth >= ImageQuality.economical.minimumAdaptiveRenderWidth)
+}
+
+@Test func exportBudgetUsesPresetForSmallProjects() {
+    let options = ExportOptions(
+        format: .docx,
+        quality: .economical,
+        photoCount: 12
+    )
+
+    #expect(options.exportImageMaxBytes == ImageQuality.economical.targetExportBytesPerImage)
+}
