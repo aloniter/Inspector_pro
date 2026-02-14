@@ -37,6 +37,11 @@ struct ProjectListView: View {
                     Image(systemName: "plus")
                 }
             }
+            #if DEBUG
+            ToolbarItem(placement: .topBarTrailing) {
+                StressTestButton()
+            }
+            #endif
         }
         .sheet(isPresented: $showingNewProject) {
             NavigationStack {

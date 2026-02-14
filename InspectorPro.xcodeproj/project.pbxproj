@@ -22,6 +22,7 @@
 		42D24B29E08E5232630DAD64 /* PhotoPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F53ADDBA16C157CD2EDF807 /* PhotoPickerView.swift */; };
 		464046CD43F9BD2495EAF129 /* AnnotationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E5FF2F5242550DAF6D39D7E /* AnnotationView.swift */; };
 		54EAE12B3C397705F3806A78 /* ProjectListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24AE4B73372472A31D2220FC /* ProjectListView.swift */; };
+		715413B879A89B7907872E66 /* StressTestButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF70599F6FB1742DFB9FE7F8 /* StressTestButton.swift */; };
 		731F80569CD0D531EFCD10F8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3335634B3BCAFE42B6C31B62 /* Assets.xcassets */; };
 		7A0F73B173C6834E4A7BF1E4 /* FileManagerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFE1F59745698863A633182E /* FileManagerService.swift */; };
 		7D5C762C870D67484FEA96E2 /* Photo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D6B4EF81FF5D81A377BDE40 /* Photo.swift */; };
@@ -79,6 +80,7 @@
 		A5827D5448F228F5AAD384F8 /* FindingRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindingRowView.swift; sourceTree = "<group>"; };
 		A8B62DD3F09EC8E24B52C6F3 /* DocxTemplateBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocxTemplateBuilder.swift; sourceTree = "<group>"; };
 		AB143F75D35501113F93AF18 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		AF70599F6FB1742DFB9FE7F8 /* StressTestButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StressTestButton.swift; sourceTree = "<group>"; };
 		B6FF2B5D81382C6A5A9E1AD5 /* PhotoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoDetailView.swift; sourceTree = "<group>"; };
 		B87474ADB50315838E2DEB48 /* Severity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Severity.swift; sourceTree = "<group>"; };
 		C18DF15CC03B7EA27A0D6773 /* ExportProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportProgressView.swift; sourceTree = "<group>"; };
@@ -114,6 +116,7 @@
 			children = (
 				AB143F75D35501113F93AF18 /* EmptyStateView.swift */,
 				C6569FF09A66BE24A190DA65 /* SeverityBadge.swift */,
+				AF70599F6FB1742DFB9FE7F8 /* StressTestButton.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -385,6 +388,7 @@
 				54EAE12B3C397705F3806A78 /* ProjectListView.swift in Sources */,
 				97C1D72F2866F4454B284E69 /* Severity.swift in Sources */,
 				E2F789B4B2BD2278CAE0EF43 /* SeverityBadge.swift in Sources */,
+				715413B879A89B7907872E66 /* StressTestButton.swift in Sources */,
 				B6EE190BFDC33B49DC62115B /* ThumbnailService.swift in Sources */,
 				AB094D41D2F7C2815BE1C34B /* ThumbnailView.swift in Sources */,
 				99A13662E9DB934D9F692528 /* UIImage+Extensions.swift in Sources */,
