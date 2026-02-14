@@ -13,6 +13,9 @@ struct ExportOptions {
     let marginBottom: CGFloat = 40
     let marginLeft: CGFloat = 40
     let marginRight: CGFloat = 40
+    let docxVerticalMargin: CGFloat = 72
+    let docxHeaderFooterDistance: CGFloat = 36
+    let docxTableLayoutSafetyPadding: CGFloat = 12
 
     let imageColumnRatio: CGFloat = 0.60
     let textColumnRatio: CGFloat = 0.40
@@ -25,7 +28,15 @@ struct ExportOptions {
     }
 
     var contentHeight: CGFloat {
-        pageHeight - marginTop - marginBottom
+        pageHeight - effectiveTopMargin - effectiveBottomMargin
+    }
+
+    var effectiveTopMargin: CGFloat {
+        format == .docx ? docxVerticalMargin : marginTop
+    }
+
+    var effectiveBottomMargin: CGFloat {
+        format == .docx ? docxVerticalMargin : marginBottom
     }
 
     var imageColumnWidth: CGFloat {
@@ -50,7 +61,8 @@ struct ExportOptions {
 
     /// Target row height that guarantees the configured photos-per-page density.
     var targetPhotoRowHeight: CGFloat {
-        max((contentHeight - tableHeaderHeight) / photoRowsPerPage, minimumPhotoRowHeight)
+        let availableHeight = max(contentHeight - tableHeaderHeight - tableLayoutSafetyPadding, 0)
+        return max(availableHeight / photoRowsPerPage, minimumPhotoRowHeight)
     }
 
     var targetPhotoImageHeight: CGFloat {
@@ -95,6 +107,38 @@ struct ExportOptions {
 
     var targetPhotoRowHeightTwips: Int {
         Int(targetPhotoRowHeight * 20.0)
+    }
+
+    var tableLayoutSafetyPadding: CGFloat {
+        format == .docx ? docxTableLayoutSafetyPadding : 0
+    }
+
+    var docxTableLayoutSafetyPaddingTwips: Int {
+        Int(docxTableLayoutSafetyPadding * 20.0)
+    }
+
+    var docxTopMarginTwips: Int {
+        Int(docxVerticalMargin * 20.0)
+    }
+
+    var docxBottomMarginTwips: Int {
+        Int(docxVerticalMargin * 20.0)
+    }
+
+    var docxLeftMarginTwips: Int {
+        Int(marginLeft * 20.0)
+    }
+
+    var docxRightMarginTwips: Int {
+        Int(marginRight * 20.0)
+    }
+
+    var docxHeaderDistanceTwips: Int {
+        Int(docxHeaderFooterDistance * 20.0)
+    }
+
+    var docxFooterDistanceTwips: Int {
+        Int(docxHeaderFooterDistance * 20.0)
     }
 
     // A4 in EMUs (English Metric Units) for DOCX: 1 inch = 914400 EMUs

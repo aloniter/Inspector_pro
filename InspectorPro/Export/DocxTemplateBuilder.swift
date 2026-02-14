@@ -36,6 +36,10 @@ final class DocxTemplateBuilder {
     // MARK: - Document XML with Placeholders
 
     static func documentXML() -> String {
+        documentXML(options: ExportOptions(format: .docx, quality: .balanced))
+    }
+
+    static func documentXML(options: ExportOptions) -> String {
         let isHebrew = AppLanguage.current == .hebrew
         let addressLabel = AppStrings.text("כתובת")
         let dateLabel = AppStrings.text("תאריך")
@@ -83,7 +87,7 @@ final class DocxTemplateBuilder {
             {{PHOTOS_TABLE}}
             <w:sectPr>
               <w:pgSz w:w="11906" w:h="16838"/>
-              <w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="708" w:footer="708" w:gutter="0"/>
+              <w:pgMar w:top="\(options.docxTopMarginTwips)" w:right="\(options.docxRightMarginTwips)" w:bottom="\(options.docxBottomMarginTwips)" w:left="\(options.docxLeftMarginTwips)" w:header="\(options.docxHeaderDistanceTwips)" w:footer="\(options.docxFooterDistanceTwips)" w:gutter="0"/>
             </w:sectPr>
           </w:body>
         </w:document>

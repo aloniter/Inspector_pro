@@ -78,6 +78,48 @@ import UIKit
     #expect(xml.contains("{{PHOTOS_TABLE}}"))
 }
 
+@Test func docxTemplateReservesHeaderAndFooterSpace() {
+    let options = ExportOptions(
+        format: .docx,
+        quality: .balanced,
+        photoCount: 8
+    )
+    let xml = DocxTemplateBuilder.documentXML()
+
+    #expect(xml.contains("w:top=\"1440\""))
+    #expect(xml.contains("w:bottom=\"1440\""))
+    #expect(xml.contains("w:header=\"720\""))
+    #expect(xml.contains("w:footer=\"720\""))
+    #expect(options.docxTopMarginTwips == 1440)
+    #expect(options.docxBottomMarginTwips == 1440)
+    #expect(options.docxHeaderDistanceTwips == 720)
+    #expect(options.docxFooterDistanceTwips == 720)
+}
+
+@Test func docxKeepsTwoPhotosPerPageWithReservedHeaderFooterSpace() {
+    let docxOptions = ExportOptions(
+        format: .docx,
+        quality: .balanced,
+        photoCount: 20
+    )
+    let pdfOptions = ExportOptions(
+        format: .pdf,
+        quality: .balanced,
+        photoCount: 20
+    )
+
+    #expect(docxOptions.targetPhotoRowHeight > docxOptions.minimumPhotoRowHeight)
+    #expect(docxOptions.targetPhotoRowHeight < pdfOptions.targetPhotoRowHeight)
+    #expect(docxOptions.docxTableLayoutSafetyPaddingTwips == 240)
+
+    let docxContentHeightTwips = Int(docxOptions.contentHeight * 20.0)
+    let headerHeightTwips = Int(docxOptions.tableHeaderHeight * 20.0)
+    let rowsHeightTwips = docxOptions.targetPhotoRowHeightTwips * docxOptions.photosPerPage
+    let tableUsedHeightTwips = headerHeightTwips + rowsHeightTwips
+
+    #expect(tableUsedHeightTwips <= (docxContentHeightTwips - docxOptions.docxTableLayoutSafetyPaddingTwips))
+}
+
 @Test func compressorRespectsMaxBytes() {
     let size = CGSize(width: 2400, height: 1800)
     let image = UIGraphicsImageRenderer(size: size).image { context in

@@ -81,7 +81,7 @@ final class DocxExporter {
 
         let address = normalizedText(project.address)
         let notes = normalizedText(project.notes)
-        var documentXML = DocxTemplateBuilder.documentXML()
+        var documentXML = DocxTemplateBuilder.documentXML(options: options)
         documentXML = documentXML.replacingOccurrences(of: "{{PROJECT_TITLE}}", with: OpenXMLBuilder.escapeXML(project.name))
         documentXML = documentXML.replacingOccurrences(of: "{{ADDRESS}}", with: OpenXMLBuilder.escapeXML(address))
         documentXML = documentXML.replacingOccurrences(of: "{{DATE}}", with: OpenXMLBuilder.escapeXML(dateFormatter.string(from: project.date)))
