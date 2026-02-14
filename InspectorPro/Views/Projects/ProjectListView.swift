@@ -4,8 +4,12 @@ import SwiftData
 struct ProjectListView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Project.date, order: .reverse) private var projects: [Project]
+    @AppStorage(AppPreferenceKeys.darkModeEnabled) private var darkModeEnabled = false
+    @AppStorage(AppPreferenceKeys.languageCode) private var languageCode = AppLanguage.hebrew.rawValue
+
     @State private var path = NavigationPath()
     @State private var showingNewProject = false
+    @State private var showingSettings = false
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -13,8 +17,8 @@ struct ProjectListView: View {
                 if projects.isEmpty {
                     EmptyStateView(
                         icon: "building.2",
-                        title: "אין פרויקטים",
-                        subtitle: "לחץ + להוספת פרויקט חדש"
+                        title: AppStrings.text("אין פרויקטים"),
+                        subtitle: AppStrings.text("לחץ + להוספת פרויקט חדש")
                     )
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
@@ -27,7 +31,7 @@ struct ProjectListView: View {
                     .onDelete(perform: deleteProjects)
                 }
             }
-            .navigationTitle("פרויקטים")
+            .navigationTitle(AppStrings.text("פרויקטים"))
             .navigationDestination(for: Project.self) { project in
                 ProjectDetailView(project: project)
             }
@@ -39,12 +43,28 @@ struct ProjectListView: View {
                         Image(systemName: "plus")
                     }
                 }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                }
             }
             .sheet(isPresented: $showingNewProject) {
                 NavigationStack {
                     ProjectFormView(mode: .create) { createdProject in
                         path.append(createdProject)
                     }
+                }
+            }
+            .sheet(isPresented: $showingSettings) {
+                NavigationStack {
+                    AppSettingsView(
+                        darkModeEnabled: $darkModeEnabled,
+                        languageCode: $languageCode
+                    )
                 }
             }
         }
@@ -63,16 +83,25 @@ struct ProjectListView: View {
 }
 
 struct ProjectRowView: View {
+    @Environment(\.layoutDirection) private var layoutDirection
     let project: Project
 
+    private var rowHorizontalAlignment: HorizontalAlignment {
+        AppTextDirection.horizontalAlignment(for: layoutDirection)
+    }
+
+    private var rowTextAlignment: TextAlignment {
+        AppTextDirection.textAlignment(for: layoutDirection)
+    }
+
     var body: some View {
-        VStack(alignment: .trailing, spacing: 4) {
+        VStack(alignment: rowHorizontalAlignment, spacing: 4) {
             Text(project.name)
                 .font(.headline)
-                .multilineTextAlignment(.trailing)
+                .multilineTextAlignment(rowTextAlignment)
 
             HStack {
-                Text("\(project.photos.count) תמונות")
+                Text(AppStrings.format("%d תמונות", project.photos.count))
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -87,9 +116,78 @@ struct ProjectRowView: View {
                 Text(address)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.trailing)
+                    .multilineTextAlignment(rowTextAlignment)
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+private struct AppSettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var darkModeEnabled: Bool
+    @Binding var languageCode: String
+
+    private var selectedLanguage: Binding<AppLanguage> {
+        Binding(
+            get: { AppLanguage(rawValue: languageCode) ?? .hebrew },
+            set: { languageCode = $0.rawValue }
+        )
+    }
+
+    var body: some View {
+        Form {
+            Section(AppStrings.text("מראה")) {
+                Toggle(isOn: $darkModeEnabled) {
+                    Label(AppStrings.text("מצב לילה"), systemImage: "moon.stars.fill")
+                }
+            }
+
+            Section(AppStrings.text("שפה")) {
+                Picker(AppStrings.text("שפה"), selection: selectedLanguage) {
+                    ForEach(AppLanguage.allCases) { language in
+                        Text(language.displayTitle).tag(language)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Text(AppStrings.text("השינויים מוחלים מיידית בכל האפליקציה."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section(AppStrings.text("אפליקציה")) {
+                HStack {
+                    Label(AppStrings.text("גרסה"), systemImage: "info.circle")
+                    Spacer()
+                    Text(versionText)
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section {
+                Text("created by Alon Iter")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 6)
+            }
+        }
+        .navigationTitle(AppStrings.text("הגדרות"))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button(AppStrings.text("סגור")) {
+                    dismiss()
+                }
+            }
+        }
+    }
+
+    private var versionText: String {
+        let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0"
+        let buildVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+        return "v\(shortVersion) (\(buildVersion))"
     }
 }

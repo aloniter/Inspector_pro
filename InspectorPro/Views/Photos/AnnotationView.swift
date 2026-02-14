@@ -67,18 +67,18 @@ struct AnnotationView: View {
                     )
                 }
             }
-            .navigationTitle("סימון")
+            .navigationTitle(AppStrings.text("סימון"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("ביטול") {
+                    Button(AppStrings.text("ביטול")) {
                         dismiss()
                     }
                     .disabled(isSaving)
                 }
 
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("נקה") {
+                    Button(AppStrings.text("נקה")) {
                         annotations.removeAll()
                         draftAnnotation = nil
                         dragStartPoint = nil
@@ -87,7 +87,7 @@ struct AnnotationView: View {
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("שמור") {
+                    Button(AppStrings.text("שמור")) {
                         Task { await saveAnnotation() }
                     }
                     .disabled(isSaving)
@@ -108,16 +108,16 @@ struct AnnotationView: View {
             }
             .overlay {
                 if isSaving {
-                    ProgressView("שומר...")
+                    ProgressView(AppStrings.text("שומר..."))
                         .padding()
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
                 }
             }
         }
-        .alert("שמירה נכשלה", isPresented: saveErrorBinding) {
-            Button("סגור", role: .cancel) {}
+        .alert(AppStrings.text("שמירה נכשלה"), isPresented: saveErrorBinding) {
+            Button(AppStrings.text("סגור"), role: .cancel) {}
         } message: {
-            Text(saveErrorMessage ?? "אירעה שגיאה בשמירה")
+            Text(saveErrorMessage ?? AppStrings.text("אירעה שגיאה בשמירה"))
         }
     }
 
@@ -424,7 +424,7 @@ private struct AnnotationControlsBar: View {
                 Button {
                     onUndo()
                 } label: {
-                    Label("בטל", systemImage: "arrow.uturn.backward")
+                    Label(AppStrings.text("בטל"), systemImage: "arrow.uturn.backward")
                         .font(.subheadline.weight(.semibold))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
@@ -461,9 +461,9 @@ private enum AnnotationTool: CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .freehand: return "חופשי"
-        case .arrow: return "חץ"
-        case .circle: return "עיגול"
+        case .freehand: return AppStrings.text("חופשי")
+        case .arrow: return AppStrings.text("חץ")
+        case .circle: return AppStrings.text("עיגול")
         }
     }
 

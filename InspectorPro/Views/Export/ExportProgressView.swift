@@ -10,7 +10,7 @@ struct ExportProgressView: View {
                 .progressViewStyle(.linear)
                 .padding(.horizontal)
 
-            Text("מייצא \(format.hebrewLabel)...")
+            Text(AppStrings.format("מייצא %@...", format.hebrewLabel))
                 .font(.headline)
 
             Text("\(Int(progress * 100))%")

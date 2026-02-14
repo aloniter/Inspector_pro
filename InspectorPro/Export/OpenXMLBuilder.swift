@@ -93,21 +93,25 @@ final class OpenXMLBuilder {
         color: String? = nil,
         spacingAfter: Int? = nil
     ) -> String {
+        let isHebrew = AppLanguage.current == .hebrew
         let boldTag = bold ? "<w:b/><w:bCs/>" : ""
         let colorTag = color != nil ? "<w:color w:val=\"\(color!)\"/>" : ""
         let spacingTag = spacingAfter != nil ? "<w:spacing w:after=\"\(spacingAfter!)\"/>" : ""
+        let paragraphDirectionTag = isHebrew ? "<w:bidi/>" : ""
+        let runDirectionTag = isHebrew ? "<w:rtl/>" : ""
+        let resolvedAlignment = (!isHebrew && alignment == "right") ? "left" : alignment
 
         return """
         <w:p>
           <w:pPr>
-            <w:bidi/>
-            <w:jc w:val="\(alignment)"/>
+            \(paragraphDirectionTag)
+            <w:jc w:val="\(resolvedAlignment)"/>
             \(spacingTag)
           </w:pPr>
           <w:r>
             <w:rPr>
-              <w:rtl/>
-              <w:rFonts w:cs="Arial"/>
+              \(runDirectionTag)
+              <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
               <w:sz w:val="\(fontSize)"/>
               <w:szCs w:val="\(fontSize)"/>
               \(boldTag)
@@ -139,14 +143,14 @@ final class OpenXMLBuilder {
               <w:tcW w:w="\(imageColumnWidthTwips)" w:type="dxa"/>
               <w:shd w:val="clear" w:color="auto" w:fill="95B3D7"/>
             </w:tcPr>
-            \(rtlParagraph(text: "תמונה", bold: true, fontSize: 32, alignment: "center", spacingAfter: 0))
+            \(rtlParagraph(text: AppStrings.text("תמונה"), bold: true, fontSize: 32, alignment: "center", spacingAfter: 0))
           </w:tc>
           <w:tc>
             <w:tcPr>
               <w:tcW w:w="\(textColumnWidthTwips)" w:type="dxa"/>
               <w:shd w:val="clear" w:color="auto" w:fill="95B3D7"/>
             </w:tcPr>
-            \(rtlParagraph(text: "תיאור", bold: true, fontSize: 32, alignment: "center", spacingAfter: 0))
+            \(rtlParagraph(text: AppStrings.text("תיאור"), bold: true, fontSize: 32, alignment: "center", spacingAfter: 0))
           </w:tc>
         </w:tr>
         """

@@ -11,7 +11,7 @@ settings:
   base:
     SWIFT_VERSION: "5.0"
     TARGETED_DEVICE_FAMILY: "1"
-    INFOPLIST_KEY_UIUserInterfaceStyle: Light
+    INFOPLIST_KEY_UIUserInterfaceStyle: Automatic
 
 packages:
   ZIPFoundation:

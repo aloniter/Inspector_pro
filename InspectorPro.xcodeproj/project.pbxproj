@@ -21,6 +21,8 @@
 		464046CD43F9BD2495EAF129 /* AnnotationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E5FF2F5242550DAF6D39D7E /* AnnotationView.swift */; };
 		54EAE12B3C397705F3806A78 /* ProjectListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24AE4B73372472A31D2220FC /* ProjectListView.swift */; };
 		731F80569CD0D531EFCD10F8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3335634B3BCAFE42B6C31B62 /* Assets.xcassets */; };
+		A1B2C3D4E5F60718293A4B5C /* en.lproj/Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = C1D2E3F405162738495A6B7C /* en.lproj/Localizable.strings */; };
+		B1C2D3E4F5061728394A5B6C /* he.lproj/Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = D1E2F30415263748596A7B8C /* he.lproj/Localizable.strings */; };
 		7A0F73B173C6834E4A7BF1E4 /* FileManagerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFE1F59745698863A633182E /* FileManagerService.swift */; };
 		7D1AA9CD62C2BBD45FE426C2 /* ImagePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D34B6042425CF8FB2A6F3A6A /* ImagePickerView.swift */; };
 		7D7C9C630C121053953A02BE /* DocxExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84A8347F124C540B2E6CD62A /* DocxExporter.swift */; };
@@ -65,6 +67,8 @@
 		3E5FF2F5242550DAF6D39D7E /* AnnotationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationView.swift; sourceTree = "<group>"; };
 		3F6560C01AC0108E23C715D6 /* InspectorProApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorProApp.swift; sourceTree = "<group>"; };
 		7265AAAAB75B5AC2D38A6883 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		C1D2E3F405162738495A6B7C /* en.lproj/Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		D1E2F30415263748596A7B8C /* he.lproj/Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = he.lproj/Localizable.strings; sourceTree = "<group>"; };
 		84A8347F124C540B2E6CD62A /* DocxExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocxExporter.swift; sourceTree = "<group>"; };
 		89D09CE2BE015C00BA34A9B3 /* ExportEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportEngine.swift; sourceTree = "<group>"; };
 		8F16CB3736D4EAD7A910794A /* UIImage+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIImage+Extensions.swift"; sourceTree = "<group>"; };
@@ -167,6 +171,8 @@
 			isa = PBXGroup;
 			children = (
 				3335634B3BCAFE42B6C31B62 /* Assets.xcassets */,
+				C1D2E3F405162738495A6B7C /* en.lproj/Localizable.strings */,
+				D1E2F30415263748596A7B8C /* he.lproj/Localizable.strings */,
 				7265AAAAB75B5AC2D38A6883 /* LaunchScreen.storyboard */,
 			);
 			path = Resources;
@@ -322,6 +328,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1B2C3D4E5F60718293A4B5C /* en.lproj/Localizable.strings in Resources */,
+				B1C2D3E4F5061728394A5B6C /* he.lproj/Localizable.strings in Resources */,
 				731F80569CD0D531EFCD10F8 /* Assets.xcassets in Resources */,
 				C4447CCD6BC76207EFC5123F /* LaunchScreen.storyboard in Resources */,
 			);
@@ -473,7 +481,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				INFOPLIST_KEY_UIUserInterfaceStyle = Light;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -580,7 +588,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				INFOPLIST_KEY_UIUserInterfaceStyle = Light;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;

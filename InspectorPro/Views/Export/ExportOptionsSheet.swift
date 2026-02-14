@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 struct ExportOptionsSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.layoutDirection) private var layoutDirection
     let project: Project
 
     @State private var selectedFormat: ExportFormat = .pdf
@@ -13,11 +14,15 @@ struct ExportOptionsSheet: View {
     @State private var errorMessage: String?
     @State private var showingShareSheet = false
 
+    private var qualityTextAlignment: HorizontalAlignment {
+        AppTextDirection.horizontalAlignment(for: layoutDirection)
+    }
+
     var body: some View {
         NavigationStack {
             Form {
-                Section("פורמט") {
-                    Picker("פורמט יצוא", selection: $selectedFormat) {
+                Section(AppStrings.text("פורמט")) {
+                    Picker(AppStrings.text("פורמט יצוא"), selection: $selectedFormat) {
                         ForEach(ExportFormat.allCases) { format in
                             Text(format.hebrewLabel).tag(format)
                         }
@@ -25,13 +30,13 @@ struct ExportOptionsSheet: View {
                     .pickerStyle(.segmented)
                 }
 
-                Section("איכות תמונות") {
+                Section(AppStrings.text("איכות תמונות")) {
                     ForEach(ImageQuality.allCases) { quality in
                         Button {
                             selectedQuality = quality
                         } label: {
                             HStack {
-                                VStack(alignment: .trailing) {
+                                VStack(alignment: qualityTextAlignment) {
                                     Text(quality.hebrewLabel)
                                         .font(.body)
                                     Text(quality.hebrewDescription)
@@ -51,19 +56,19 @@ struct ExportOptionsSheet: View {
 
                 Section {
                     HStack {
-                        Text("תמונות")
+                        Text(AppStrings.text("תמונות"))
                         Spacer()
                         Text("\(project.photos.count)")
                     }
                 } header: {
-                    Text("סיכום")
+                    Text(AppStrings.text("סיכום"))
                 }
 
                 if isExporting {
                     Section {
                         VStack(spacing: 8) {
                             ProgressView(value: exportProgress)
-                            Text("מייצא... \(Int(exportProgress * 100))%")
+                            Text(AppStrings.format("מייצא... %d%%", Int(exportProgress * 100)))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -79,17 +84,17 @@ struct ExportOptionsSheet: View {
                     }
                 }
             }
-            .navigationTitle("ייצוא דוח")
+            .navigationTitle(AppStrings.text("ייצוא דוח"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("ייצא") {
+                    Button(AppStrings.text("ייצא")) {
                         startExport()
                     }
                     .disabled(isExporting || project.photos.isEmpty)
                 }
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("ביטול") {
+                    Button(AppStrings.text("ביטול")) {
                         dismiss()
                     }
                     .disabled(isExporting)

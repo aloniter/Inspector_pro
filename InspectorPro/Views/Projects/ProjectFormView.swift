@@ -8,6 +8,7 @@ enum FormMode {
 struct ProjectFormView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.layoutDirection) private var layoutDirection
 
     let mode: FormMode
     var project: Project?
@@ -18,34 +19,42 @@ struct ProjectFormView: View {
     @State private var date = Date()
     @State private var notes = ""
 
+    private var textAlignment: TextAlignment {
+        AppTextDirection.textAlignment(for: layoutDirection)
+    }
+
     var body: some View {
         Form {
-            Section("פרטי פרויקט") {
-                TextField("שם הפרויקט", text: $name)
-                    .multilineTextAlignment(.trailing)
-                TextField("כתובת", text: $address)
-                    .multilineTextAlignment(.trailing)
-                DatePicker("תאריך", selection: $date, displayedComponents: .date)
-                    .environment(\.locale, Locale(identifier: "he"))
+            Section(AppStrings.text("פרטי פרויקט")) {
+                TextField(AppStrings.text("שם הפרויקט"), text: $name)
+                    .multilineTextAlignment(textAlignment)
+                TextField(AppStrings.text("כתובת"), text: $address)
+                    .multilineTextAlignment(textAlignment)
+                DatePicker(AppStrings.text("תאריך"), selection: $date, displayedComponents: .date)
+                    .environment(\.locale, AppLanguage.current.locale)
             }
 
-            Section("הערות") {
+            Section(AppStrings.text("הערות")) {
                 TextEditor(text: $notes)
                     .frame(minHeight: 80)
-                    .multilineTextAlignment(.trailing)
+                    .multilineTextAlignment(textAlignment)
             }
         }
-        .navigationTitle(mode == .create ? "פרויקט חדש" : "עריכת פרויקט")
+        .navigationTitle(
+            mode == .create
+                ? AppStrings.text("פרויקט חדש")
+                : AppStrings.text("עריכת פרויקט")
+        )
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
-                Button("שמור") {
+                Button(AppStrings.text("שמור")) {
                     save()
                 }
                 .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             ToolbarItem(placement: .cancellationAction) {
-                Button("ביטול") {
+                Button(AppStrings.text("ביטול")) {
                     dismiss()
                 }
             }

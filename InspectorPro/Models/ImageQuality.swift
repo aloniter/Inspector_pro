@@ -98,17 +98,17 @@ enum ImageQuality: String, CaseIterable, Identifiable, Codable {
 
     var hebrewLabel: String {
         switch self {
-        case .economical: return "חסכוני"
-        case .balanced: return "מאוזן"
-        case .high: return "איכותי"
+        case .economical: return AppStrings.text("חסכוני")
+        case .balanced: return AppStrings.text("מאוזן")
+        case .high: return AppStrings.text("איכותי")
         }
     }
 
     var hebrewDescription: String {
         switch self {
-        case .economical: return "900px • קובץ קטן"
-        case .balanced: return "1400px • איזון טוב"
-        case .high: return "2000px • איכות מקסימלית"
+        case .economical: return AppStrings.text("900px • קובץ קטן")
+        case .balanced: return AppStrings.text("1400px • איזון טוב")
+        case .high: return AppStrings.text("2000px • איכות מקסימלית")
         }
     }
 }

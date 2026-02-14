@@ -23,8 +23,8 @@ struct ProjectDetailView: View {
                 if sortedPhotos.isEmpty {
                     EmptyStateView(
                         icon: "photo.on.rectangle",
-                        title: "אין תמונות",
-                        subtitle: "לחץ + כדי להוסיף תמונות"
+                        title: AppStrings.text("אין תמונות"),
+                        subtitle: AppStrings.text("לחץ + כדי להוסיף תמונות")
                     )
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
@@ -43,7 +43,7 @@ struct ProjectDetailView: View {
                 }
             } header: {
                 HStack {
-                    Text("תמונות (\(project.photos.count))")
+                    Text(AppStrings.format("תמונות (%d)", project.photos.count))
                     Spacer()
                 }
             }
@@ -70,13 +70,13 @@ struct ProjectDetailView: View {
                     Button {
                         activePicker = .photoLibrary
                     } label: {
-                        Label("מהגלריה", systemImage: "photo.on.rectangle")
+                        Label(AppStrings.text("מהגלריה"), systemImage: "photo.on.rectangle")
                     }
 
                     Button {
                         activePicker = .camera
                     } label: {
-                        Label("מהמצלמה", systemImage: "camera")
+                        Label(AppStrings.text("מהמצלמה"), systemImage: "camera")
                     }
                     .disabled(!UIImagePickerController.isSourceTypeAvailable(.camera))
                 } label: {
@@ -91,7 +91,9 @@ struct ProjectDetailView: View {
                         togglePhotoReordering()
                     } label: {
                         Label(
-                            isReorderingPhotos ? "סיום סידור תמונות" : "סידור תמונות",
+                            isReorderingPhotos
+                                ? AppStrings.text("סיום סידור תמונות")
+                                : AppStrings.text("סידור תמונות"),
                             systemImage: isReorderingPhotos ? "checkmark.circle" : "line.3.horizontal"
                         )
                     }
@@ -100,14 +102,14 @@ struct ProjectDetailView: View {
                     Button {
                         showingEditProject = true
                     } label: {
-                        Label("ערוך פרויקט", systemImage: "pencil")
+                        Label(AppStrings.text("ערוך פרויקט"), systemImage: "pencil")
                     }
                     .disabled(isReorderingPhotos)
 
                     Button {
                         showingExportOptions = true
                     } label: {
-                        Label("ייצוא דוח", systemImage: "square.and.arrow.up")
+                        Label(AppStrings.text("ייצוא דוח"), systemImage: "square.and.arrow.up")
                     }
                     .disabled(isReorderingPhotos)
                 } label: {
@@ -146,8 +148,8 @@ struct ProjectDetailView: View {
                 }
             }
         }
-        .alert("ייבוא תמונות", isPresented: $showingImportSummary) {
-            Button("אישור", role: .cancel) {}
+        .alert(AppStrings.text("ייבוא תמונות"), isPresented: $showingImportSummary) {
+            Button(AppStrings.text("אישור"), role: .cancel) {}
         } message: {
             Text(importSummaryMessage)
         }
@@ -236,20 +238,24 @@ struct ProjectDetailView: View {
     private func presentImportSummary(successCount: Int, failedCount: Int) {
         guard failedCount > 0 else { return }
 
-        importSummaryMessage = "נשמרו \(successCount) תמונות. \(failedCount) תמונות לא יובאו."
+        importSummaryMessage = AppStrings.format(
+            "נשמרו %d תמונות. %d תמונות לא יובאו.",
+            successCount,
+            failedCount
+        )
         showingImportSummary = true
     }
 
     private var importStatusText: String {
         guard let importProgress else {
-            return "שומר תמונות..."
+            return AppStrings.text("שומר תמונות...")
         }
 
         if importProgress.total == 1 {
-            return "שומר תמונה..."
+            return AppStrings.text("שומר תמונה...")
         }
 
-        return "שומר תמונות \(importProgress.processed)/\(importProgress.total)..."
+        return AppStrings.format("שומר תמונות %d/%d...", importProgress.processed, importProgress.total)
     }
 
     private func deletePhotos(at offsets: IndexSet) {
@@ -371,15 +377,28 @@ private extension NSItemProvider {
 }
 
 struct ProjectPhotoRowView: View {
+    @Environment(\.layoutDirection) private var layoutDirection
     let photo: PhotoRecord
     let number: Int
+
+    private var contentAlignment: HorizontalAlignment {
+        AppTextDirection.horizontalAlignment(for: layoutDirection)
+    }
+
+    private var textAlignment: TextAlignment {
+        AppTextDirection.textAlignment(for: layoutDirection)
+    }
+
+    private var badgeAlignment: Alignment {
+        layoutDirection == .rightToLeft ? .topTrailing : .topLeading
+    }
 
     var body: some View {
         HStack(spacing: 12) {
             ThumbnailView(imagePath: photo.displayImagePath)
                 .frame(width: 72, height: 72)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
-                .overlay(alignment: .topLeading) {
+                .overlay(alignment: badgeAlignment) {
                     Text("\(number)")
                         .font(.caption2.weight(.bold))
                         .monospacedDigit()
@@ -390,11 +409,11 @@ struct ProjectPhotoRowView: View {
                         .padding(6)
                 }
 
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(photo.freeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "ללא הערה" : photo.freeText)
+            VStack(alignment: contentAlignment, spacing: 4) {
+                Text(photo.freeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? AppStrings.text("ללא הערה") : photo.freeText)
                     .font(.body)
                     .lineLimit(2)
-                    .multilineTextAlignment(.trailing)
+                    .multilineTextAlignment(textAlignment)
 
                 Text(photo.createdAt, style: .date)
                     .font(.caption)

@@ -3,6 +3,9 @@ import SwiftData
 
 @main
 struct InspectorProApp: App {
+    @AppStorage(AppPreferenceKeys.darkModeEnabled) private var darkModeEnabled = false
+    @AppStorage(AppPreferenceKeys.languageCode) private var languageCode = AppLanguage.hebrew.rawValue
+
     let modelContainer: ModelContainer
 
     init() {
@@ -25,10 +28,13 @@ struct InspectorProApp: App {
     }
 
     var body: some Scene {
+        let appLanguage = AppLanguage(rawValue: languageCode) ?? .hebrew
+
         WindowGroup {
             ProjectListView()
-            .environment(\.layoutDirection, .rightToLeft)
-            .environment(\.locale, Locale(identifier: "he"))
+                .environment(\.layoutDirection, appLanguage.layoutDirection)
+                .environment(\.locale, appLanguage.locale)
+                .preferredColorScheme(darkModeEnabled ? .dark : .light)
         }
         .modelContainer(modelContainer)
     }

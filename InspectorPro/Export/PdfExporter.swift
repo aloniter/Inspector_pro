@@ -78,7 +78,7 @@ final class PdfExporter {
 
         if let address = project.address, !address.isEmpty {
             drawRTLText(
-                "כתובת: \(address)",
+                AppStrings.format("כתובת: %@", address),
                 in: CGRect(x: options.marginLeft, y: y, width: options.contentWidth, height: 26),
                 fontSize: 16,
                 alignment: .center
@@ -87,10 +87,10 @@ final class PdfExporter {
         }
 
         let dateFormatter = DateFormatter()
-        dateFormatter.locale = Locale(identifier: "he")
+        dateFormatter.locale = AppLanguage.current.locale
         dateFormatter.dateStyle = .long
         drawRTLText(
-            "תאריך: \(dateFormatter.string(from: project.date))",
+            AppStrings.format("תאריך: %@", dateFormatter.string(from: project.date)),
             in: CGRect(x: options.marginLeft, y: y, width: options.contentWidth, height: 26),
             fontSize: 16,
             alignment: .center
@@ -99,7 +99,7 @@ final class PdfExporter {
 
         if let notes = project.notes, !notes.isEmpty {
             drawRTLText(
-                "הערות: \(notes)",
+                AppStrings.format("הערות: %@", notes),
                 in: CGRect(x: options.marginLeft, y: y, width: options.contentWidth, height: 130),
                 fontSize: 13,
                 alignment: .right,
@@ -148,14 +148,14 @@ final class PdfExporter {
         divider.stroke()
 
         drawRTLText(
-            "תמונה",
+            AppStrings.text("תמונה"),
             in: imageCellRect.insetBy(dx: options.tableCellPadding, dy: 6),
             fontSize: 20,
             bold: true,
             alignment: .center
         )
         drawRTLText(
-            "תיאור",
+            AppStrings.text("תיאור"),
             in: textCellRect.insetBy(dx: options.tableCellPadding, dy: 6),
             fontSize: 20,
             bold: true,
@@ -219,7 +219,7 @@ final class PdfExporter {
             image.draw(in: CGRect(x: imageX, y: imageY, width: drawSize.width, height: drawSize.height))
         } else {
             drawRTLText(
-                "לא ניתן לטעון תמונה",
+                AppStrings.text("לא ניתן לטעון תמונה"),
                 in: imageCellRect.insetBy(dx: options.tableCellPadding, dy: options.tableCellPadding),
                 fontSize: 12,
                 alignment: .center,
@@ -249,10 +249,12 @@ final class PdfExporter {
         lineSpacing: CGFloat = 0
     ) {
         let font = bold ? UIFont.boldSystemFont(ofSize: fontSize) : UIFont.systemFont(ofSize: fontSize)
+        let isHebrew = AppLanguage.current == .hebrew
+        let resolvedAlignment: NSTextAlignment = (!isHebrew && alignment == .right) ? .left : alignment
 
         let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.alignment = alignment
-        paragraphStyle.baseWritingDirection = .rightToLeft
+        paragraphStyle.alignment = resolvedAlignment
+        paragraphStyle.baseWritingDirection = isHebrew ? .rightToLeft : .leftToRight
         paragraphStyle.lineBreakMode = .byWordWrapping
         paragraphStyle.lineSpacing = lineSpacing
 

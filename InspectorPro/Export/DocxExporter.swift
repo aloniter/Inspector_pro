@@ -76,7 +76,7 @@ final class DocxExporter {
         )
 
         let dateFormatter = DateFormatter()
-        dateFormatter.locale = Locale(identifier: "he")
+        dateFormatter.locale = AppLanguage.current.locale
         dateFormatter.dateStyle = .long
 
         let address = normalizedText(project.address)

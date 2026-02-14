@@ -3,12 +3,25 @@ import SwiftUI
 struct PhotoDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.layoutDirection) private var layoutDirection
     @Bindable var photo: PhotoRecord
     let project: Project
 
     @State private var displayedImage: UIImage?
     @State private var originalImage: UIImage?
     @State private var showingAnnotation = false
+
+    private var contentHorizontalAlignment: HorizontalAlignment {
+        AppTextDirection.horizontalAlignment(for: layoutDirection)
+    }
+
+    private var contentTextAlignment: TextAlignment {
+        AppTextDirection.textAlignment(for: layoutDirection)
+    }
+
+    private var frameAlignment: Alignment {
+        AppTextDirection.frameAlignment(for: layoutDirection)
+    }
 
     var body: some View {
         ScrollView {
@@ -27,28 +40,28 @@ struct PhotoDetailView: View {
                 .frame(maxWidth: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
 
-                VStack(alignment: .trailing, spacing: 8) {
-                    Text("הערות")
+                VStack(alignment: contentHorizontalAlignment, spacing: 8) {
+                    Text(AppStrings.text("הערות"))
                         .font(.headline)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .frame(maxWidth: .infinity, alignment: frameAlignment)
 
                     TextEditor(text: $photo.freeText)
                         .frame(minHeight: 140)
                         .padding(8)
                         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
-                        .multilineTextAlignment(.trailing)
+                        .multilineTextAlignment(contentTextAlignment)
                 }
             }
             .padding()
         }
-        .navigationTitle("תמונה")
+        .navigationTitle(AppStrings.text("תמונה"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .bottomBar) {
                 Button {
                     showingAnnotation = true
                 } label: {
-                    Label("צייר / סמן", systemImage: "pencil.tip.crop.circle")
+                    Label(AppStrings.text("צייר / סמן"), systemImage: "pencil.tip.crop.circle")
                 }
 
                 Spacer()
@@ -56,7 +69,7 @@ struct PhotoDetailView: View {
                 Button(role: .destructive) {
                     deletePhoto()
                 } label: {
-                    Label("מחק", systemImage: "trash")
+                    Label(AppStrings.text("מחק"), systemImage: "trash")
                 }
             }
         }
