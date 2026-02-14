@@ -25,6 +25,23 @@ import UIKit
     #expect(photo.displayImagePath == "base/annotated.png")
 }
 
+@Test func projectSortedPhotosUsesManualPosition() {
+    let earlyDate = Date(timeIntervalSince1970: 1_000)
+    let lateDate = Date(timeIntervalSince1970: 2_000)
+
+    let project = Project(name: "Project")
+    let first = PhotoRecord(imagePath: "a.jpg", position: 1, createdAt: earlyDate)
+    let second = PhotoRecord(imagePath: "b.jpg", position: 0, createdAt: lateDate)
+    let tieBreaker = PhotoRecord(imagePath: "c.jpg", position: 0, createdAt: earlyDate)
+
+    first.project = project
+    second.project = project
+    tieBreaker.project = project
+    project.photos = [first, second, tieBreaker]
+
+    #expect(project.sortedPhotos.map(\.imagePath) == ["c.jpg", "b.jpg", "a.jpg"])
+}
+
 @Test func xmlEscaping() {
     let input = "Test & <value> \"quoted\" 'apos'"
     let escaped = OpenXMLBuilder.escapeXML(input)

@@ -7,6 +7,7 @@ final class PhotoRecord {
     var imagePath: String
     var annotatedImagePath: String?
     var freeText: String
+    var position: Int
     var createdAt: Date
 
     var project: Project?
@@ -20,12 +21,14 @@ final class PhotoRecord {
         imagePath: String,
         annotatedImagePath: String? = nil,
         freeText: String = "",
+        position: Int = 0,
         createdAt: Date = .now
     ) {
         self.id = id
         self.imagePath = imagePath
         self.annotatedImagePath = annotatedImagePath
         self.freeText = freeText
+        self.position = position
         self.createdAt = createdAt
     }
 }

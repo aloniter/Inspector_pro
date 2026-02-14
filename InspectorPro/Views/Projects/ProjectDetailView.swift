@@ -13,11 +13,14 @@ struct ProjectDetailView: View {
     @State private var importProgress: ImportProgress?
     @State private var showingImportSummary = false
     @State private var importSummaryMessage = ""
+    @State private var editMode: EditMode = .inactive
 
     var body: some View {
+        let sortedPhotos = project.sortedPhotos
+
         List {
             Section {
-                if project.sortedPhotos.isEmpty {
+                if sortedPhotos.isEmpty {
                     EmptyStateView(
                         icon: "photo.on.rectangle",
                         title: "אין תמונות",
@@ -26,12 +29,17 @@ struct ProjectDetailView: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                 } else {
-                    ForEach(project.sortedPhotos) { photo in
-                        NavigationLink(value: photo) {
-                            ProjectPhotoRowView(photo: photo)
+                    ForEach(Array(sortedPhotos.enumerated()), id: \.element.id) { index, photo in
+                        if isReorderingPhotos {
+                            ProjectPhotoRowView(photo: photo, number: index + 1)
+                        } else {
+                            NavigationLink(value: photo) {
+                                ProjectPhotoRowView(photo: photo, number: index + 1)
+                            }
                         }
                     }
                     .onDelete(perform: deletePhotos)
+                    .onMove(perform: movePhotos)
                 }
             } header: {
                 HStack {
@@ -55,6 +63,7 @@ struct ProjectDetailView: View {
         .navigationDestination(for: PhotoRecord.self) { photo in
             PhotoDetailView(photo: photo, project: project)
         }
+        .environment(\.editMode, $editMode)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Menu {
@@ -73,22 +82,34 @@ struct ProjectDetailView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
-                .disabled(isSavingPhotos)
+                .disabled(isSavingPhotos || isReorderingPhotos)
             }
 
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button {
+                        togglePhotoReordering()
+                    } label: {
+                        Label(
+                            isReorderingPhotos ? "סיום סידור תמונות" : "סידור תמונות",
+                            systemImage: isReorderingPhotos ? "checkmark.circle" : "line.3.horizontal"
+                        )
+                    }
+                    .disabled(project.photos.count < 2 || isSavingPhotos)
+
+                    Button {
                         showingEditProject = true
                     } label: {
                         Label("ערוך פרויקט", systemImage: "pencil")
                     }
+                    .disabled(isReorderingPhotos)
 
                     Button {
                         showingExportOptions = true
                     } label: {
                         Label("ייצוא דוח", systemImage: "square.and.arrow.up")
                     }
+                    .disabled(isReorderingPhotos)
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
@@ -195,7 +216,10 @@ struct ProjectDetailView: View {
             image,
             projectID: project.id.uuidString
         )
-        let photo = PhotoRecord(imagePath: imagePath)
+        let photo = PhotoRecord(
+            imagePath: imagePath,
+            position: nextPhotoPosition()
+        )
         photo.project = project
         modelContext.insert(photo)
     }
@@ -242,6 +266,42 @@ struct ProjectDetailView: View {
             }
             modelContext.delete(photo)
         }
+
+        var remainingPhotos = sorted
+        remainingPhotos.remove(atOffsets: offsets)
+        normalizePhotoPositions(using: remainingPhotos)
+        saveModelContext()
+
+        if remainingPhotos.count < 2 {
+            editMode = .inactive
+        }
+    }
+
+    private func movePhotos(from source: IndexSet, to destination: Int) {
+        var reorderedPhotos = project.sortedPhotos
+        reorderedPhotos.move(fromOffsets: source, toOffset: destination)
+        normalizePhotoPositions(using: reorderedPhotos)
+        saveModelContext()
+    }
+
+    private func nextPhotoPosition() -> Int {
+        (project.photos.map(\.position).max() ?? -1) + 1
+    }
+
+    private func normalizePhotoPositions(using orderedPhotos: [PhotoRecord]) {
+        for (index, photo) in orderedPhotos.enumerated() {
+            photo.position = index
+        }
+    }
+
+    private func togglePhotoReordering() {
+        withAnimation {
+            editMode = isReorderingPhotos ? .inactive : .active
+        }
+    }
+
+    private var isReorderingPhotos: Bool {
+        editMode == .active || editMode == .transient
     }
 }
 
@@ -312,12 +372,23 @@ private extension NSItemProvider {
 
 struct ProjectPhotoRowView: View {
     let photo: PhotoRecord
+    let number: Int
 
     var body: some View {
         HStack(spacing: 12) {
             ThumbnailView(imagePath: photo.displayImagePath)
                 .frame(width: 72, height: 72)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(alignment: .topLeading) {
+                    Text("\(number)")
+                        .font(.caption2.weight(.bold))
+                        .monospacedDigit()
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(.black.opacity(0.75), in: Capsule())
+                        .padding(6)
+                }
 
             VStack(alignment: .trailing, spacing: 4) {
                 Text(photo.freeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "ללא הערה" : photo.freeText)
