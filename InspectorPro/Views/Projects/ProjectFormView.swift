@@ -11,21 +11,19 @@ struct ProjectFormView: View {
 
     let mode: FormMode
     var project: Project?
+    var onProjectSaved: ((Project) -> Void)?
 
-    @State private var title = ""
+    @State private var name = ""
     @State private var address = ""
-    @State private var inspectorName = ""
     @State private var date = Date()
     @State private var notes = ""
 
     var body: some View {
         Form {
             Section("פרטי פרויקט") {
-                TextField("שם הפרויקט", text: $title)
+                TextField("שם הפרויקט", text: $name)
                     .multilineTextAlignment(.trailing)
                 TextField("כתובת", text: $address)
-                    .multilineTextAlignment(.trailing)
-                TextField("שם הבודק", text: $inspectorName)
                     .multilineTextAlignment(.trailing)
                 DatePicker("תאריך", selection: $date, displayedComponents: .date)
                     .environment(\.locale, Locale(identifier: "he"))
@@ -44,7 +42,7 @@ struct ProjectFormView: View {
                 Button("שמור") {
                     save()
                 }
-                .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             ToolbarItem(placement: .cancellationAction) {
                 Button("ביטול") {
@@ -54,33 +52,38 @@ struct ProjectFormView: View {
         }
         .onAppear {
             if let project = project {
-                title = project.title
-                address = project.address
-                inspectorName = project.inspectorName
+                name = project.name
+                address = project.address ?? ""
                 date = project.date
-                notes = project.notes
+                notes = project.notes ?? ""
             }
         }
     }
 
     private func save() {
         if let project = project {
-            project.title = title
-            project.address = address
-            project.inspectorName = inspectorName
+            project.name = name
+            project.address = normalizedOptional(address)
             project.date = date
-            project.notes = notes
-            project.updatedAt = .now
+            project.notes = normalizedOptional(notes)
+            try? modelContext.save()
+            onProjectSaved?(project)
         } else {
             let newProject = Project(
-                title: title,
-                address: address,
-                inspectorName: inspectorName,
+                name: name,
+                address: normalizedOptional(address),
                 date: date,
-                notes: notes
+                notes: normalizedOptional(notes)
             )
             modelContext.insert(newProject)
+            try? modelContext.save()
+            onProjectSaved?(newProject)
         }
         dismiss()
+    }
+
+    private func normalizedOptional(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

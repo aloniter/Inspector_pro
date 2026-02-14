@@ -50,14 +50,9 @@ struct ExportOptionsSheet: View {
 
                 Section {
                     HStack {
-                        Text("ממצאים")
-                        Spacer()
-                        Text("\(project.findings.count)")
-                    }
-                    HStack {
                         Text("תמונות")
                         Spacer()
-                        Text("\(project.findings.flatMap(\.photos).count)")
+                        Text("\(project.photos.count)")
                     }
                 } header: {
                     Text("סיכום")
@@ -90,7 +85,7 @@ struct ExportOptionsSheet: View {
                     Button("ייצא") {
                         startExport()
                     }
-                    .disabled(isExporting || project.findings.isEmpty)
+                    .disabled(isExporting || project.photos.isEmpty)
                 }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("ביטול") {
@@ -121,7 +116,7 @@ struct ExportOptionsSheet: View {
 
                 let url = try await ExportEngine.exportReport(
                     project: project,
-                    findings: project.sortedFindings,
+                    photos: project.sortedPhotos,
                     options: options,
                     onProgress: { progress in
                         Task { @MainActor in

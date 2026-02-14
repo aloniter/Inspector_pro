@@ -69,11 +69,11 @@ final class DocxTemplateBuilder {
               <w:pPr><w:bidi/><w:jc w:val="center"/><w:spacing w:after="100"/></w:pPr>
               <w:r>
                 <w:rPr><w:rtl/><w:sz w:val="24"/><w:szCs w:val="24"/><w:rFonts w:cs="Arial"/></w:rPr>
-                <w:t xml:space="preserve">בודק: {{INSPECTOR}}</w:t>
+                <w:t xml:space="preserve">הערות: {{NOTES}}</w:t>
               </w:r>
             </w:p>
             <w:p><w:r><w:br w:type="page"/></w:r></w:p>
-            {{FINDINGS_BLOCK}}
+            {{PHOTOS_BLOCK}}
           </w:body>
         </w:document>
         """

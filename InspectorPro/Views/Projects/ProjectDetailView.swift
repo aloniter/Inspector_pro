@@ -6,60 +6,72 @@ struct ProjectDetailView: View {
     @Bindable var project: Project
     @State private var showingEditProject = false
     @State private var showingExportOptions = false
+    @State private var activePicker: PickerSource?
+    @State private var isSavingPhoto = false
 
     var body: some View {
         List {
-            Section("פרטי פרויקט") {
-                LabeledContent("כתובת", value: project.address.isEmpty ? "—" : project.address)
-                LabeledContent("בודק", value: project.inspectorName.isEmpty ? "—" : project.inspectorName)
-                LabeledContent("תאריך") {
-                    Text(project.date, style: .date)
-                }
-                if !project.notes.isEmpty {
-                    Text(project.notes)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
             Section {
-                if project.sortedFindings.isEmpty {
+                if project.sortedPhotos.isEmpty {
                     EmptyStateView(
-                        icon: "doc.text.magnifyingglass",
-                        title: "אין ממצאים",
-                        subtitle: "לחץ + להוספת ממצא"
+                        icon: "photo.on.rectangle",
+                        title: "אין תמונות",
+                        subtitle: "לחץ + כדי להוסיף תמונה"
                     )
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                 } else {
-                    ForEach(project.sortedFindings) { finding in
-                        NavigationLink(value: finding) {
-                            FindingRowView(finding: finding)
+                    ForEach(project.sortedPhotos) { photo in
+                        NavigationLink(value: photo) {
+                            ProjectPhotoRowView(photo: photo)
                         }
                     }
-                    .onDelete(perform: deleteFindings)
-                    .onMove(perform: moveFindings)
+                    .onDelete(perform: deletePhotos)
                 }
             } header: {
                 HStack {
-                    Text("ממצאים (\(project.findings.count))")
+                    Text("תמונות (\(project.photos.count))")
                     Spacer()
                 }
             }
+
+            if isSavingPhoto {
+                Section {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("שומר תמונה...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
         }
-        .navigationTitle(project.title)
-        .navigationDestination(for: Finding.self) { finding in
-            FindingEditorView(finding: finding, project: project)
+        .navigationTitle(project.name)
+        .navigationDestination(for: PhotoRecord.self) { photo in
+            PhotoDetailView(photo: photo, project: project)
         }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Menu {
                     Button {
-                        addFinding()
+                        activePicker = .photoLibrary
                     } label: {
-                        Label("הוסף ממצא", systemImage: "plus")
+                        Label("מהגלריה", systemImage: "photo.on.rectangle")
                     }
 
+                    Button {
+                        activePicker = .camera
+                    } label: {
+                        Label("מהמצלמה", systemImage: "camera")
+                    }
+                    .disabled(!UIImagePickerController.isSourceTypeAvailable(.camera))
+                } label: {
+                    Image(systemName: "plus")
+                }
+            }
+
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
                     Button {
                         showingEditProject = true
                     } label: {
@@ -75,18 +87,6 @@ struct ProjectDetailView: View {
                     Image(systemName: "ellipsis.circle")
                 }
             }
-
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    addFinding()
-                } label: {
-                    Image(systemName: "plus")
-                }
-            }
-
-            ToolbarItem(placement: .topBarTrailing) {
-                EditButton()
-            }
         }
         .sheet(isPresented: $showingEditProject) {
             NavigationStack {
@@ -96,36 +96,65 @@ struct ProjectDetailView: View {
         .sheet(isPresented: $showingExportOptions) {
             ExportOptionsSheet(project: project)
         }
-    }
-
-    private func addFinding() {
-        let number = project.nextFindingNumber
-        let order = project.findings.count
-        let finding = Finding(number: number, order: order)
-        finding.project = project
-        modelContext.insert(finding)
-        project.updatedAt = .now
-    }
-
-    private func deleteFindings(at offsets: IndexSet) {
-        let sorted = project.sortedFindings
-        for index in offsets {
-            let finding = sorted[index]
-            // Clean up photos from disk
-            Task {
-                await ImageStorageService.shared.deletePhotos(finding.photos)
+        .sheet(item: $activePicker) { source in
+            ImagePickerView(sourceType: source.uiSourceType) { image in
+                Task {
+                    await addPhoto(image)
+                }
             }
-            modelContext.delete(finding)
         }
-        project.updatedAt = .now
     }
 
-    private func moveFindings(from source: IndexSet, to destination: Int) {
-        var sorted = project.sortedFindings
-        sorted.move(fromOffsets: source, toOffset: destination)
-        for (index, finding) in sorted.enumerated() {
-            finding.order = index
+    @MainActor
+    private func addPhoto(_ image: UIImage) async {
+        isSavingPhoto = true
+        defer { isSavingPhoto = false }
+
+        do {
+            let imagePath = try await ImageStorageService.shared.saveImage(
+                image,
+                projectID: project.id.uuidString
+            )
+            let photo = PhotoRecord(imagePath: imagePath)
+            photo.project = project
+            modelContext.insert(photo)
+        } catch {
+            print("Failed to save photo: \(error)")
         }
-        project.updatedAt = .now
+    }
+
+    private func deletePhotos(at offsets: IndexSet) {
+        let sorted = project.sortedPhotos
+        for index in offsets {
+            let photo = sorted[index]
+            Task {
+                await ImageStorageService.shared.deletePhotos([photo])
+            }
+            modelContext.delete(photo)
+        }
+    }
+}
+
+struct ProjectPhotoRowView: View {
+    let photo: PhotoRecord
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ThumbnailView(imagePath: photo.displayImagePath)
+                .frame(width: 72, height: 72)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(photo.freeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "ללא הערה" : photo.freeText)
+                    .font(.body)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.trailing)
+
+                Text(photo.createdAt, style: .date)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }

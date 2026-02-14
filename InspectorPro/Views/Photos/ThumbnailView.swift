@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ThumbnailView: View {
-    let thumbnailPath: String?
+    let imagePath: String
     @State private var image: UIImage?
 
     var body: some View {
@@ -14,12 +14,13 @@ struct ThumbnailView: View {
                 Rectangle()
                     .fill(Color.gray.opacity(0.2))
                     .overlay {
-                        ProgressView()
+                        Image(systemName: "photo")
+                            .foregroundStyle(.secondary)
                     }
             }
         }
-        .task(id: thumbnailPath) {
-            image = await ThumbnailService.shared.thumbnail(for: thumbnailPath)
+        .task(id: imagePath) {
+            image = await ThumbnailService.shared.thumbnail(for: imagePath)
         }
     }
 }

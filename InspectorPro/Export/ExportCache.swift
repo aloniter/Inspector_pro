@@ -8,7 +8,7 @@ actor ExportCache {
 
     /// Get cached compressed image data, or compress and cache it.
     func compressedImageData(
-        for photo: Photo,
+        for photo: PhotoRecord,
         quality: ImageQuality
     ) async -> Data? {
         let key = cacheKey(for: photo, quality: quality)
@@ -22,7 +22,7 @@ actor ExportCache {
         }
 
         // Load original image
-        let imagePath = photo.exportImagePath
+        let imagePath = photo.displayImagePath
         let fullURL = AppConstants.imagesBaseURL.appendingPathComponent(imagePath)
         guard let imageData = try? Data(contentsOf: fullURL) else { return nil }
 
@@ -39,7 +39,7 @@ actor ExportCache {
     }
 
     /// Invalidate cache for a specific photo (all quality levels)
-    func invalidate(for photo: Photo) {
+    func invalidate(for photo: PhotoRecord) {
         for quality in ImageQuality.allCases {
             let key = cacheKey(for: photo, quality: quality)
             let cachedURL = cacheURL
@@ -56,8 +56,8 @@ actor ExportCache {
     }
 
     /// Cache key based on image path + file attributes
-    private func cacheKey(for photo: Photo, quality: ImageQuality) -> String {
-        let imagePath = photo.exportImagePath
+    private func cacheKey(for photo: PhotoRecord, quality: ImageQuality) -> String {
+        let imagePath = photo.displayImagePath
         let fullURL = AppConstants.imagesBaseURL.appendingPathComponent(imagePath)
 
         var input = imagePath + quality.rawValue

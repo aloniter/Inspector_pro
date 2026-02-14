@@ -3,7 +3,7 @@ import Foundation
 struct ExportOptions {
     let format: ExportFormat
     let quality: ImageQuality
-    let findingsPerPage: Int = 2
+    let photosPerPage: Int = 2
 
     // A4 page dimensions in points (72 DPI)
     let pageWidth: CGFloat = 595.28

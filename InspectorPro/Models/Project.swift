@@ -3,38 +3,30 @@ import SwiftData
 
 @Model
 final class Project {
-    var title: String
-    var address: String
-    var inspectorName: String
+    @Attribute(.unique) var id: UUID
+    var name: String
+    var address: String?
     var date: Date
-    var notes: String
-    var createdAt: Date
-    var updatedAt: Date
+    var notes: String?
 
-    @Relationship(deleteRule: .cascade, inverse: \Finding.project)
-    var findings: [Finding] = []
+    @Relationship(deleteRule: .cascade, inverse: \PhotoRecord.project)
+    var photos: [PhotoRecord] = []
 
-    var sortedFindings: [Finding] {
-        findings.sorted { $0.order < $1.order }
-    }
-
-    var nextFindingNumber: Int {
-        (findings.map(\.number).max() ?? 0) + 1
+    var sortedPhotos: [PhotoRecord] {
+        photos.sorted { $0.createdAt < $1.createdAt }
     }
 
     init(
-        title: String = "",
-        address: String = "",
-        inspectorName: String = "",
+        id: UUID = UUID(),
+        name: String = "",
+        address: String? = nil,
         date: Date = .now,
-        notes: String = ""
+        notes: String? = nil
     ) {
-        self.title = title
+        self.id = id
+        self.name = name
         self.address = address
-        self.inspectorName = inspectorName
         self.date = date
         self.notes = notes
-        self.createdAt = .now
-        self.updatedAt = .now
     }
 }

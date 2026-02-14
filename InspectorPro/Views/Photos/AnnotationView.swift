@@ -3,13 +3,10 @@ import PencilKit
 
 struct AnnotationView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
 
     let image: UIImage
-    let existingDrawingData: Data?
-    let photo: Photo
+    let photo: PhotoRecord
     let project: Project
-    let finding: Finding
 
     @State private var canvasView = PKCanvasView()
     @State private var isSaving = false
@@ -18,8 +15,7 @@ struct AnnotationView: View {
         NavigationStack {
             AnnotationCanvasRepresentable(
                 image: image,
-                canvasView: $canvasView,
-                existingDrawingData: existingDrawingData
+                canvasView: $canvasView
             )
             .ignoresSafeArea()
             .navigationTitle("סימון")
@@ -28,6 +24,11 @@ struct AnnotationView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("ביטול") {
                         dismiss()
+                    }
+                }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("נקה") {
+                        canvasView.drawing = PKDrawing()
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
@@ -52,26 +53,25 @@ struct AnnotationView: View {
         isSaving = true
         defer { isSaving = false }
 
-        // Save PKDrawing data
-        let drawingData = canvasView.drawing.dataRepresentation()
-        photo.annotationData = drawingData
+        if canvasView.drawing.strokes.isEmpty {
+            await ImageStorageService.shared.clearAnnotatedImage(for: photo)
+            await ExportCache.shared.invalidate(for: photo)
+            dismiss()
+            return
+        }
 
-        // Create composite image
         let compositeImage = renderComposite()
-
-        // Save annotated image to disk
-        let projectID = project.persistentModelID.hashValue.description
-        let findingID = finding.persistentModelID.hashValue.description
+        let projectID = project.id.uuidString
         let uuid = URL(fileURLWithPath: photo.imagePath).deletingPathExtension().lastPathComponent
 
         do {
             let annotatedPath = try await ImageStorageService.shared.saveAnnotatedImage(
                 compositeImage,
                 projectID: projectID,
-                findingID: findingID,
                 originalUUID: uuid
             )
-            photo.annotatedPath = annotatedPath
+            photo.annotatedImagePath = annotatedPath
+            await ExportCache.shared.invalidate(for: photo)
         } catch {
             print("Failed to save annotated image: \(error)")
         }
@@ -84,18 +84,16 @@ struct AnnotationView: View {
         let imageSize = image.size
         let renderer = UIGraphicsImageRenderer(size: imageSize)
         return renderer.image { _ in
-            // Draw background image at full size
             image.draw(in: CGRect(origin: .zero, size: imageSize))
 
-            // Render the PencilKit drawing at screen scale, then stretch to fill image
             let canvasSize = canvasView.bounds.size
             guard canvasSize.width > 0, canvasSize.height > 0 else { return }
 
             let scale = UIScreen.main.scale
             let drawingImage = canvasView.drawing.image(
-                from: canvasView.bounds, scale: scale
+                from: canvasView.bounds,
+                scale: scale
             )
-            // Draw the PKDrawing image stretched to match the full image size
             drawingImage.draw(in: CGRect(origin: .zero, size: imageSize))
         }
     }
@@ -106,18 +104,15 @@ struct AnnotationView: View {
 struct AnnotationCanvasRepresentable: UIViewRepresentable {
     let image: UIImage
     @Binding var canvasView: PKCanvasView
-    let existingDrawingData: Data?
 
     func makeUIView(context: Context) -> UIView {
         let container = UIView()
 
-        // Background image
         let imageView = UIImageView(image: image)
         imageView.contentMode = .scaleAspectFit
         imageView.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(imageView)
 
-        // Canvas overlay
         canvasView.backgroundColor = .clear
         canvasView.isOpaque = false
         canvasView.drawingPolicy = .anyInput
@@ -136,12 +131,6 @@ struct AnnotationCanvasRepresentable: UIViewRepresentable {
             canvasView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             canvasView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
         ])
-
-        // Restore existing drawing
-        if let data = existingDrawingData,
-           let drawing = try? PKDrawing(data: data) {
-            canvasView.drawing = drawing
-        }
 
         return container
     }

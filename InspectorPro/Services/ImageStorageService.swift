@@ -3,16 +3,14 @@ import UIKit
 actor ImageStorageService {
     static let shared = ImageStorageService()
 
-    private let fm = FileManager.default
     private let baseURL = AppConstants.imagesBaseURL
 
-    /// Save an image from camera/gallery. Returns (imagePath, thumbnailPath) relative to imagesBaseURL.
+    /// Save an image from camera/gallery. Returns relative image path.
     func saveImage(
         _ image: UIImage,
-        projectID: String,
-        findingID: String
-    ) throws -> (imagePath: String, thumbnailPath: String) {
-        let dirRelative = "\(projectID)/\(findingID)"
+        projectID: String
+    ) throws -> String {
+        let dirRelative = projectID
         let dirURL = baseURL.appendingPathComponent(dirRelative)
         FileManagerService.shared.ensureDirectoryExists(at: dirURL)
 
@@ -28,27 +26,16 @@ actor ImageStorageService {
         let imageURL = baseURL.appendingPathComponent(imageRelPath)
         try imageData.write(to: imageURL)
 
-        // Save thumbnail
-        let thumb = image.thumbnail(maxSize: AppConstants.thumbnailMaxSize)
-        guard let thumbData = thumb.jpegDataStripped(quality: AppConstants.thumbnailJPEGQuality) else {
-            throw ImageStorageError.compressionFailed
-        }
-        let thumbName = "thumb_\(uuid).jpg"
-        let thumbRelPath = "\(dirRelative)/\(thumbName)"
-        let thumbURL = baseURL.appendingPathComponent(thumbRelPath)
-        try thumbData.write(to: thumbURL)
-
-        return (imageRelPath, thumbRelPath)
+        return imageRelPath
     }
 
-    /// Save annotated composite image. Returns annotatedPath relative to imagesBaseURL.
+    /// Save annotated composite image. Returns relative path.
     func saveAnnotatedImage(
         _ image: UIImage,
         projectID: String,
-        findingID: String,
         originalUUID: String
     ) throws -> String {
-        let dirRelative = "\(projectID)/\(findingID)"
+        let dirRelative = projectID
         let dirURL = baseURL.appendingPathComponent(dirRelative)
         FileManagerService.shared.ensureDirectoryExists(at: dirURL)
 
@@ -70,29 +57,32 @@ actor ImageStorageService {
         return UIImage(data: data)
     }
 
-    /// Load thumbnail from relative path
-    func loadThumbnail(at relativePath: String) -> UIImage? {
-        let url = baseURL.appendingPathComponent(relativePath)
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return UIImage(data: data)
-    }
-
     /// Full URL for a relative image path
     func fullURL(for relativePath: String) -> URL {
         baseURL.appendingPathComponent(relativePath)
     }
 
     /// Delete all images for a list of photos
-    func deletePhotos(_ photos: [Photo]) {
+    func deletePhotos(_ photos: [PhotoRecord]) {
         for photo in photos {
             deleteFile(at: photo.imagePath)
-            if let thumb = photo.thumbnailPath {
-                deleteFile(at: thumb)
-            }
-            if let annotated = photo.annotatedPath {
+            if let annotated = photo.annotatedImagePath {
                 deleteFile(at: annotated)
             }
         }
+    }
+
+    /// Clear annotated image from disk and model.
+    func clearAnnotatedImage(for photo: PhotoRecord) {
+        if let path = photo.annotatedImagePath {
+            deleteFile(at: path)
+            photo.annotatedImagePath = nil
+        }
+    }
+
+    /// Delete one image file by relative path.
+    func deleteImage(at relativePath: String) {
+        deleteFile(at: relativePath)
     }
 
     /// Delete the entire directory for a project

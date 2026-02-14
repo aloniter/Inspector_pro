@@ -1,5 +1,4 @@
 import UIKit
-import SwiftUI
 
 actor ThumbnailService {
     static let shared = ThumbnailService()
@@ -7,26 +6,27 @@ actor ThumbnailService {
     private var cache: [String: UIImage] = [:]
     private let cacheLimit = 200
 
-    func thumbnail(for relativePath: String?) async -> UIImage? {
-        guard let path = relativePath else { return nil }
+    func thumbnail(for relativePath: String) async -> UIImage? {
+        let path = relativePath
 
         if let cached = cache[path] {
             return cached
         }
 
-        let image = await ImageStorageService.shared.loadThumbnail(at: path)
-
-        if let image = image {
-            if cache.count >= cacheLimit {
-                let keysToRemove = Array(cache.keys.prefix(cacheLimit / 2))
-                for key in keysToRemove {
-                    cache.removeValue(forKey: key)
-                }
-            }
-            cache[path] = image
+        guard let image = await ImageStorageService.shared.loadImage(at: path) else {
+            return nil
         }
+        let thumbnail = image.thumbnail(maxSize: AppConstants.thumbnailMaxSize)
 
-        return image
+        if cache.count >= cacheLimit {
+            let keysToRemove = Array(cache.keys.prefix(cacheLimit / 2))
+            for key in keysToRemove {
+                cache.removeValue(forKey: key)
+            }
+        }
+        cache[path] = thumbnail
+
+        return thumbnail
     }
 
     func invalidate(path: String) {

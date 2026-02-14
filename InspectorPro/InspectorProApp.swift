@@ -7,12 +7,16 @@ struct InspectorProApp: App {
 
     init() {
         do {
-            let schema = Schema([Project.self, Finding.self, Photo.self])
+            let schema = Schema([Project.self, PhotoRecord.self])
             let config = ModelConfiguration(
                 schema: schema,
                 isStoredInMemoryOnly: false
             )
-            modelContainer = try ModelContainer(for: schema, configurations: [config])
+            modelContainer = try ModelContainer(
+                for: schema,
+                migrationPlan: InspectorProMigrationPlan.self,
+                configurations: [config]
+            )
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
@@ -22,9 +26,7 @@ struct InspectorProApp: App {
 
     var body: some Scene {
         WindowGroup {
-            NavigationStack {
-                ProjectListView()
-            }
+            ProjectListView()
             .environment(\.layoutDirection, .rightToLeft)
             .environment(\.locale, Locale(identifier: "he"))
         }

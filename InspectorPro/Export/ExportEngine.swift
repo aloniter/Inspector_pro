@@ -2,7 +2,7 @@ import Foundation
 import UIKit
 
 enum ExportError: LocalizedError {
-    case noFindings
+    case noPhotos
     case imageLoadFailed(String)
     case pdfGenerationFailed
     case docxGenerationFailed(String)
@@ -10,7 +10,7 @@ enum ExportError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .noFindings: return "No findings to export"
+        case .noPhotos: return "No photos to export"
         case .imageLoadFailed(let path): return "Failed to load image: \(path)"
         case .pdfGenerationFailed: return "Failed to generate PDF"
         case .docxGenerationFailed(let reason): return "DOCX generation failed: \(reason)"
@@ -23,32 +23,32 @@ final class ExportEngine {
     /// Export a project report.
     /// - Parameters:
     ///   - project: The project to export
-    ///   - findings: Sorted findings for the project
+    ///   - photos: Sorted photos for the project
     ///   - options: Export options (format, quality)
     ///   - onProgress: Progress callback (0.0 to 1.0)
     /// - Returns: URL of the exported file
     static func exportReport(
         project: Project,
-        findings: [Finding],
+        photos: [PhotoRecord],
         options: ExportOptions,
         onProgress: @escaping @Sendable (Double) -> Void
     ) async throws -> URL {
-        guard !findings.isEmpty else {
-            throw ExportError.noFindings
+        guard !photos.isEmpty else {
+            throw ExportError.noPhotos
         }
 
         switch options.format {
         case .pdf:
             return try await PdfExporter.export(
                 project: project,
-                findings: findings,
+                photos: photos,
                 options: options,
                 onProgress: onProgress
             )
         case .docx:
             return try await DocxExporter.export(
                 project: project,
-                findings: findings,
+                photos: photos,
                 options: options,
                 onProgress: onProgress
             )

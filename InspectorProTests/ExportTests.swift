@@ -10,10 +10,15 @@ import Testing
     #expect(ImageQuality.high.jpegQuality == 0.75)
 }
 
-@Test func severityLabels() {
-    #expect(Severity.low.hebrewLabel == "נמוכה")
-    #expect(Severity.medium.hebrewLabel == "בינונית")
-    #expect(Severity.high.hebrewLabel == "גבוהה")
+@Test func photoRecordDisplayPath() {
+    let photo = PhotoRecord(
+        imagePath: "base/image.jpg",
+        annotatedImagePath: nil
+    )
+    #expect(photo.displayImagePath == "base/image.jpg")
+
+    photo.annotatedImagePath = "base/annotated.png"
+    #expect(photo.displayImagePath == "base/annotated.png")
 }
 
 @Test func xmlEscaping() {
