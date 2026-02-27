@@ -48,7 +48,7 @@ struct ExportOptions {
     }
 
     var imageContentWidth: CGFloat {
-        max(imageColumnWidth - (tableCellPadding * 2), 120)
+        max(imageColumnWidth - (ExportImageConstants.imageCellPaddingPoints * 2), 120)
     }
 
     var textContentWidth: CGFloat {
@@ -66,7 +66,7 @@ struct ExportOptions {
     }
 
     var targetPhotoImageHeight: CGFloat {
-        max(targetPhotoRowHeight - (tableCellPadding * 2), 80)
+        max(targetPhotoRowHeight - (ExportImageConstants.imageCellPaddingPoints * 2), 80)
     }
 
     /// Render width used during compression to keep quality while reducing file size.
@@ -160,7 +160,7 @@ struct ExportOptions {
     }
 
     var imageContentWidthEMU: Int {
-        imageColumnWidthEMU - 2 * 91440 // ~0.1 inch padding from both sides
+        imageColumnWidthEMU - 2 * ExportImageConstants.imageCellPaddingEMU
     }
 
     var targetPhotoImageHeightEMU: Int {

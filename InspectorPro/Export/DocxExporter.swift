@@ -32,14 +32,14 @@ final class DocxExporter {
         var imageRelationships: [String] = []
         var photoRowsXML = ""
 
-        for (index, photo) in photos.enumerated() {
+        for photo in photos {
             let result = try processImage(
                 photo: photo,
                 quality: options.quality,
                 mediaDir: mediaDir,
                 relId: imageRelId,
-                maxWidthEMU: options.imageContentWidthEMU,
-                maxHeightEMU: options.targetPhotoImageHeightEMU,
+                targetWidthEMU: options.imageContentWidthEMU,
+                targetHeightEMU: options.targetPhotoImageHeightEMU,
                 maxRenderWidth: options.exportImageMaxRenderWidth,
                 maxBytes: options.exportImageMaxBytes
             )
@@ -51,12 +51,12 @@ final class DocxExporter {
             )
 
             photoRowsXML += OpenXMLBuilder.buildPhotoRow(
-                photoNumber: index + 1,
                 freeText: photo.freeText,
                 imageRelId: "rId\(imageRelId)",
                 imageWidthEMU: result.widthEMU,
                 imageHeightEMU: result.heightEMU,
                 imageId: imageId,
+                imageCrop: result.crop,
                 rowHeightTwips: options.targetPhotoRowHeightTwips,
                 imageColumnWidthTwips: options.imageColumnWidthTwips,
                 textColumnWidthTwips: options.textColumnWidthTwips
@@ -109,6 +109,7 @@ final class DocxExporter {
         let filename: String
         let widthEMU: Int
         let heightEMU: Int
+        let crop: OpenXMLBuilder.ImageCrop
     }
 
     private static func processImage(
@@ -116,8 +117,8 @@ final class DocxExporter {
         quality: ImageQuality,
         mediaDir: URL,
         relId: Int,
-        maxWidthEMU: Int,
-        maxHeightEMU: Int,
+        targetWidthEMU: Int,
+        targetHeightEMU: Int,
         maxRenderWidth: CGFloat,
         maxBytes: Int
     ) throws -> ImageResult {
@@ -139,22 +140,34 @@ final class DocxExporter {
         }
 
         let pixelToEMU = 914400.0 / 96.0
-        var widthEMU = Int(image.size.width * pixelToEMU)
-        var heightEMU = Int(image.size.height * pixelToEMU)
+        let imageWidthEMU = Double(image.size.width * pixelToEMU)
+        let imageHeightEMU = Double(image.size.height * pixelToEMU)
 
-        if widthEMU > maxWidthEMU || heightEMU > maxHeightEMU {
-            let widthScale = Double(maxWidthEMU) / Double(max(widthEMU, 1))
-            let heightScale = Double(maxHeightEMU) / Double(max(heightEMU, 1))
-            let scale = min(widthScale, heightScale)
-            widthEMU = Int(Double(widthEMU) * scale)
-            heightEMU = Int(Double(heightEMU) * scale)
-        }
+        // Use cover scaling: scale to fill the target area (max scale).
+        let widthScale = Double(targetWidthEMU) / imageWidthEMU
+        let heightScale = Double(targetHeightEMU) / imageHeightEMU
+        let coverScale = max(widthScale, heightScale)
+
+        let scaledW = imageWidthEMU * coverScale
+        let scaledH = imageHeightEMU * coverScale
+
+        // Compute center-crop percentages (in 1/1000th of percent, i.e. 100000 = 100%).
+        let excessW = max(scaledW - Double(targetWidthEMU), 0)
+        let excessH = max(scaledH - Double(targetHeightEMU), 0)
+        let cropLR = Int((excessW / scaledW) * 50000) // half on each side
+        let cropTB = Int((excessH / scaledH) * 50000)
+
+        let crop = OpenXMLBuilder.ImageCrop(left: cropLR, top: cropTB, right: cropLR, bottom: cropTB)
+
+        // The displayed size is the target (cell content area).
+        let displayWidthEMU = targetWidthEMU
+        let displayHeightEMU = targetHeightEMU
 
         let filename = "image\(relId).jpg"
         let imageURL = mediaDir.appendingPathComponent(filename)
         try imageData.write(to: imageURL)
 
-        return ImageResult(filename: filename, widthEMU: widthEMU, heightEMU: heightEMU)
+        return ImageResult(filename: filename, widthEMU: displayWidthEMU, heightEMU: displayHeightEMU, crop: crop)
     }
 
     private static func normalizedText(_ value: String?) -> String {

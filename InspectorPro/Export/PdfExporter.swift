@@ -25,9 +25,9 @@ final class PdfExporter {
 
             currentY += drawTableHeader(options: options, y: currentY)
 
-            for (index, photo) in photos.enumerated() {
+            for photo in photos {
                 let image = loadCompressedImage(photo: photo, options: options)
-                let description = descriptionText(photo: photo, index: index + 1)
+                let description = descriptionText(photo: photo)
                 let rowHeight = options.targetPhotoRowHeight
 
                 if currentY + rowHeight > pageBottom {
@@ -206,17 +206,33 @@ final class PdfExporter {
         divider.stroke()
 
         if let image {
-            let maxImageSize = CGSize(
-                width: options.imageContentWidth,
-                height: min(
-                    max(rowHeight - (options.tableCellPadding * 2), 40),
-                    options.targetPhotoImageHeight
-                )
+            let pad = ExportImageConstants.imageCellPaddingPoints
+            let maxW = options.imageColumnWidth - pad * 2
+            let maxH = min(max(rowHeight - pad * 2, 40), options.targetPhotoImageHeight)
+
+            // Cover scaling: fill the target area, cropping overflow from center.
+            let widthScale = maxW / image.size.width
+            let heightScale = maxH / image.size.height
+            let coverScale = max(widthScale, heightScale)
+            let drawW = image.size.width * coverScale
+            let drawH = image.size.height * coverScale
+
+            // Center the (possibly oversized) image in the clip rect.
+            let clipRect = CGRect(
+                x: imageCellRect.minX + (imageCellRect.width - maxW) / 2,
+                y: imageCellRect.minY + (imageCellRect.height - maxH) / 2,
+                width: maxW,
+                height: maxH
             )
-            let drawSize = scaledImageSize(for: image, maxSize: maxImageSize)
-            let imageX = imageCellRect.minX + (imageCellRect.width - drawSize.width) / 2
-            let imageY = imageCellRect.minY + (imageCellRect.height - drawSize.height) / 2
-            image.draw(in: CGRect(x: imageX, y: imageY, width: drawSize.width, height: drawSize.height))
+            let drawX = clipRect.midX - drawW / 2
+            let drawY = clipRect.midY - drawH / 2
+
+            if let ctx = UIGraphicsGetCurrentContext() {
+                ctx.saveGState()
+                ctx.clip(to: clipRect)
+                image.draw(in: CGRect(x: drawX, y: drawY, width: drawW, height: drawH))
+                ctx.restoreGState()
+            }
         } else {
             drawRTLText(
                 AppStrings.text("לא ניתן לטעון תמונה"),
@@ -269,20 +285,18 @@ final class PdfExporter {
 
     // MARK: - Helpers
 
-    private static func descriptionText(photo: PhotoRecord, index: Int) -> String {
+    private static func descriptionText(photo: PhotoRecord) -> String {
         let lines = photo.freeText
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
-        let bulletLines = lines
+        return lines
             .map { line in
                 line.hasPrefix("•") ? line : "• \(line)"
             }
-
-        guard !bulletLines.isEmpty else { return "\(index)." }
-        return "\(index).\n\(bulletLines.joined(separator: "\n"))"
+            .joined(separator: "\n")
     }
 
     private static func scaledImageSize(for image: UIImage, maxSize: CGSize) -> CGSize {

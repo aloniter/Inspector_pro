@@ -204,7 +204,7 @@ struct ProjectDetailView: View {
             }
 
             importProgress = ImportProgress(processed: index + 1, total: results.count)
-            if index % 4 == 3 {
+            if index % 2 == 1 {
                 await Task.yield()
             }
         }

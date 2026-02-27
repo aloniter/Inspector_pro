@@ -50,7 +50,6 @@ import UIKit
 
 @Test func openXMLTableStructure() {
     let row = OpenXMLBuilder.buildPhotoRow(
-        photoNumber: 1,
         freeText: "בדיקה",
         imageRelId: "rId10",
         imageWidthEMU: 1_500_000,
@@ -71,6 +70,10 @@ import UIKit
     #expect(table.contains("תמונה"))
     #expect(table.contains("תיאור"))
     #expect(table.contains("rId10"))
+    #expect(table.contains("<w:jc w:val=\"right\"/>"))
+    #expect(!table.contains("<w:t xml:space=\"preserve\">1.</w:t>"))
+    #expect(!table.contains("<w:bidi/>"))
+    #expect(!table.contains("<w:rtl/>"))
 }
 
 @Test func docxTemplateContainsTablePlaceholder() {

@@ -40,12 +40,9 @@ final class DocxTemplateBuilder {
     }
 
     static func documentXML(options: ExportOptions) -> String {
-        let isHebrew = AppLanguage.current == .hebrew
         let addressLabel = AppStrings.text("כתובת")
         let dateLabel = AppStrings.text("תאריך")
         let notesLabel = AppStrings.text("הערות")
-        let paragraphDirectionTag = isHebrew ? "<w:bidi/>" : ""
-        let runDirectionTag = isHebrew ? "<w:rtl/>" : ""
 
         return """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -56,30 +53,30 @@ final class DocxTemplateBuilder {
                     xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
           <w:body>
             <w:p>
-              <w:pPr>\(paragraphDirectionTag)<w:jc w:val="center"/></w:pPr>
+              <w:pPr><w:jc w:val="center"/></w:pPr>
               <w:r>
-                <w:rPr><w:b/><w:bCs/>\(runDirectionTag)<w:sz w:val="48"/><w:szCs w:val="48"/><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/></w:rPr>
+                <w:rPr><w:b/><w:bCs/><w:sz w:val="48"/><w:szCs w:val="48"/><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/></w:rPr>
                 <w:t>{{PROJECT_TITLE}}</w:t>
               </w:r>
             </w:p>
             <w:p>
-              <w:pPr>\(paragraphDirectionTag)<w:jc w:val="center"/><w:spacing w:after="100"/></w:pPr>
+              <w:pPr><w:spacing w:after="100"/><w:jc w:val="center"/></w:pPr>
               <w:r>
-                <w:rPr>\(runDirectionTag)<w:sz w:val="24"/><w:szCs w:val="24"/><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/></w:rPr>
+                <w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/></w:rPr>
                 <w:t xml:space="preserve">\(addressLabel): {{ADDRESS}}</w:t>
               </w:r>
             </w:p>
             <w:p>
-              <w:pPr>\(paragraphDirectionTag)<w:jc w:val="center"/><w:spacing w:after="100"/></w:pPr>
+              <w:pPr><w:spacing w:after="100"/><w:jc w:val="center"/></w:pPr>
               <w:r>
-                <w:rPr>\(runDirectionTag)<w:sz w:val="24"/><w:szCs w:val="24"/><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/></w:rPr>
+                <w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/></w:rPr>
                 <w:t xml:space="preserve">\(dateLabel): {{DATE}}</w:t>
               </w:r>
             </w:p>
             <w:p>
-              <w:pPr>\(paragraphDirectionTag)<w:jc w:val="center"/><w:spacing w:after="100"/></w:pPr>
+              <w:pPr><w:spacing w:after="100"/><w:jc w:val="center"/></w:pPr>
               <w:r>
-                <w:rPr>\(runDirectionTag)<w:sz w:val="24"/><w:szCs w:val="24"/><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/></w:rPr>
+                <w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/></w:rPr>
                 <w:t xml:space="preserve">\(notesLabel): {{NOTES}}</w:t>
               </w:r>
             </w:p>
@@ -112,9 +109,9 @@ final class DocxTemplateBuilder {
 
     static func stylesXML() -> String {
         let isHebrew = AppLanguage.current == .hebrew
-        let languageTag = isHebrew ? "<w:lang w:bidi=\"he-IL\"/>" : "<w:lang w:val=\"en-US\"/>"
-        let paragraphDirectionTag = isHebrew ? "<w:bidi/>" : ""
-        let runDirectionTag = isHebrew ? "<w:rtl/>" : ""
+        let languageTag = isHebrew
+            ? "<w:lang w:val=\"he-IL\" w:bidi=\"he-IL\"/>"
+            : "<w:lang w:val=\"en-US\"/>"
 
         return """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -130,15 +127,14 @@ final class DocxTemplateBuilder {
             </w:rPrDefault>
             <w:pPrDefault>
               <w:pPr>
-                \(paragraphDirectionTag)
                 <w:spacing w:after="40" w:line="276" w:lineRule="auto"/>
               </w:pPr>
             </w:pPrDefault>
           </w:docDefaults>
           <w:style w:type="paragraph" w:styleId="Normal" w:default="1">
             <w:name w:val="Normal"/>
-            <w:pPr>\(paragraphDirectionTag)</w:pPr>
-            <w:rPr>\(runDirectionTag)</w:rPr>
+            <w:pPr/>
+            <w:rPr/>
           </w:style>
         </w:styles>
         """
@@ -147,11 +143,12 @@ final class DocxTemplateBuilder {
     // MARK: - Settings
 
     static func settingsXML() -> String {
-        let documentDirectionTag = AppLanguage.current == .hebrew ? "<w:bidi/>" : ""
         return """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-          \(documentDirectionTag)
+          <w:compat>
+            <w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/>
+          </w:compat>
           <w:defaultTabStop w:val="720"/>
         </w:settings>
         """

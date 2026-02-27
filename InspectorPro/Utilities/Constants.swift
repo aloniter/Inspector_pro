@@ -9,7 +9,7 @@ enum AppConstants {
     static let thumbnailMaxSize: CGFloat = 200
     static let thumbnailJPEGQuality: CGFloat = 0.6
     static let importMaxWidth: CGFloat = 2000
-    static let gallerySelectionLimit = 100
+    static let gallerySelectionLimit = 500
     static let importSaveCheckpoint = 20
 
     static var documentsURL: URL {
@@ -31,6 +31,15 @@ enum AppConstants {
     static var exportsURL: URL {
         appBaseURL.appendingPathComponent(exportsDirectoryName)
     }
+}
+
+enum ExportImageConstants {
+    /// Padding between image and cell border (points).
+    static let imageCellPaddingPoints: CGFloat = 4
+    /// Padding in twips (1/20th of a point) for DOCX table cell margins.
+    static let imageCellPaddingTwips: Int = 80
+    /// Padding in EMU for DOCX image content area calculation.
+    static let imageCellPaddingEMU: Int = 50800
 }
 
 enum AppPreferenceKeys {
@@ -104,3 +113,4 @@ enum AppTextDirection {
         direction == .rightToLeft ? .trailing : .leading
     }
 }
+

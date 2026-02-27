@@ -44,18 +44,18 @@ enum ImageQuality: String, CaseIterable, Identifiable, Codable {
     /// Target total export payload budget (images + container overhead).
     var targetTotalExportBytes: Int {
         switch self {
-        case .economical: return 9_000_000
-        case .balanced: return 18_000_000
-        case .high: return 30_000_000
+        case .economical: return 20_000_000
+        case .balanced: return 40_000_000
+        case .high: return 65_000_000
         }
     }
 
     /// Reserved bytes for PDF/DOCX structure and metadata.
     var targetContainerOverheadBytes: Int {
         switch self {
-        case .economical: return 500_000
-        case .balanced: return 800_000
-        case .high: return 1_200_000
+        case .economical: return 1_000_000
+        case .balanced: return 1_500_000
+        case .high: return 2_500_000
         }
     }
 
@@ -74,21 +74,27 @@ enum ImageQuality: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .economical:
             switch count {
-            case 121...: return 0.85
+            case 301...: return 0.75
+            case 201...300: return 0.80
+            case 121...200: return 0.85
             case 81...120: return 0.90
             case 41...80: return 0.95
             default: return 1.0
             }
         case .balanced:
             switch count {
-            case 141...: return 0.88
+            case 351...: return 0.78
+            case 221...350: return 0.83
+            case 141...220: return 0.88
             case 91...140: return 0.93
             case 51...90: return 0.97
             default: return 1.0
             }
         case .high:
             switch count {
-            case 161...: return 0.90
+            case 401...: return 0.80
+            case 251...400: return 0.85
+            case 161...250: return 0.90
             case 111...160: return 0.95
             case 71...110: return 0.98
             default: return 1.0

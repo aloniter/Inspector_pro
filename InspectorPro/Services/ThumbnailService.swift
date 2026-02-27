@@ -4,7 +4,7 @@ actor ThumbnailService {
     static let shared = ThumbnailService()
 
     private var cache: [String: UIImage] = [:]
-    private let cacheLimit = 200
+    private let cacheLimit = 300
 
     func thumbnail(for relativePath: String) async -> UIImage? {
         let path = relativePath

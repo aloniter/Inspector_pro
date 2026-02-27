@@ -22,10 +22,10 @@ final class OpenXMLBuilder {
               <w:insideV w:val="single" w:sz="8" w:space="0" w:color="000000"/>
             </w:tblBorders>
             <w:tblCellMar>
-              <w:top w:w="100" w:type="dxa"/>
-              <w:left w:w="100" w:type="dxa"/>
-              <w:bottom w:w="100" w:type="dxa"/>
-              <w:right w:w="100" w:type="dxa"/>
+              <w:top w:w="\(ExportImageConstants.imageCellPaddingTwips)" w:type="dxa"/>
+              <w:left w:w="\(ExportImageConstants.imageCellPaddingTwips)" w:type="dxa"/>
+              <w:bottom w:w="\(ExportImageConstants.imageCellPaddingTwips)" w:type="dxa"/>
+              <w:right w:w="\(ExportImageConstants.imageCellPaddingTwips)" w:type="dxa"/>
             </w:tblCellMar>
           </w:tblPr>
           <w:tblGrid>
@@ -39,12 +39,12 @@ final class OpenXMLBuilder {
     }
 
     static func buildPhotoRow(
-        photoNumber: Int,
         freeText: String,
         imageRelId: String,
         imageWidthEMU: Int,
         imageHeightEMU: Int,
         imageId: Int,
+        imageCrop: ImageCrop = .none,
         rowHeightTwips: Int,
         imageColumnWidthTwips: Int,
         textColumnWidthTwips: Int
@@ -61,9 +61,9 @@ final class OpenXMLBuilder {
               <w:vAlign w:val="center"/>
             </w:tcPr>
             <w:p>
-              <w:pPr><w:jc w:val="center"/></w:pPr>
+              <w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/></w:pPr>
               <w:r>
-                \(buildInlineImage(relId: imageRelId, widthEMU: imageWidthEMU, heightEMU: imageHeightEMU, imageId: imageId))
+                \(buildInlineImage(relId: imageRelId, widthEMU: imageWidthEMU, heightEMU: imageHeightEMU, imageId: imageId, crop: imageCrop))
               </w:r>
             </w:p>
           </w:tc>
@@ -73,7 +73,7 @@ final class OpenXMLBuilder {
               <w:vAlign w:val="top"/>
               <w:shd w:val="clear" w:color="auto" w:fill="F2F2F2"/>
             </w:tcPr>
-            \(buildDescriptionCell(photoNumber: photoNumber, freeText: freeText))
+            \(buildDescriptionCell(freeText: freeText))
           </w:tc>
         </w:tr>
         """
@@ -93,24 +93,18 @@ final class OpenXMLBuilder {
         color: String? = nil,
         spacingAfter: Int? = nil
     ) -> String {
-        let isHebrew = AppLanguage.current == .hebrew
         let boldTag = bold ? "<w:b/><w:bCs/>" : ""
         let colorTag = color != nil ? "<w:color w:val=\"\(color!)\"/>" : ""
         let spacingTag = spacingAfter != nil ? "<w:spacing w:after=\"\(spacingAfter!)\"/>" : ""
-        let paragraphDirectionTag = isHebrew ? "<w:bidi/>" : ""
-        let runDirectionTag = isHebrew ? "<w:rtl/>" : ""
-        let resolvedAlignment = (!isHebrew && alignment == "right") ? "left" : alignment
 
         return """
         <w:p>
           <w:pPr>
-            \(paragraphDirectionTag)
-            <w:jc w:val="\(resolvedAlignment)"/>
             \(spacingTag)
+            <w:jc w:val="\(alignment)"/>
           </w:pPr>
           <w:r>
             <w:rPr>
-              \(runDirectionTag)
               <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
               <w:sz w:val="\(fontSize)"/>
               <w:szCs w:val="\(fontSize)"/>
@@ -156,7 +150,7 @@ final class OpenXMLBuilder {
         """
     }
 
-    private static func buildDescriptionCell(photoNumber: Int, freeText: String) -> String {
+    private static func buildDescriptionCell(freeText: String) -> String {
         let lines = freeText
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .split(whereSeparator: \.isNewline)
@@ -166,13 +160,7 @@ final class OpenXMLBuilder {
             $0.hasPrefix("•") ? $0 : "• \($0)"
         }
 
-        var xml = rtlParagraph(
-            text: "\(photoNumber).",
-            bold: true,
-            fontSize: 24,
-            alignment: "right",
-            spacingAfter: 80
-        )
+        var xml = ""
         for line in bulletLines {
             xml += rtlParagraph(
                 text: line,
@@ -186,13 +174,31 @@ final class OpenXMLBuilder {
         return xml
     }
 
+    /// Crop offsets in 1/1000th of a percent (0–100000) for center-crop behavior.
+    struct ImageCrop {
+        let left: Int
+        let top: Int
+        let right: Int
+        let bottom: Int
+
+        static let none = ImageCrop(left: 0, top: 0, right: 0, bottom: 0)
+    }
+
     private static func buildInlineImage(
         relId: String,
         widthEMU: Int,
         heightEMU: Int,
-        imageId: Int
+        imageId: Int,
+        crop: ImageCrop = .none
     ) -> String {
-        """
+        let srcRectTag: String
+        if crop.left != 0 || crop.top != 0 || crop.right != 0 || crop.bottom != 0 {
+            srcRectTag = "<a:srcRect l=\"\(crop.left)\" t=\"\(crop.top)\" r=\"\(crop.right)\" b=\"\(crop.bottom)\"/>"
+        } else {
+            srcRectTag = ""
+        }
+
+        return """
         <w:drawing>
           <wp:inline distT="0" distB="0" distL="0" distR="0">
             <wp:extent cx="\(widthEMU)" cy="\(heightEMU)"/>
@@ -206,6 +212,7 @@ final class OpenXMLBuilder {
                   </pic:nvPicPr>
                   <pic:blipFill>
                     <a:blip r:embed="\(relId)"/>
+                    \(srcRectTag)
                     <a:stretch><a:fillRect/></a:stretch>
                   </pic:blipFill>
                   <pic:spPr>
