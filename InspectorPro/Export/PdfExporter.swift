@@ -9,6 +9,10 @@ final class PdfExporter {
     ) async throws -> URL {
         let outputURL = outputFileURL(projectName: project.name, date: project.date, fileExtension: "pdf")
 
+        // Load the logo from the bundled template for header branding.
+        let templateAssets = try TemplateExtractor.extract()
+        let logoImage = UIImage(data: templateAssets.logoImageData)
+
         let pageRect = CGRect(x: 0, y: 0, width: options.pageWidth, height: options.pageHeight)
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
 
@@ -17,11 +21,13 @@ final class PdfExporter {
 
         let data = renderer.pdfData { context in
             context.beginPage()
+            drawBranding(logoImage: logoImage, options: options)
             drawCoverPage(project: project, options: options)
 
             context.beginPage()
-            var currentY = options.marginTop
-            let pageBottom = options.pageHeight - options.marginBottom
+            drawBranding(logoImage: logoImage, options: options)
+            var currentY = options.effectiveTopMargin
+            let pageBottom = options.pageHeight - options.effectiveBottomMargin
 
             currentY += drawTableHeader(options: options, y: currentY)
 
@@ -32,7 +38,8 @@ final class PdfExporter {
 
                 if currentY + rowHeight > pageBottom {
                     context.beginPage()
-                    currentY = options.marginTop
+                    drawBranding(logoImage: logoImage, options: options)
+                    currentY = options.effectiveTopMargin
                     currentY += drawTableHeader(options: options, y: currentY)
                 }
 
@@ -250,6 +257,77 @@ final class PdfExporter {
             alignment: .right,
             color: .black,
             lineSpacing: 2
+        )
+    }
+
+    // MARK: - Header / Footer Branding
+
+    private static func drawBranding(
+        logoImage: UIImage?,
+        options: ExportOptions
+    ) {
+        drawHeader(logoImage: logoImage, options: options)
+        drawFooter(options: options)
+    }
+
+    private static func drawHeader(
+        logoImage: UIImage?,
+        options: ExportOptions
+    ) {
+        guard let logo = logoImage else { return }
+
+        let maxDimension: CGFloat = 75
+        let scale = min(maxDimension / logo.size.width, maxDimension / logo.size.height)
+        let drawSize = CGSize(width: logo.size.width * scale, height: logo.size.height * scale)
+
+        // Left-aligned logo.
+        let x = options.marginLeft
+        let y = options.brandedHeaderDistancePt
+
+        logo.draw(in: CGRect(x: x, y: y, width: drawSize.width, height: drawSize.height))
+    }
+
+    private static func drawFooter(options: ExportOptions) {
+        let footerX = options.marginLeft
+        let footerWidth = options.pageWidth - options.marginLeft - options.marginRight
+        let footerStartY = options.pageHeight - options.brandedBottomMarginPt + options.brandedFooterDistancePt
+
+        // Top border line matching template footer style.
+        UIColor.black.setStroke()
+        let borderPath = UIBezierPath()
+        borderPath.move(to: CGPoint(x: footerX, y: footerStartY))
+        borderPath.addLine(to: CGPoint(x: footerX + footerWidth, y: footerStartY))
+        borderPath.lineWidth = 0.5
+        borderPath.stroke()
+
+        let darkBlue = UIColor(red: 0, green: 0x20 / 255.0, blue: 0x60 / 255.0, alpha: 1) // #002060
+        let lineHeight: CGFloat = 11
+        var y = footerStartY + 3
+
+        drawRTLText(
+            "כפר ויתקין, ת\"ד 635 מיקוד 4020000",
+            in: CGRect(x: footerX, y: y, width: footerWidth, height: lineHeight),
+            fontSize: 8,
+            alignment: .center,
+            color: darkBlue
+        )
+        y += lineHeight
+
+        drawRTLText(
+            "אבישי 054-6222577 דוא\"ל iter@iter.co.il",
+            in: CGRect(x: footerX, y: y, width: footerWidth, height: lineHeight),
+            fontSize: 8,
+            alignment: .center,
+            color: darkBlue
+        )
+        y += lineHeight
+
+        drawRTLText(
+            "דפנה 054-6222575 משרד 09-8665885",
+            in: CGRect(x: footerX, y: y, width: footerWidth, height: lineHeight),
+            fontSize: 8,
+            alignment: .center,
+            color: darkBlue
         )
     }
 

@@ -89,14 +89,16 @@ import UIKit
     )
     let xml = DocxTemplateBuilder.documentXML()
 
-    #expect(xml.contains("w:top=\"1440\""))
+    #expect(xml.contains("w:top=\"1840\""))
     #expect(xml.contains("w:bottom=\"1440\""))
-    #expect(xml.contains("w:header=\"720\""))
-    #expect(xml.contains("w:footer=\"720\""))
-    #expect(options.docxTopMarginTwips == 1440)
+    #expect(xml.contains("w:header=\"170\""))
+    #expect(xml.contains("w:footer=\"227\""))
+    #expect(xml.contains("headerReference"))
+    #expect(xml.contains("footerReference"))
+    #expect(options.docxTopMarginTwips == 1840)
     #expect(options.docxBottomMarginTwips == 1440)
-    #expect(options.docxHeaderDistanceTwips == 720)
-    #expect(options.docxFooterDistanceTwips == 720)
+    #expect(options.docxHeaderDistanceTwips == 170)
+    #expect(options.docxFooterDistanceTwips == 227)
 }
 
 @Test func docxKeepsTwoPhotosPerPageWithReservedHeaderFooterSpace() {
@@ -105,14 +107,8 @@ import UIKit
         quality: .balanced,
         photoCount: 20
     )
-    let pdfOptions = ExportOptions(
-        format: .pdf,
-        quality: .balanced,
-        photoCount: 20
-    )
 
     #expect(docxOptions.targetPhotoRowHeight > docxOptions.minimumPhotoRowHeight)
-    #expect(docxOptions.targetPhotoRowHeight < pdfOptions.targetPhotoRowHeight)
     #expect(docxOptions.docxTableLayoutSafetyPaddingTwips == 240)
 
     let docxContentHeightTwips = Int(docxOptions.contentHeight * 20.0)
@@ -153,7 +149,7 @@ import UIKit
         photoCount: 126
     )
 
-    #expect(options.exportImageMaxBytes == 67_460)
+    #expect(options.exportImageMaxBytes == 150_793)
     #expect(options.exportImageMaxBytes < ImageQuality.economical.targetExportBytesPerImage)
 
     let baseRenderWidth = min(ImageQuality.economical.maxWidth, options.imageContentWidth * 2.2)

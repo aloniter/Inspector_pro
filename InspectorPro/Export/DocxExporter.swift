@@ -25,6 +25,13 @@ final class DocxExporter {
             try fm.createDirectory(at: dir, withIntermediateDirectories: true)
         }
 
+        // Extract the logo from the bundled template; header/footer XML is generated programmatically.
+        let templateAssets = try TemplateExtractor.extract()
+        try templateAssets.logoImageData.write(to: mediaDir.appendingPathComponent("image1.jpeg"))
+        try DocxTemplateBuilder.headerXML().write(to: wordDir.appendingPathComponent("header1.xml"), atomically: true, encoding: .utf8)
+        try DocxTemplateBuilder.footerXML().write(to: wordDir.appendingPathComponent("footer1.xml"), atomically: true, encoding: .utf8)
+        try DocxTemplateBuilder.headerRelsXML().write(to: wordRelsDir.appendingPathComponent("header1.xml.rels"), atomically: true, encoding: .utf8)
+
         let totalPhotos = photos.count
         var processedPhotos = 0
         var imageRelId = 10

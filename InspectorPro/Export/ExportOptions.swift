@@ -13,8 +13,15 @@ struct ExportOptions {
     let marginBottom: CGFloat = 40
     let marginLeft: CGFloat = 40
     let marginRight: CGFloat = 40
-    let docxVerticalMargin: CGFloat = 72
-    let docxHeaderFooterDistance: CGFloat = 36
+    /// Top margin to accommodate the header logo.
+    let brandedTopMarginPt: CGFloat = 92.0     // 1840 twips
+    /// Bottom margin matching template.docx to accommodate the footer.
+    let brandedBottomMarginPt: CGFloat = 72.0  // 1440 twips
+    /// Distance from page top to header content start.
+    let brandedHeaderDistancePt: CGFloat = 8.5  // 170 twips
+    /// Distance from page bottom to footer content start.
+    let brandedFooterDistancePt: CGFloat = 11.35 // 227 twips
+
     let docxTableLayoutSafetyPadding: CGFloat = 12
 
     let imageColumnRatio: CGFloat = 0.60
@@ -32,11 +39,21 @@ struct ExportOptions {
     }
 
     var effectiveTopMargin: CGFloat {
-        format == .docx ? docxVerticalMargin : marginTop
+        brandedTopMarginPt
     }
 
     var effectiveBottomMargin: CGFloat {
-        format == .docx ? docxVerticalMargin : marginBottom
+        brandedBottomMarginPt
+    }
+
+    /// Available height for the header content (logo) between header distance and top margin.
+    var headerZoneHeight: CGFloat {
+        brandedTopMarginPt - brandedHeaderDistancePt
+    }
+
+    /// Available height for the footer content between footer distance and bottom margin.
+    var footerZoneHeight: CGFloat {
+        brandedBottomMarginPt - brandedFooterDistancePt
     }
 
     var imageColumnWidth: CGFloat {
@@ -117,29 +134,12 @@ struct ExportOptions {
         Int(docxTableLayoutSafetyPadding * 20.0)
     }
 
-    var docxTopMarginTwips: Int {
-        Int(docxVerticalMargin * 20.0)
-    }
-
-    var docxBottomMarginTwips: Int {
-        Int(docxVerticalMargin * 20.0)
-    }
-
-    var docxLeftMarginTwips: Int {
-        Int(marginLeft * 20.0)
-    }
-
-    var docxRightMarginTwips: Int {
-        Int(marginRight * 20.0)
-    }
-
-    var docxHeaderDistanceTwips: Int {
-        Int(docxHeaderFooterDistance * 20.0)
-    }
-
-    var docxFooterDistanceTwips: Int {
-        Int(docxHeaderFooterDistance * 20.0)
-    }
+    var docxTopMarginTwips: Int { 1840 }
+    var docxBottomMarginTwips: Int { 1440 }
+    var docxLeftMarginTwips: Int { Int(marginLeft * 20.0) }
+    var docxRightMarginTwips: Int { Int(marginRight * 20.0) }
+    var docxHeaderDistanceTwips: Int { 170 }
+    var docxFooterDistanceTwips: Int { 227 }
 
     // A4 in EMUs (English Metric Units) for DOCX: 1 inch = 914400 EMUs
     // A4 = 8.27 x 11.69 inches

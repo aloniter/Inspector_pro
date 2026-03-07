@@ -18,6 +18,8 @@ final class DocxTemplateBuilder {
           <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
           <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
           <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
+          <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
+          <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>
         </Types>
         """
     }
@@ -43,6 +45,7 @@ final class DocxTemplateBuilder {
         let addressLabel = AppStrings.text("כתובת")
         let dateLabel = AppStrings.text("תאריך")
         let notesLabel = AppStrings.text("הערות")
+        let bidiTag = AppLanguage.current == .hebrew ? "<w:bidi/><w:rtlGutter/>" : ""
 
         return """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -83,8 +86,11 @@ final class DocxTemplateBuilder {
             <w:p><w:r><w:br w:type="page"/></w:r></w:p>
             {{PHOTOS_TABLE}}
             <w:sectPr>
+              <w:headerReference w:type="default" r:id="rId8"/>
+              <w:footerReference w:type="default" r:id="rId9"/>
               <w:pgSz w:w="11906" w:h="16838"/>
               <w:pgMar w:top="\(options.docxTopMarginTwips)" w:right="\(options.docxRightMarginTwips)" w:bottom="\(options.docxBottomMarginTwips)" w:left="\(options.docxLeftMarginTwips)" w:header="\(options.docxHeaderDistanceTwips)" w:footer="\(options.docxFooterDistanceTwips)" w:gutter="0"/>
+              \(bidiTag)
             </w:sectPr>
           </w:body>
         </w:document>
@@ -100,7 +106,117 @@ final class DocxTemplateBuilder {
         <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
           <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
           <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
+          <Relationship Id="rId8" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+          <Relationship Id="rId9" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
           \(imageRels)
+        </Relationships>
+        """
+    }
+
+    // MARK: - Header / Footer
+
+    static func headerXML() -> String {
+        let logoSizeEMU = 952500 // 75pt
+        return """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+               xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+               xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+               xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+               xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+          <w:p>
+            <w:pPr><w:jc w:val="left"/><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr>
+            <w:r>
+              <w:drawing>
+                <wp:inline distT="0" distB="0" distL="0" distR="0">
+                  <wp:extent cx="\(logoSizeEMU)" cy="\(logoSizeEMU)"/>
+                  <wp:effectExtent l="0" t="0" r="0" b="0"/>
+                  <wp:docPr id="1" name="Logo"/>
+                  <a:graphic>
+                    <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                      <pic:pic>
+                        <pic:nvPicPr>
+                          <pic:cNvPr id="1" name="image1.jpeg"/>
+                          <pic:cNvPicPr/>
+                        </pic:nvPicPr>
+                        <pic:blipFill>
+                          <a:blip r:embed="rId1"/>
+                          <a:stretch><a:fillRect/></a:stretch>
+                        </pic:blipFill>
+                        <pic:spPr>
+                          <a:xfrm>
+                            <a:off x="0" y="0"/>
+                            <a:ext cx="\(logoSizeEMU)" cy="\(logoSizeEMU)"/>
+                          </a:xfrm>
+                          <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                        </pic:spPr>
+                      </pic:pic>
+                    </a:graphicData>
+                  </a:graphic>
+                </wp:inline>
+              </w:drawing>
+            </w:r>
+          </w:p>
+        </w:hdr>
+        """
+    }
+
+    static func footerXML() -> String {
+        """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+          <w:p>
+            <w:pPr>
+              <w:jc w:val="center"/>
+              <w:spacing w:after="0" w:line="240" w:lineRule="auto"/>
+              <w:pBdr><w:top w:val="single" w:sz="4" w:space="1" w:color="000000"/></w:pBdr>
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
+                <w:sz w:val="16"/><w:szCs w:val="16"/>
+                <w:color w:val="002060"/>
+              </w:rPr>
+              <w:t xml:space="preserve">כפר ויתקין, ת"ד 635 מיקוד 4020000</w:t>
+            </w:r>
+          </w:p>
+          <w:p>
+            <w:pPr>
+              <w:jc w:val="center"/>
+              <w:spacing w:after="0" w:line="240" w:lineRule="auto"/>
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
+                <w:sz w:val="16"/><w:szCs w:val="16"/>
+                <w:color w:val="002060"/>
+              </w:rPr>
+              <w:t xml:space="preserve">אבישי 054-6222577 דוא"ל iter@iter.co.il</w:t>
+            </w:r>
+          </w:p>
+          <w:p>
+            <w:pPr>
+              <w:jc w:val="center"/>
+              <w:spacing w:after="0" w:line="240" w:lineRule="auto"/>
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
+                <w:sz w:val="16"/><w:szCs w:val="16"/>
+                <w:color w:val="002060"/>
+              </w:rPr>
+              <w:t xml:space="preserve">דפנה 054-6222575 משרד 09-8665885</w:t>
+            </w:r>
+          </w:p>
+        </w:ftr>
+        """
+    }
+
+    static func headerRelsXML() -> String {
+        """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.jpeg"/>
         </Relationships>
         """
     }
