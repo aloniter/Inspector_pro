@@ -36,6 +36,9 @@
 "סימון" = "Annotation";
 "בטל" = "Undo";
 "נקה" = "Clear";
+"נקה סימונים" = "Clear Markup";
+"לנקות סימונים?" = "Clear markup?";
+"פעולה זו תסיר את כל הסימונים הקיימים. ניתן לצייר מחדש ולשמור." = "This removes all existing markup. You can draw again and save.";
 "שומר..." = "Saving...";
 "שמירה נכשלה" = "Save failed";
 "סגור" = "Close";

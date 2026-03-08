@@ -4,10 +4,11 @@ struct AnnotationView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
-    let image: UIImage
+    let originalImage: UIImage
     let photo: PhotoRecord
     let project: Project
 
+    @State private var baseImage: UIImage
     @State private var selectedTool: AnnotationTool = .freehand
     @State private var selectedColor: UIColor = .systemRed
     @State private var strokeWidth: CGFloat = 5
@@ -16,6 +17,8 @@ struct AnnotationView: View {
     @State private var dragStartPoint: CGPoint?
     @State private var isSaving = false
     @State private var saveErrorMessage: String?
+    @State private var didRequestMarkupClear = false
+    @State private var showingClearMarkupConfirmation = false
 
     private let colorPalette: [UIColor] = [
         .systemRed,
@@ -28,11 +31,23 @@ struct AnnotationView: View {
         .black,
     ]
 
+    init(
+        image: UIImage,
+        originalImage: UIImage,
+        photo: PhotoRecord,
+        project: Project
+    ) {
+        self.originalImage = originalImage
+        self.photo = photo
+        self.project = project
+        _baseImage = State(initialValue: image)
+    }
+
     var body: some View {
         NavigationStack {
             GeometryReader { geometry in
                 let imageFrame = aspectFitRect(
-                    for: image.size,
+                    for: baseImage.size,
                     in: geometry.size
                 )
 
@@ -40,7 +55,7 @@ struct AnnotationView: View {
                     Color(uiColor: .systemBackground)
                         .ignoresSafeArea()
 
-                    Image(uiImage: image)
+                    Image(uiImage: baseImage)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: imageFrame.width, height: imageFrame.height)
@@ -78,12 +93,10 @@ struct AnnotationView: View {
                 }
 
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(AppStrings.text("נקה")) {
-                        annotations.removeAll()
-                        draftAnnotation = nil
-                        dragStartPoint = nil
+                    Button(AppStrings.text("נקה סימונים")) {
+                        showingClearMarkupConfirmation = true
                     }
-                    .disabled(isSaving || (annotations.isEmpty && draftAnnotation == nil))
+                    .disabled(isSaving || (photo.annotatedImagePath == nil && annotations.isEmpty && draftAnnotation == nil))
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
@@ -119,6 +132,14 @@ struct AnnotationView: View {
         } message: {
             Text(saveErrorMessage ?? AppStrings.text("אירעה שגיאה בשמירה"))
         }
+        .alert(AppStrings.text("לנקות סימונים?"), isPresented: $showingClearMarkupConfirmation) {
+            Button(AppStrings.text("ביטול"), role: .cancel) {}
+            Button(AppStrings.text("נקה סימונים"), role: .destructive) {
+                clearMarkup()
+            }
+        } message: {
+            Text(AppStrings.text("פעולה זו תסיר את כל הסימונים הקיימים. ניתן לצייר מחדש ולשמור."))
+        }
     }
 
     private var saveErrorBinding: Binding<Bool> {
@@ -135,12 +156,14 @@ struct AnnotationView: View {
 
         do {
             if annotations.isEmpty {
-                if let currentPath = photo.annotatedImagePath {
-                    await ImageStorageService.shared.deleteImage(at: currentPath)
-                    photo.annotatedImagePath = nil
+                if didRequestMarkupClear {
+                    if let currentPath = photo.annotatedImagePath {
+                        await ImageStorageService.shared.deleteImage(at: currentPath)
+                        photo.annotatedImagePath = nil
+                    }
+                    try modelContext.save()
+                    await ExportCache.shared.invalidate(for: photo)
                 }
-                try modelContext.save()
-                await ExportCache.shared.invalidate(for: photo)
                 dismiss()
                 return
             }
@@ -168,20 +191,28 @@ struct AnnotationView: View {
 
     @MainActor
     private func renderComposite() -> UIImage {
-        let imageSize = image.size
+        let imageSize = baseImage.size
         let format = UIGraphicsImageRendererFormat.default()
-        format.scale = image.scale > 0 ? image.scale : 1
+        format.scale = baseImage.scale > 0 ? baseImage.scale : 1
         format.opaque = true
 
         let renderer = UIGraphicsImageRenderer(size: imageSize, format: format)
         return renderer.image { rendererContext in
-            image.draw(in: CGRect(origin: .zero, size: imageSize))
+            baseImage.draw(in: CGRect(origin: .zero, size: imageSize))
 
             let destinationFrame = CGRect(origin: .zero, size: imageSize)
             for annotation in annotations {
                 draw(annotation, in: destinationFrame, cgContext: rendererContext.cgContext)
             }
         }
+    }
+
+    private func clearMarkup() {
+        annotations.removeAll()
+        draftAnnotation = nil
+        dragStartPoint = nil
+        baseImage = originalImage
+        didRequestMarkupClear = true
     }
 
     private func updateDraft(for value: DragGesture.Value, imageFrame: CGRect) {

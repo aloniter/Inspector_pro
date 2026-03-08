@@ -83,7 +83,7 @@ struct PhotoDetailView: View {
                 }
             }
         }
-        .onChange(of: isEditingNotes) { isFocused in
+        .onChange(of: isEditingNotes) { _, isFocused in
             if !isFocused {
                 saveChanges()
             }
@@ -97,22 +97,16 @@ struct PhotoDetailView: View {
             Text(AppStrings.text("האם אתה בטוח שברצונך למחוק את התמונה? לא ניתן לבטל פעולה זו."))
         }
         .task(id: photo.displayImagePath) {
-            let preferredImage = await ImageStorageService.shared.loadImage(at: photo.displayImagePath)
-            let loadedOriginal = await ImageStorageService.shared.loadImage(at: photo.imagePath)
-
-            if preferredImage == nil, photo.annotatedImagePath != nil {
-                // Recover from a stale/missing annotation file path.
-                photo.annotatedImagePath = nil
-                try? modelContext.save()
-            }
-
-            displayedImage = preferredImage ?? loadedOriginal
-            originalImage = loadedOriginal ?? preferredImage
+            await reloadImages()
         }
-        .fullScreenCover(isPresented: $showingAnnotation) {
-            if let image = originalImage ?? displayedImage {
+        .fullScreenCover(
+            isPresented: $showingAnnotation,
+            onDismiss: { Task { await reloadImages() } }
+        ) {
+            if let baseImage = displayedImage {
                 AnnotationView(
-                    image: image,
+                    image: baseImage,
+                    originalImage: originalImage ?? baseImage,
                     photo: photo,
                     project: project
                 )
@@ -135,5 +129,25 @@ struct PhotoDetailView: View {
 
     private func saveChanges() {
         try? modelContext.save()
+    }
+
+    @MainActor
+    private func reloadImages() async {
+        let loadedOriginal = await ImageStorageService.shared.loadImage(at: photo.imagePath)
+        let loadedAnnotated: UIImage?
+
+        if let annotatedPath = photo.annotatedImagePath {
+            loadedAnnotated = await ImageStorageService.shared.loadImage(at: annotatedPath)
+            if loadedAnnotated == nil {
+                // Recover from a stale/missing annotation file path.
+                photo.annotatedImagePath = nil
+                try? modelContext.save()
+            }
+        } else {
+            loadedAnnotated = nil
+        }
+
+        displayedImage = loadedAnnotated ?? loadedOriginal
+        originalImage = loadedOriginal ?? loadedAnnotated
     }
 }
