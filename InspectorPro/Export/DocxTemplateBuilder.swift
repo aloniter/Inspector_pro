@@ -203,7 +203,7 @@ final class DocxTemplateBuilder {
         <w:color w:val="002060"/>
         <w:sz w:val="16"/><w:szCs w:val="16"/>
       </w:rPr>
-      <w:t xml:space="preserve">מייל ‎iter@iter.co.il‎ אבישי ‎054-6222577‎</w:t>
+      <w:t xml:space="preserve">‎iter@iter.co.il‎ מייל ‎054-6222577‎ אבישי</w:t>
     </w:r>
   </w:p>
   <w:p>

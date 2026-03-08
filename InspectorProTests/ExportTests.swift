@@ -106,7 +106,7 @@ import ZIPFoundation
 
 @Test func docxFooterPutsEmailBeforeInspectorName() {
     let footer = DocxTemplateBuilder.footerXML()
-    #expect(footer.contains("מייל ‎iter@iter.co.il‎ אבישי ‎054-6222577‎"))
+    #expect(footer.contains("‎iter@iter.co.il‎ מייל ‎054-6222577‎ אבישי"))
 }
 
 @Test func docxTemplateReservesHeaderAndFooterSpace() {
@@ -287,7 +287,7 @@ import ZIPFoundation
 
     let footerData = xmlEntries["word/footer1.xml"]
     let footerText = footerData.flatMap { String(data: $0, encoding: .utf8) } ?? ""
-    #expect(footerText.contains("מייל ‎iter@iter.co.il‎ אבישי ‎054-6222577‎"))
+    #expect(footerText.contains("‎iter@iter.co.il‎ מייל ‎054-6222577‎ אבישי"))
 }
 
 @Test func docxExporterRemovesStaleWordLockFile() async throws {
