@@ -13,7 +13,10 @@ final class TemplateExtractor {
             throw ExportError.templateMissing
         }
 
-        guard let archive = Archive(url: templateURL, accessMode: .read) else {
+        let archive: Archive
+        do {
+            archive = try Archive(url: templateURL, accessMode: .read)
+        } catch {
             throw ExportError.templateMissing
         }
 

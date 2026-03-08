@@ -12,7 +12,6 @@ final class OpenXMLBuilder {
         <w:tbl>
           <w:tblPr>
             <w:tblW w:w="\(tableWidthTwips)" w:type="dxa"/>
-            <w:tblLayout w:type="fixed"/>
             <w:tblBorders>
               <w:top w:val="single" w:sz="8" w:space="0" w:color="000000"/>
               <w:left w:val="single" w:sz="8" w:space="0" w:color="000000"/>
@@ -21,6 +20,7 @@ final class OpenXMLBuilder {
               <w:insideH w:val="single" w:sz="8" w:space="0" w:color="000000"/>
               <w:insideV w:val="single" w:sz="8" w:space="0" w:color="000000"/>
             </w:tblBorders>
+            <w:tblLayout w:type="fixed"/>
             <w:tblCellMar>
               <w:top w:w="\(ExportImageConstants.imageCellPaddingTwips)" w:type="dxa"/>
               <w:left w:w="\(ExportImageConstants.imageCellPaddingTwips)" w:type="dxa"/>
@@ -61,7 +61,7 @@ final class OpenXMLBuilder {
               <w:vAlign w:val="center"/>
             </w:tcPr>
             <w:p>
-              <w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/></w:pPr>
+              <w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="center"/></w:pPr>
               <w:r>
                 \(buildInlineImage(relId: imageRelId, widthEMU: imageWidthEMU, heightEMU: imageHeightEMU, imageId: imageId, crop: imageCrop))
               </w:r>
@@ -70,8 +70,8 @@ final class OpenXMLBuilder {
           <w:tc>
             <w:tcPr>
               <w:tcW w:w="\(textColumnWidthTwips)" w:type="dxa"/>
-              <w:vAlign w:val="top"/>
               <w:shd w:val="clear" w:color="auto" w:fill="F2F2F2"/>
+              <w:vAlign w:val="top"/>
             </w:tcPr>
             \(buildDescriptionCell(freeText: freeText))
           </w:tc>
@@ -106,10 +106,10 @@ final class OpenXMLBuilder {
           <w:r>
             <w:rPr>
               <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
-              <w:sz w:val="\(fontSize)"/>
-              <w:szCs w:val="\(fontSize)"/>
               \(boldTag)
               \(colorTag)
+              <w:sz w:val="\(fontSize)"/>
+              <w:szCs w:val="\(fontSize)"/>
             </w:rPr>
             <w:t xml:space="preserve">\(escapeXML(text))</w:t>
           </w:r>
@@ -118,7 +118,8 @@ final class OpenXMLBuilder {
     }
 
     static func escapeXML(_ text: String) -> String {
-        text.replacingOccurrences(of: "&", with: "&amp;")
+        let sanitized = sanitizeForXML(text)
+        return sanitized.replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
             .replacingOccurrences(of: "\"", with: "&quot;")
@@ -160,6 +161,10 @@ final class OpenXMLBuilder {
             $0.hasPrefix("•") ? $0 : "• \($0)"
         }
 
+        if bulletLines.isEmpty {
+            return emptyCellParagraph()
+        }
+
         var xml = ""
         for line in bulletLines {
             xml += rtlParagraph(
@@ -172,6 +177,26 @@ final class OpenXMLBuilder {
             )
         }
         return xml
+    }
+
+    private static func emptyCellParagraph() -> String {
+        """
+        <w:p>
+          <w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="right"/></w:pPr>
+        </w:p>
+        """
+    }
+
+    private static func sanitizeForXML(_ text: String) -> String {
+        let validScalars = text.unicodeScalars.filter { scalar in
+            switch scalar.value {
+            case 0x9, 0xA, 0xD, 0x20...0xD7FF, 0xE000...0xFFFD, 0x10000...0x10FFFF:
+                return true
+            default:
+                return false
+            }
+        }
+        return String(String.UnicodeScalarView(validScalars))
     }
 
     /// Crop offsets in 1/1000th of a percent (0–100000) for center-crop behavior.

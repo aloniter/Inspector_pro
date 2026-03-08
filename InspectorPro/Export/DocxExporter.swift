@@ -20,8 +20,9 @@ final class DocxExporter {
         let relsDir = tempDir.appendingPathComponent("_rels")
         let wordRelsDir = wordDir.appendingPathComponent("_rels")
         let mediaDir = wordDir.appendingPathComponent("media")
+        let docPropsDir = tempDir.appendingPathComponent("docProps")
 
-        for dir in [wordDir, relsDir, wordRelsDir, mediaDir] {
+        for dir in [wordDir, relsDir, wordRelsDir, mediaDir, docPropsDir] {
             try fm.createDirectory(at: dir, withIntermediateDirectories: true)
         }
 
@@ -97,15 +98,27 @@ final class DocxExporter {
 
         try DocxTemplateBuilder.contentTypesXML().write(to: tempDir.appendingPathComponent("[Content_Types].xml"), atomically: true, encoding: .utf8)
         try DocxTemplateBuilder.rootRelsXML().write(to: relsDir.appendingPathComponent(".rels"), atomically: true, encoding: .utf8)
+        try DocxTemplateBuilder.corePropertiesXML().write(to: docPropsDir.appendingPathComponent("core.xml"), atomically: true, encoding: .utf8)
+        try DocxTemplateBuilder.appPropertiesXML().write(to: docPropsDir.appendingPathComponent("app.xml"), atomically: true, encoding: .utf8)
         try documentXML.write(to: wordDir.appendingPathComponent("document.xml"), atomically: true, encoding: .utf8)
         try DocxTemplateBuilder.documentRelsXML(imageRelationships: imageRelationships).write(to: wordRelsDir.appendingPathComponent("document.xml.rels"), atomically: true, encoding: .utf8)
         try DocxTemplateBuilder.stylesXML().write(to: wordDir.appendingPathComponent("styles.xml"), atomically: true, encoding: .utf8)
         try DocxTemplateBuilder.settingsXML().write(to: wordDir.appendingPathComponent("settings.xml"), atomically: true, encoding: .utf8)
+        try DocxTemplateBuilder.webSettingsXML().write(to: wordDir.appendingPathComponent("webSettings.xml"), atomically: true, encoding: .utf8)
+        try DocxTemplateBuilder.footnotesXML().write(to: wordDir.appendingPathComponent("footnotes.xml"), atomically: true, encoding: .utf8)
+        try DocxTemplateBuilder.endnotesXML().write(to: wordDir.appendingPathComponent("endnotes.xml"), atomically: true, encoding: .utf8)
+        try DocxTemplateBuilder.fontTableXML().write(to: wordDir.appendingPathComponent("fontTable.xml"), atomically: true, encoding: .utf8)
 
-        let outputURL = outputFileURL(projectName: project.name, date: project.date, fileExtension: "docx")
+        let outputURL = outputFileURL(
+            projectName: project.name,
+            date: project.date,
+            fileExtension: "docx",
+            fileManager: fm
+        )
 
         try? fm.removeItem(at: outputURL)
         try fm.zipItem(at: tempDir, to: outputURL, shouldKeepParent: false)
+        try? fm.setAttributes([.posixPermissions: 0o644], ofItemAtPath: outputURL.path)
 
         return outputURL
     }
@@ -189,18 +202,40 @@ final class DocxExporter {
         return formatter.string(from: date)
     }
 
-    private static func outputFileURL(projectName: String, date: Date, fileExtension: String) -> URL {
+    private static func outputFileURL(
+        projectName: String,
+        date: Date,
+        fileExtension: String,
+        fileManager: FileManager
+    ) -> URL {
         let baseName = "\(safeFilename(projectName))_\(dateString(date))"
         let outputDir = AppConstants.exportsURL
         FileManagerService.shared.ensureDirectoryExists(at: outputDir)
 
-        var outputURL = outputDir.appendingPathComponent("\(baseName).\(fileExtension)")
-        var suffix = 1
-        while FileManager.default.fileExists(atPath: outputURL.path) {
-            outputURL = outputDir.appendingPathComponent("\(baseName)_\(suffix).\(fileExtension)")
-            suffix += 1
+        var suffix = 0
+        while true {
+            let candidateName = suffix == 0 ? baseName : "\(baseName)_\(suffix)"
+            let outputURL = outputDir.appendingPathComponent("\(candidateName).\(fileExtension)")
+
+            if fileManager.fileExists(atPath: outputURL.path) {
+                suffix += 1
+                continue
+            }
+
+            removeStaleWordLockFile(for: outputURL, fileManager: fileManager)
+            return outputURL
         }
-        return outputURL
+    }
+
+    private static func removeStaleWordLockFile(for outputURL: URL, fileManager: FileManager) {
+        guard outputURL.pathExtension.lowercased() == "docx" else { return }
+        let lockFileURL = outputURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("~$\(outputURL.lastPathComponent)")
+
+        if fileManager.fileExists(atPath: lockFileURL.path) {
+            try? fileManager.removeItem(at: lockFileURL)
+        }
     }
 
     private static func safeFilename(_ value: String) -> String {
