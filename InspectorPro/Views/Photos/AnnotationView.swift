@@ -155,14 +155,19 @@ struct AnnotationView: View {
         defer { isSaving = false }
 
         do {
+            let previousDisplayPath = photo.displayImagePath
+            let previousAnnotatedPath = photo.annotatedImagePath
+
             if annotations.isEmpty {
                 if didRequestMarkupClear {
                     if let currentPath = photo.annotatedImagePath {
                         await ImageStorageService.shared.deleteImage(at: currentPath)
+                        await ThumbnailService.shared.invalidate(path: currentPath)
                         photo.annotatedImagePath = nil
                     }
                     try modelContext.save()
                     await ExportCache.shared.invalidate(for: photo)
+                    notifyThumbnailRefresh(for: [previousDisplayPath, photo.imagePath])
                 }
                 dismiss()
                 return
@@ -182,6 +187,18 @@ struct AnnotationView: View {
             photo.annotatedImagePath = annotatedPath
             try modelContext.save()
             await ExportCache.shared.invalidate(for: photo)
+            await ThumbnailService.shared.invalidate(path: annotatedPath)
+            if let previousAnnotatedPath, previousAnnotatedPath != annotatedPath {
+                await ThumbnailService.shared.invalidate(path: previousAnnotatedPath)
+            }
+            if previousDisplayPath != annotatedPath {
+                await ThumbnailService.shared.invalidate(path: previousDisplayPath)
+            }
+            notifyThumbnailRefresh(for: [
+                annotatedPath,
+                previousDisplayPath,
+                previousAnnotatedPath
+            ])
             dismiss()
         } catch {
             saveErrorMessage = error.localizedDescription
@@ -213,6 +230,17 @@ struct AnnotationView: View {
         dragStartPoint = nil
         baseImage = originalImage
         didRequestMarkupClear = true
+    }
+
+    private func notifyThumbnailRefresh(for paths: [String?]) {
+        let validPaths = Array(Set(paths.compactMap { $0 }))
+        guard !validPaths.isEmpty else { return }
+
+        NotificationCenter.default.post(
+            name: .thumbnailsDidInvalidate,
+            object: nil,
+            userInfo: [ThumbnailNotificationUserInfoKey.paths: validPaths]
+        )
     }
 
     private func updateDraft(for value: DragGesture.Value, imageFrame: CGRect) {

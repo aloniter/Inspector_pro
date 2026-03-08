@@ -37,3 +37,11 @@ actor ThumbnailService {
         cache.removeAll()
     }
 }
+
+extension Notification.Name {
+    static let thumbnailsDidInvalidate = Notification.Name("ThumbnailService.thumbnailsDidInvalidate")
+}
+
+enum ThumbnailNotificationUserInfoKey {
+    static let paths = "paths"
+}
