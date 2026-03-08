@@ -10,6 +10,8 @@ struct PhotoDetailView: View {
     @State private var displayedImage: UIImage?
     @State private var originalImage: UIImage?
     @State private var showingAnnotation = false
+    @State private var showingDeleteConfirmation = false
+    @FocusState private var isEditingNotes: Bool
 
     private var contentHorizontalAlignment: HorizontalAlignment {
         AppTextDirection.horizontalAlignment(for: layoutDirection)
@@ -50,6 +52,7 @@ struct PhotoDetailView: View {
                         .padding(8)
                         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
                         .multilineTextAlignment(contentTextAlignment)
+                        .focused($isEditingNotes)
                 }
             }
             .padding()
@@ -67,11 +70,31 @@ struct PhotoDetailView: View {
                 Spacer()
 
                 Button(role: .destructive) {
-                    deletePhoto()
+                    showingDeleteConfirmation = true
                 } label: {
                     Label(AppStrings.text("מחק"), systemImage: "trash")
                 }
             }
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+
+                Button(AppStrings.text("סיום")) {
+                    isEditingNotes = false
+                }
+            }
+        }
+        .onChange(of: isEditingNotes) { isFocused in
+            if !isFocused {
+                saveChanges()
+            }
+        }
+        .alert(AppStrings.text("למחוק את התמונה?"), isPresented: $showingDeleteConfirmation) {
+            Button(AppStrings.text("ביטול"), role: .cancel) {}
+            Button(AppStrings.text("מחק"), role: .destructive) {
+                deletePhoto()
+            }
+        } message: {
+            Text(AppStrings.text("האם אתה בטוח שברצונך למחוק את התמונה? לא ניתן לבטל פעולה זו."))
         }
         .task(id: photo.displayImagePath) {
             let preferredImage = await ImageStorageService.shared.loadImage(at: photo.displayImagePath)
@@ -108,5 +131,9 @@ struct PhotoDetailView: View {
         }
         modelContext.delete(photo)
         dismiss()
+    }
+
+    private func saveChanges() {
+        try? modelContext.save()
     }
 }
