@@ -152,24 +152,17 @@ final class OpenXMLBuilder {
     }
 
     private static func buildDescriptionCell(freeText: String) -> String {
-        let lines = freeText
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .split(whereSeparator: \.isNewline)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        let bulletLines = lines.map {
-            $0.hasPrefix("•") ? $0 : "• \($0)"
-        }
+        let descriptionLines = ExportTextFormatter.descriptionLines(from: freeText)
 
-        if bulletLines.isEmpty {
+        if descriptionLines.isEmpty {
             return emptyCellParagraph()
         }
 
         var xml = ""
-        for line in bulletLines {
+        for line in descriptionLines {
             xml += rtlParagraph(
-                text: line,
-                bold: false,
+                text: line.exportText,
+                bold: line.isBold,
                 fontSize: 22,
                 alignment: "right",
                 color: "222222",

@@ -18,6 +18,7 @@ struct ProjectFormView: View {
     @State private var address = ""
     @State private var date = Date()
     @State private var notes = ""
+    @State private var isEditingNotes = false
 
     private var textAlignment: TextAlignment {
         AppTextDirection.textAlignment(for: layoutDirection)
@@ -35,9 +36,12 @@ struct ProjectFormView: View {
             }
 
             Section(AppStrings.text("הערות")) {
-                TextEditor(text: $notes)
+                DirectionalTextEditor(
+                    text: $notes,
+                    isFocused: $isEditingNotes,
+                    layoutDirection: layoutDirection
+                )
                     .frame(minHeight: 80)
-                    .multilineTextAlignment(textAlignment)
             }
         }
         .navigationTitle(

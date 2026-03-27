@@ -15,7 +15,7 @@ final class TemplateExtractor {
 
         let archive: Archive
         do {
-            archive = try Archive(url: templateURL, accessMode: .read)
+            archive = try Archive(url: templateURL, accessMode: .read, pathEncoding: nil)
         } catch {
             throw ExportError.templateMissing
         }

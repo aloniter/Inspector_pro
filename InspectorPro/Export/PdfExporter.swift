@@ -33,7 +33,7 @@ final class PdfExporter {
 
             for photo in photos {
                 let image = loadCompressedImage(photo: photo, options: options)
-                let description = descriptionText(photo: photo)
+                let descriptionLines = descriptionLines(photo: photo)
                 let rowHeight = options.targetPhotoRowHeight
 
                 if currentY + rowHeight > pageBottom {
@@ -45,7 +45,7 @@ final class PdfExporter {
 
                 drawPhotoRow(
                     image: image,
-                    descriptionText: description,
+                    descriptionLines: descriptionLines,
                     options: options,
                     y: currentY,
                     rowHeight: rowHeight
@@ -174,7 +174,7 @@ final class PdfExporter {
 
     private static func drawPhotoRow(
         image: UIImage?,
-        descriptionText: String,
+        descriptionLines: [ExportTextFormatter.DescriptionLine],
         options: ExportOptions,
         y: CGFloat,
         rowHeight: CGFloat
@@ -250,11 +250,10 @@ final class PdfExporter {
             )
         }
 
-        drawRTLText(
-            descriptionText,
+        drawDescriptionText(
+            descriptionLines,
             in: textCellRect.insetBy(dx: options.tableCellPadding, dy: options.tableCellPadding),
             fontSize: 12,
-            alignment: .right,
             color: .black,
             lineSpacing: 2
         )
@@ -361,20 +360,46 @@ final class PdfExporter {
         NSAttributedString(string: text, attributes: attributes).draw(in: rect)
     }
 
+    private static func drawDescriptionText(
+        _ lines: [ExportTextFormatter.DescriptionLine],
+        in rect: CGRect,
+        fontSize: CGFloat,
+        color: UIColor = .black,
+        lineSpacing: CGFloat = 0
+    ) {
+        guard !lines.isEmpty else { return }
+
+        let isHebrew = AppLanguage.current == .hebrew
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = isHebrew ? .right : .left
+        paragraphStyle.baseWritingDirection = isHebrew ? .rightToLeft : .leftToRight
+        paragraphStyle.lineBreakMode = .byWordWrapping
+        paragraphStyle.lineSpacing = lineSpacing
+
+        let attributedText = NSMutableAttributedString()
+
+        for (index, line) in lines.enumerated() {
+            let font = line.isBold ? UIFont.boldSystemFont(ofSize: fontSize) : UIFont.systemFont(ofSize: fontSize)
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: color,
+                .paragraphStyle: paragraphStyle,
+            ]
+
+            attributedText.append(NSAttributedString(string: line.exportText, attributes: attributes))
+
+            if index < lines.count - 1 {
+                attributedText.append(NSAttributedString(string: "\n", attributes: attributes))
+            }
+        }
+
+        attributedText.draw(in: rect)
+    }
+
     // MARK: - Helpers
 
-    private static func descriptionText(photo: PhotoRecord) -> String {
-        let lines = photo.freeText
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .split(whereSeparator: \.isNewline)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        return lines
-            .map { line in
-                line.hasPrefix("•") ? line : "• \(line)"
-            }
-            .joined(separator: "\n")
+    private static func descriptionLines(photo: PhotoRecord) -> [ExportTextFormatter.DescriptionLine] {
+        ExportTextFormatter.descriptionLines(from: photo.freeText)
     }
 
     private static func scaledImageSize(for image: UIImage, maxSize: CGSize) -> CGSize {

@@ -78,9 +78,50 @@ import ZIPFoundation
     #expect(table.contains("תיאור"))
     #expect(table.contains("rId10"))
     #expect(table.contains("<w:jc w:val=\"right\"/>"))
+    #expect(table.contains(ExportTextFormatter.bulletedDescriptionText(from: "בדיקה")))
     #expect(!table.contains("<w:t xml:space=\"preserve\">1.</w:t>"))
     #expect(!table.contains("<w:bidi/>"))
     #expect(!table.contains("<w:rtl/>"))
+}
+
+@Test func exportFormatterPlacesRTLBulletAtLogicalStartOfEachLine() {
+    let formatted = ExportTextFormatter.bulletedDescriptionText(from: "סכום לא מסודר\n• הערה נוספת")
+    let lines = formatted.components(separatedBy: "\n")
+
+    #expect(lines.count == 2)
+    #expect(lines[0] == "\u{202B}•\u{00A0}סכום לא מסודר\u{202C}")
+    #expect(lines[1] == "\u{202B}•\u{00A0}הערה נוספת\u{202C}")
+}
+
+@Test func exportFormatterTurnsNumberedLinesIntoBoldHeadingsWithoutDots() {
+    let lines = ExportTextFormatter.descriptionLines(from: "1. כיסאות:\nשחור תקול")
+
+    #expect(lines.count == 2)
+    #expect(lines[0].text == "1 כיסאות:")
+    #expect(lines[0].isBold)
+    #expect(!lines[0].usesBullet)
+    #expect(lines[0].exportText == "\u{202B}1 כיסאות:\u{202C}")
+    #expect(lines[1].text == "שחור תקול")
+    #expect(!lines[1].isBold)
+    #expect(lines[1].usesBullet)
+    #expect(lines[1].exportText == "\u{202B}•\u{00A0}שחור תקול\u{202C}")
+}
+
+@Test func openXMLBuilderBoldsNumberedHeadingsAndRemovesTrailingDot() {
+    let row = OpenXMLBuilder.buildPhotoRow(
+        freeText: "1. כיסאות:\nשחור תקול",
+        imageRelId: "rId10",
+        imageWidthEMU: 1_500_000,
+        imageHeightEMU: 1_000_000,
+        imageId: 1,
+        rowHeightTwips: 7200,
+        imageColumnWidthTwips: 5000,
+        textColumnWidthTwips: 3300
+    )
+
+    #expect(row.contains("<w:b/><w:bCs/>"))
+    #expect(row.contains(OpenXMLBuilder.escapeXML("\u{202B}1 כיסאות:\u{202C}")))
+    #expect(!row.contains("1. כיסאות:"))
 }
 
 @Test func openXMLRowWithEmptyDescriptionStillContainsParagraphInTextCell() {
