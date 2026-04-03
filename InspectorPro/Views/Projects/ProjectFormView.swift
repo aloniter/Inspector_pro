@@ -17,6 +17,7 @@ struct ProjectFormView: View {
     @State private var name = ""
     @State private var address = ""
     @State private var date = Date()
+    @State private var attendees = ""
     @State private var notes = ""
     @State private var isEditingNotes = false
 
@@ -33,6 +34,21 @@ struct ProjectFormView: View {
                     .multilineTextAlignment(textAlignment)
                 DatePicker(AppStrings.text("תאריך"), selection: $date, displayedComponents: .date)
                     .environment(\.locale, AppLanguage.current.locale)
+            }
+
+            Section {
+                TextField(AppStrings.text("נוכחים"), text: $attendees, axis: .vertical)
+                    .multilineTextAlignment(textAlignment)
+                    .lineLimit(1...3)
+            } header: {
+                HStack {
+                    Spacer(minLength: 0)
+                    Text(ExportTextFormatter.rtlHeadingText("\(AppStrings.text("נוכחים")):"))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                }
+                .frame(maxWidth: .infinity)
+                .environment(\.layoutDirection, .leftToRight)
             }
 
             Section(AppStrings.text("הערות")) {
@@ -68,6 +84,7 @@ struct ProjectFormView: View {
                 name = project.name
                 address = project.address ?? ""
                 date = project.date
+                attendees = project.attendees ?? ""
                 notes = project.notes ?? ""
             }
         }
@@ -78,6 +95,7 @@ struct ProjectFormView: View {
             project.name = name
             project.address = normalizedOptional(address)
             project.date = date
+            project.attendees = normalizedOptional(attendees)
             project.notes = normalizedOptional(notes)
             try? modelContext.save()
             onProjectSaved?(project)
@@ -86,6 +104,7 @@ struct ProjectFormView: View {
                 name: name,
                 address: normalizedOptional(address),
                 date: date,
+                attendees: normalizedOptional(attendees),
                 notes: normalizedOptional(notes)
             )
             modelContext.insert(newProject)

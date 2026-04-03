@@ -10,7 +10,7 @@ struct InspectorProApp: App {
 
     init() {
         do {
-            let schema = Schema(versionedSchema: InspectorProSchemaV3.self)
+            let schema = Schema(versionedSchema: InspectorProSchemaV4.self)
             let config = ModelConfiguration(
                 schema: schema,
                 isStoredInMemoryOnly: false

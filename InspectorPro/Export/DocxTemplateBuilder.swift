@@ -50,9 +50,6 @@ final class DocxTemplateBuilder {
     }
 
     static func documentXML(options: ExportOptions) -> String {
-        let addressLabel = AppStrings.text("כתובת")
-        let dateLabel = AppStrings.text("תאריך")
-        let notesLabel = AppStrings.text("הערות")
         let bidiTag = AppLanguage.current == .hebrew ? "<w:bidi/><w:rtlGutter/>" : ""
 
         return """
@@ -64,33 +61,23 @@ final class DocxTemplateBuilder {
             xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
   <w:body>
     <w:p>
-      <w:pPr><w:jc w:val="center"/></w:pPr>
+      <w:pPr><w:spacing w:before="1520" w:after="180"/><w:jc w:val="center"/></w:pPr>
       <w:r>
-        <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:bCs/><w:sz w:val="48"/><w:szCs w:val="48"/></w:rPr>
+        <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:bCs/><w:color w:val="0F172A"/><w:sz w:val="52"/><w:szCs w:val="52"/></w:rPr>
         <w:t>{{PROJECT_TITLE}}</w:t>
       </w:r>
     </w:p>
     <w:p>
-      <w:pPr><w:spacing w:after="100"/><w:jc w:val="center"/></w:pPr>
+      <w:pPr>
+        <w:pBdr><w:bottom w:val="single" w:sz="6" w:space="8" w:color="D6DEE8"/></w:pBdr>
+        <w:spacing w:after="340"/>
+        <w:jc w:val="center"/>
+      </w:pPr>
       <w:r>
-        <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr>
-        <w:t xml:space="preserve">\(addressLabel): {{ADDRESS}}</w:t>
+        <w:t xml:space="preserve"> </w:t>
       </w:r>
     </w:p>
-    <w:p>
-      <w:pPr><w:spacing w:after="100"/><w:jc w:val="center"/></w:pPr>
-      <w:r>
-        <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr>
-        <w:t xml:space="preserve">\(dateLabel): {{DATE}}</w:t>
-      </w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:spacing w:after="100"/><w:jc w:val="center"/></w:pPr>
-      <w:r>
-        <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr>
-        <w:t xml:space="preserve">\(notesLabel): {{NOTES}}</w:t>
-      </w:r>
-    </w:p>
+    {{COVER_DETAILS}}
     <w:p><w:r><w:br w:type="page"/></w:r></w:p>
     {{PHOTOS_TABLE}}
     <w:sectPr>
@@ -105,7 +92,129 @@ final class DocxTemplateBuilder {
 """
     }
 
+    static func coverDetailsXML(
+        address: String,
+        date: String,
+        attendees: String?,
+        notes: String
+    ) -> String {
+        var sections = [
+            coverFieldSectionXML(label: AppStrings.text("כתובת"), value: address, valueFontSize: 20),
+            coverFieldSectionXML(label: AppStrings.text("תאריך"), value: date, valueFontSize: 20),
+        ]
+
+        if let attendees {
+            sections.append(attendeesCoverFieldSectionXML(label: AppStrings.text("נוכחים"), value: attendees))
+        }
+
+        sections.append(coverFieldSectionXML(label: AppStrings.text("הערות"), value: notes, isLast: true))
+        return sections.joined()
+    }
+
     // MARK: - Document Relationships
+
+    private static func coverFieldSectionXML(
+        label: String,
+        value: String,
+        valueFontSize: Int = 28,
+        isLast: Bool = false
+    ) -> String {
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let valueLines = trimmedValue.isEmpty
+            ? ["—"]
+            : trimmedValue
+                .split(separator: "\n", omittingEmptySubsequences: false)
+                .map { segment in
+                    let line = String(segment).trimmingCharacters(in: .whitespacesAndNewlines)
+                    return line.isEmpty ? "—" : line
+                }
+
+        let labelParagraph = coverParagraphXML(
+            text: label,
+            fontSize: 20,
+            color: "64748B",
+            spacingBefore: 0,
+            spacingAfter: 50
+        )
+
+        let valueParagraphs = valueLines.enumerated().map { index, line in
+            coverParagraphXML(
+                text: line,
+                fontSize: valueFontSize,
+                bold: true,
+                color: "111827",
+                spacingBefore: 0,
+                spacingAfter: index == valueLines.count - 1 ? (isLast ? 120 : 260) : 40
+            )
+        }.joined()
+
+        return labelParagraph + valueParagraphs
+    }
+
+    private static func attendeesCoverFieldSectionXML(
+        label: String,
+        value: String
+    ) -> String {
+        let valueLines = normalizedCoverValueLines(from: value)
+
+        let labelParagraph = coverParagraphXML(
+            text: ExportTextFormatter.rtlHeadingText("\(label):"),
+            fontSize: 28,
+            bold: true,
+            color: "1D4ED8",
+            spacingBefore: 0,
+            spacingAfter: 70
+        )
+
+        let valueParagraphs = valueLines.enumerated().map { index, line in
+            coverParagraphXML(
+                text: line,
+                fontSize: 24,
+                color: "1D4ED8",
+                spacingBefore: 0,
+                spacingAfter: index == valueLines.count - 1 ? 260 : 40
+            )
+        }.joined()
+
+        return labelParagraph + valueParagraphs
+    }
+
+    private static func normalizedCoverValueLines(from value: String) -> [String] {
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty else { return ["—"] }
+
+        let lines = trimmedValue
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .compactMap { segment -> String? in
+                let line = String(segment).trimmingCharacters(in: .whitespacesAndNewlines)
+                return line.isEmpty ? nil : line
+            }
+
+        return lines.isEmpty ? ["—"] : lines
+    }
+
+    private static func coverParagraphXML(
+        text: String,
+        fontSize: Int,
+        bold: Bool = false,
+        color: String,
+        spacingBefore: Int,
+        spacingAfter: Int,
+        alignment: String = "center"
+    ) -> String {
+        let boldTag = bold ? "<w:b/><w:bCs/>" : ""
+        let escapedText = OpenXMLBuilder.escapeXML(text)
+
+        return """
+    <w:p>
+      <w:pPr><w:spacing w:before="\(spacingBefore)" w:after="\(spacingAfter)"/><w:jc w:val="\(alignment)"/></w:pPr>
+      <w:r>
+        <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>\(boldTag)<w:color w:val="\(color)"/><w:sz w:val="\(fontSize)"/><w:szCs w:val="\(fontSize)"/></w:rPr>
+        <w:t xml:space="preserve">\(escapedText)</w:t>
+      </w:r>
+    </w:p>
+"""
+    }
 
     static func documentRelsXML(imageRelationships: [String]) -> String {
         let imageRels = imageRelationships.joined(separator: "\n  ")

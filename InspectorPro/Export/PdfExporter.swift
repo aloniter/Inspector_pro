@@ -72,6 +72,8 @@ final class PdfExporter {
         project: Project,
         options: ExportOptions
     ) {
+        let mutedLabelColor = UIColor(red: 0x64 / 255.0, green: 0x74 / 255.0, blue: 0x8B / 255.0, alpha: 1)
+        let accentBlue = UIColor(red: 0x1D / 255.0, green: 0x4E / 255.0, blue: 0xD8 / 255.0, alpha: 1)
         var y: CGFloat = options.pageHeight * 0.28
 
         drawRTLText(
@@ -84,35 +86,115 @@ final class PdfExporter {
         y += 56
 
         if let address = project.address, !address.isEmpty {
-            drawRTLText(
-                AppStrings.format("כתובת: %@", address),
-                in: CGRect(x: options.marginLeft, y: y, width: options.contentWidth, height: 26),
-                fontSize: 16,
-                alignment: .center
+            y += drawCoverFieldSection(
+                label: AppStrings.text("כתובת"),
+                value: address,
+                originY: y,
+                width: options.contentWidth,
+                x: options.marginLeft,
+                labelFontSize: 10,
+                valueFontSize: 10,
+                valueBold: true,
+                labelColor: mutedLabelColor
             )
-            y += 32
         }
 
         let dateFormatter = DateFormatter()
         dateFormatter.locale = AppLanguage.current.locale
         dateFormatter.dateStyle = .long
-        drawRTLText(
-            AppStrings.format("תאריך: %@", dateFormatter.string(from: project.date)),
-            in: CGRect(x: options.marginLeft, y: y, width: options.contentWidth, height: 26),
-            fontSize: 16,
-            alignment: .center
+        y += drawCoverFieldSection(
+            label: AppStrings.text("תאריך"),
+            value: dateFormatter.string(from: project.date),
+            originY: y,
+            width: options.contentWidth,
+            x: options.marginLeft,
+            labelFontSize: 10,
+            valueFontSize: 10,
+            valueBold: true,
+            labelColor: mutedLabelColor
         )
-        y += 34
+
+        if let attendees = normalizedOptionalCoverText(project.attendees) {
+            y += drawCoverFieldSection(
+                label: ExportTextFormatter.rtlHeadingText("\(AppStrings.text("נוכחים")):"),
+                value: attendees,
+                originY: y,
+                width: options.contentWidth,
+                x: options.marginLeft,
+                labelFontSize: 14,
+                valueFontSize: 12,
+                valueBold: false,
+                labelColor: accentBlue,
+                valueColor: accentBlue
+            )
+        }
 
         if let notes = project.notes, !notes.isEmpty {
             drawRTLText(
-                AppStrings.format("הערות: %@", notes),
+                ExportTextFormatter.coverPageFieldText(
+                    label: AppStrings.text("הערות"),
+                    value: notes
+                ),
                 in: CGRect(x: options.marginLeft, y: y, width: options.contentWidth, height: 130),
                 fontSize: 13,
                 alignment: .right,
                 color: .darkGray
             )
         }
+    }
+
+    private static func normalizedOptionalCoverText(_ value: String?) -> String? {
+        guard let value else { return nil }
+
+        let lines = value
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .compactMap { segment -> String? in
+                let trimmedLine = String(segment).trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmedLine.isEmpty ? nil : trimmedLine
+            }
+
+        guard !lines.isEmpty else { return nil }
+        return lines.joined(separator: "\n")
+    }
+
+    private static func drawCoverFieldSection(
+        label: String,
+        value: String,
+        originY: CGFloat,
+        width: CGFloat,
+        x: CGFloat,
+        labelFontSize: CGFloat,
+        valueFontSize: CGFloat,
+        valueBold: Bool,
+        labelColor: UIColor,
+        valueColor: UIColor = .black,
+        alignment: NSTextAlignment = .center
+    ) -> CGFloat {
+        let valueLines = value.components(separatedBy: "\n")
+        let labelHeight = labelFontSize + 8
+        let valueLineHeight = valueFontSize + 8
+        let valuesHeight = max(CGFloat(valueLines.count) * valueLineHeight, valueLineHeight)
+
+        drawRTLText(
+            label,
+            in: CGRect(x: x, y: originY, width: width, height: labelHeight),
+            fontSize: labelFontSize,
+            bold: false,
+            alignment: alignment,
+            color: labelColor
+        )
+
+        drawRTLText(
+            value,
+            in: CGRect(x: x, y: originY + labelHeight, width: width, height: valuesHeight),
+            fontSize: valueFontSize,
+            bold: valueBold,
+            alignment: alignment,
+            color: valueColor,
+            lineSpacing: 4
+        )
+
+        return labelHeight + valuesHeight + 12
     }
 
     // MARK: - Table

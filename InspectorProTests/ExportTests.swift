@@ -107,6 +107,17 @@ import ZIPFoundation
     #expect(lines[1].exportText == "\u{202B}•\u{00A0}שחור תקול\u{202C}")
 }
 
+@Test func coverPageFieldFormatterKeepsHebrewLabelAndColonTogether() {
+    let formatted = ExportTextFormatter.coverPageFieldText(label: "כתובת", value: "—")
+
+    #expect(formatted == "\u{2067}כתובת:\u{2069} \u{2066}—\u{2069}")
+}
+
+@Test func rtlHeadingFormatterKeepsColonAtEndOfHebrewWord() {
+    let formatted = ExportTextFormatter.rtlHeadingText("נוכחים:")
+    #expect(formatted == "\u{202B}נוכחים:\u{202C}")
+}
+
 @Test func openXMLBuilderBoldsNumberedHeadingsAndRemovesTrailingDot() {
     let row = OpenXMLBuilder.buildPhotoRow(
         freeText: "1. כיסאות:\nשחור תקול",
@@ -143,6 +154,44 @@ import ZIPFoundation
 @Test func docxTemplateContainsTablePlaceholder() {
     let xml = DocxTemplateBuilder.documentXML()
     #expect(xml.contains("{{PHOTOS_TABLE}}"))
+}
+
+@Test func docxCoverDetailsAvoidsDirectionalIsolatesAndUsesSeparateLabelValueParagraphs() {
+    let xml = DocxTemplateBuilder.coverDetailsXML(
+        address: "כפר ויתקין",
+        date: "30 במרץ 2026",
+        attendees: "אלון\nדפנה",
+        notes: "נדרש תיקון"
+    )
+
+    #expect(!xml.contains("\u{2066}"))
+    #expect(!xml.contains("\u{2067}"))
+    #expect(!xml.contains("\u{2069}"))
+    #expect(xml.contains(">כתובת<"))
+    #expect(xml.contains(">כפר ויתקין<"))
+    #expect(xml.contains(">תאריך<"))
+    #expect(xml.contains(">30 במרץ 2026<"))
+    #expect(xml.contains(OpenXMLBuilder.escapeXML(ExportTextFormatter.rtlHeadingText("נוכחים:"))))
+    #expect(xml.contains("w:color w:val=\"1D4ED8\""))
+    #expect(xml.contains("w:jc w:val=\"center\""))
+    #expect(xml.contains("w:sz w:val=\"28\""))
+    #expect(xml.contains("w:sz w:val=\"20\""))
+    #expect(xml.contains(">אלון<"))
+    #expect(xml.contains(">דפנה<"))
+    #expect(xml.contains(">הערות<"))
+    #expect(xml.contains(">נדרש תיקון<"))
+}
+
+@Test func docxCoverDetailsOmitsAttendeesSectionWhenValueIsMissing() {
+    let xml = DocxTemplateBuilder.coverDetailsXML(
+        address: "כפר ויתקין",
+        date: "30 במרץ 2026",
+        attendees: nil,
+        notes: "נדרש תיקון"
+    )
+
+    #expect(!xml.contains(">נוכחים:<"))
+    #expect(!xml.contains("1D4ED8"))
 }
 
 @Test func docxFooterPutsEmailBeforeInspectorName() {
@@ -329,6 +378,17 @@ import ZIPFoundation
     let footerData = xmlEntries["word/footer1.xml"]
     let footerText = footerData.flatMap { String(data: $0, encoding: .utf8) } ?? ""
     #expect(footerText.contains("‎iter@iter.co.il‎ מייל ‎054-6222577‎ אבישי"))
+
+    let documentText = xmlEntries["word/document.xml"]
+        .flatMap { String(data: $0, encoding: .utf8) } ?? ""
+    #expect(!documentText.contains("\u{2066}"))
+    #expect(!documentText.contains("\u{2067}"))
+    #expect(!documentText.contains("\u{2069}"))
+    #expect(documentText.contains(">כתובת<"))
+    #expect(documentText.contains(">כפר ויתקין<"))
+    #expect(!documentText.contains(">נוכחים:<"))
+    #expect(documentText.contains(">הערות<"))
+    #expect(documentText.contains(">תקין<"))
 }
 
 @Test func docxExporterRemovesStaleWordLockFile() async throws {
