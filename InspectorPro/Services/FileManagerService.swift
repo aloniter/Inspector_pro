@@ -10,6 +10,7 @@ final class FileManagerService: @unchecked Sendable {
         let dirs = [
             AppConstants.appBaseURL,
             AppConstants.imagesBaseURL,
+            AppConstants.brandingAssetsURL,
             AppConstants.exportCacheURL,
             AppConstants.exportsURL,
         ]

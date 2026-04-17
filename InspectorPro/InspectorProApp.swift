@@ -10,16 +10,18 @@ struct InspectorProApp: App {
 
     init() {
         do {
-            let schema = Schema(versionedSchema: InspectorProSchemaV5.self)
+            let schema = Schema(versionedSchema: InspectorProSchemaV6.self)
             let config = ModelConfiguration(
                 schema: schema,
                 isStoredInMemoryOnly: false
             )
-            modelContainer = try ModelContainer(
+            let container = try ModelContainer(
                 for: schema,
                 migrationPlan: InspectorProMigrationPlan.self,
                 configurations: [config]
             )
+            modelContainer = container
+            BrandingBootstrapper.scheduleBootstrap(modelContainer: container)
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }

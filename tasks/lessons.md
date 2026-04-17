@@ -41,3 +41,15 @@
 ## Cover-page stacked fields need alignment parity between heading and value
 - For dedicated stacked cover sections like `נוכחים`, do not mix a centered heading with right-aligned value lines unless the user explicitly wants that asymmetry.
 - Verification rule: when a user requests that names/details sit "under" a heading, align the value block to the same visual anchor in both PDF and DOCX and update string-based export tests to lock that layout in.
+
+## Mixed RTL/LTR footer content must not stay as one editable free-text line
+- A single raw string for Hebrew names plus phones/email makes SwiftUI editing and export rendering unstable because neutral characters and LTR tokens reorder differently across UITextInput, Core Text, and Word.
+- Preferred approach: edit contact lines as structured fields, normalize stored output with explicit LTR marks around email/phone/numeric tokens, and keep the export layout fixed while only changing text composition.
+
+## Footer editing for Hebrew exports should use compact grouped inputs, not over-fragmented rows or visible separators
+- Even when the data is structured, a footer editor becomes harder to scan if every token is presented as its own stacked row, and pipe-delimited export output looks mechanical in Hebrew.
+- Preferred approach: keep structured fields internally, group them into compact 2-field rows per contact block, and generate the final footer line in a natural Hebrew order without exposing mixed-direction composition to the user.
+
+## Mixed RTL/LTR export lines should be rendered as positioned runs, not left to bidi resolution of one combined string
+- For footer lines that mix Hebrew words with phone numbers and email addresses, even structured data is not enough if PDF or DOCX still receives one mixed-direction string or a paragraph whose final visual order is delegated to the text engine.
+- Preferred approach: keep semantic structured fields, derive explicit run sequences, and render the export line in fixed visual order per token/run so Core Text and Word do not get to reinterpret the intended sequence.

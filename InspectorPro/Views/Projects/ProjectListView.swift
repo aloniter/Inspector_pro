@@ -135,9 +135,15 @@ private extension String {
 }
 
 private struct AppSettingsView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \BrandingProfile.name) private var brandingProfiles: [BrandingProfile]
     @Environment(\.dismiss) private var dismiss
     @Binding var darkModeEnabled: Bool
     @Binding var languageCode: String
+
+    private var defaultBrandingProfile: BrandingProfile? {
+        brandingProfiles.first(where: \.isDefault) ?? brandingProfiles.first
+    }
 
     private var selectedLanguage: Binding<AppLanguage> {
         Binding(
@@ -167,6 +173,28 @@ private struct AppSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section(AppStrings.text("מיתוג חברה")) {
+                NavigationLink {
+                    BrandingSettingsContainerView()
+                } label: {
+                    HStack(spacing: 12) {
+                        BrandingLogoThumbnail(brandingProfile: defaultBrandingProfile)
+
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(defaultBrandingProfile?.name ?? AppStrings.text("טוען..."))
+                                .foregroundStyle(.primary)
+                                .multilineTextAlignment(.trailing)
+
+                            Text(AppStrings.text("ברירת מחדל"))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                    .environment(\.layoutDirection, .leftToRight)
+                }
+            }
+
             Section(AppStrings.text("אפליקציה")) {
                 HStack {
                     Label(AppStrings.text("גרסה"), systemImage: "info.circle")
@@ -187,6 +215,9 @@ private struct AppSettingsView: View {
         }
         .navigationTitle(AppStrings.text("הגדרות"))
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            _ = try? BrandingBootstrapper.fetchOrCreateDefaultBrandingProfile(in: modelContext)
+        }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button(AppStrings.text("סגור")) {

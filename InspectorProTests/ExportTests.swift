@@ -262,9 +262,199 @@ import ZIPFoundation
     #expect(row.contains(OpenXMLBuilder.escapeXML("\u{202B}•\u{00A0}בסלון נראים ברגים לבנים\u{202C}")))
 }
 
-@Test func docxFooterPutsEmailBeforeInspectorName() {
-    let footer = DocxTemplateBuilder.footerXML()
-    #expect(footer.contains("‎iter@iter.co.il‎ מייל ‎054-6222577‎ אבישי"))
+@Test func docxFooterUsesSeparateRunsForPrimaryLine() {
+    let footer = DocxTemplateBuilder.footerXML(branding: .legacyDefault)
+    #expect(footer.contains("<w:bidi/>"))
+    #expect(footer.contains(">iter@iter.co.il </w:t>"))
+    #expect(footer.contains(">מייל <") || footer.contains(">דוא&quot;ל <"))
+    #expect(footer.contains(">054-6222577 <"))
+    #expect(footer.contains(">אבישי</w:t>") || footer.contains(">אבישי </w:t>"))
+    #expect(footer.contains(">09-8665885 <"))
+    #expect(footer.contains(">משרד <"))
+    #expect(footer.contains(">054-6222575 <"))
+    #expect(footer.contains(">דפנה</w:t>") || footer.contains(">דפנה </w:t>"))
+    #expect(!footer.contains("אבישי 054-6222577 מייל iter@iter.co.il"))
+    #expect(footer.firstRange(of: "iter@iter.co.il")!.lowerBound < footer.firstRange(of: "054-6222577")!.lowerBound)
+    #expect(footer.firstRange(of: "09-8665885")!.lowerBound < footer.firstRange(of: "054-6222575")!.lowerBound)
+}
+
+@Test func brandingFooterFormatterNormalizesAddressNumbersForRTL() {
+    let normalized = BrandingFooterFormatter.normalizeAddressLine("תל אביב, ת\"ד 635 מיקוד 4020000")
+    #expect(normalized == "תל אביב, ת\"ד ‎635‎ מיקוד ‎4020000‎")
+}
+
+@Test func brandingFooterFormatterParsesLegacyPrimaryFooterLines() {
+    let parsed = BrandingPrimaryFooterFields.fromStoredLines(
+        pdf: DefaultBrandingProfile.primaryFooterLinePDF,
+        docx: DefaultBrandingProfile.primaryFooterLineDOCX
+    )
+
+    #expect(parsed.contactName == "אבישי")
+    #expect(parsed.phoneNumber == "054-6222577")
+    #expect(parsed.roleLabel == "דוא\"ל")
+    #expect(parsed.emailAddress == "iter@iter.co.il")
+}
+
+@Test func brandingFooterFormatterComposesStableStructuredFooterLines() {
+    let primary = BrandingPrimaryFooterFields(
+        contactName: "אלון",
+        roleLabel: "מייל",
+        phoneNumber: "0544288272",
+        emailAddress: "aloniter99@gmail.com"
+    )
+    let secondary = BrandingSecondaryFooterFields(
+        firstLabel: "שקד",
+        firstNumber: "054-6222575",
+        secondLabel: "משרד",
+        secondNumber: "09-8665885"
+    )
+
+    #expect(BrandingFooterFormatter.composePrimaryLine(primary) == "אלון ‎0544288272‎ מייל ‎aloniter99@gmail.com‎")
+    #expect(BrandingFooterFormatter.composeSecondaryLine(secondary) == "שקד ‎054-6222575‎ משרד ‎09-8665885‎")
+}
+
+@Test func brandingFooterFormatterAllowsSecondaryLineWithoutSecondLabel() {
+    let secondary = BrandingSecondaryFooterFields(
+        firstLabel: "תמיכה",
+        firstNumber: "09-8881111",
+        secondLabel: "",
+        secondNumber: "052-9994444"
+    )
+
+    #expect(BrandingFooterFormatter.composeSecondaryLine(secondary) == "תמיכה ‎09-8881111‎ ‎052-9994444‎")
+}
+
+@Test func brandingFooterFormatterBuildsPrimaryRunsInNaturalHebrewOrder() {
+    let primary = BrandingPrimaryFooterFields(
+        contactName: "אבישי",
+        roleLabel: "מייל",
+        phoneNumber: "054-6222577",
+        emailAddress: "iter@iter.co.il"
+    )
+
+    let runs = BrandingFooterFormatter.primaryRuns(primary)
+
+    #expect(runs.map(\.text) == ["אבישי", "054-6222577", "מייל", "iter@iter.co.il"])
+    #expect(runs.map(\.direction) == [.rightToLeft, .leftToRight, .rightToLeft, .leftToRight])
+}
+
+@Test func brandingFooterFormatterBuildsPrimaryDisplayRunsInStableVisualOrder() {
+    let primary = BrandingPrimaryFooterFields(
+        contactName: "אבישי",
+        roleLabel: "מייל",
+        phoneNumber: "054-6222577",
+        emailAddress: "iter@iter.co.il"
+    )
+
+    let runs = BrandingFooterFormatter.primaryDisplayRuns(primary)
+
+    #expect(runs.map(\.text) == ["iter@iter.co.il", "מייל", "054-6222577", "אבישי"])
+    #expect(runs.map(\.direction) == [.leftToRight, .rightToLeft, .leftToRight, .rightToLeft])
+}
+
+@Test func brandingFooterFormatterBuildsSecondaryRunsInNaturalHebrewOrder() {
+    let secondary = BrandingSecondaryFooterFields(
+        firstLabel: "דפנה",
+        firstNumber: "054-6222575",
+        secondLabel: "משרד",
+        secondNumber: "09-8665885"
+    )
+
+    let runs = BrandingFooterFormatter.secondaryRuns(secondary)
+
+    #expect(runs.map(\.text) == ["דפנה", "054-6222575", "משרד", "09-8665885"])
+    #expect(runs.map(\.direction) == [.rightToLeft, .leftToRight, .rightToLeft, .leftToRight])
+}
+
+@Test func brandingFooterFormatterBuildsSecondaryDisplayRunsInStableVisualOrder() {
+    let secondary = BrandingSecondaryFooterFields(
+        firstLabel: "דפנה",
+        firstNumber: "054-6222575",
+        secondLabel: "משרד",
+        secondNumber: "09-8665885"
+    )
+
+    let runs = BrandingFooterFormatter.secondaryDisplayRuns(secondary)
+
+    #expect(runs.map(\.text) == ["09-8665885", "משרד", "054-6222575", "דפנה"])
+    #expect(runs.map(\.direction) == [.leftToRight, .rightToLeft, .leftToRight, .rightToLeft])
+}
+
+@Test func resolvedExportBrandingFallsBackToLegacyDefaultsWithoutProfile() {
+    let project = Project(name: "Fallback")
+
+    let branding = ResolvedExportBranding.resolve(for: project)
+
+    #expect(branding.footerAddressLine == "כפר ויתקין, ת\"ד ‎635‎ מיקוד ‎4020000‎")
+    #expect(branding.primaryFooterLinePDF == "אבישי ‎054-6222577‎ דוא\"ל ‎iter@iter.co.il‎")
+    #expect(branding.primaryFooterLineDOCX == "‎iter@iter.co.il‎ מייל ‎054-6222577‎ אבישי")
+    #expect(branding.secondaryFooterLine == "דפנה ‎054-6222575‎ משרד ‎09-8665885‎")
+    #expect(branding.logoImageData != nil)
+}
+
+@Test func resolvedExportBrandingUsesLinkedProfileValues() {
+    let brandingProfile = BrandingProfile(
+        name: "Client",
+        isDefault: false,
+        usesBundledDefaultLogo: true,
+        footerAddressLine: "Custom address",
+        primaryFooterLinePDF: "Custom pdf line",
+        primaryFooterLineDOCX: "Custom docx line",
+        secondaryFooterLine: "Custom secondary line"
+    )
+    let project = Project(name: "Branded", brandingProfile: brandingProfile)
+
+    let branding = ResolvedExportBranding.resolve(for: project)
+
+    #expect(branding.footerAddressLine == "Custom address")
+    #expect(branding.primaryFooterLinePDF == "Custom pdf line")
+    #expect(branding.primaryFooterLineDOCX == "Custom docx line")
+    #expect(branding.secondaryFooterLine == "Custom secondary line")
+    #expect(branding.logoImageData != nil)
+}
+
+@Test func resolvedExportBrandingFallsBackToBundledLogoWhenCustomLogoIsMissing() {
+    let brandingProfile = BrandingProfile(
+        name: "Client",
+        isDefault: false,
+        usesBundledDefaultLogo: false,
+        footerAddressLine: "Address",
+        primaryFooterLinePDF: "Primary",
+        primaryFooterLineDOCX: "Primary",
+        secondaryFooterLine: "Secondary"
+    )
+    BrandingAssetStorage.deleteCustomLogo(for: brandingProfile)
+    let project = Project(name: "Branded", brandingProfile: brandingProfile)
+
+    let branding = ResolvedExportBranding.resolve(for: project)
+
+    #expect(branding.logoImageData == ResolvedExportBranding.legacyDefault.logoImageData)
+}
+
+@Test func resolvedExportBrandingUsesStoredCustomLogoWhenAvailable() throws {
+    let brandingProfile = BrandingProfile(
+        name: "Client",
+        isDefault: false,
+        usesBundledDefaultLogo: false,
+        footerAddressLine: "Address",
+        primaryFooterLinePDF: "Primary",
+        primaryFooterLineDOCX: "Primary",
+        secondaryFooterLine: "Secondary"
+    )
+
+    let customImage = UIGraphicsImageRenderer(size: CGSize(width: 240, height: 120)).image { context in
+        UIColor.systemRed.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: 240, height: 120))
+    }
+
+    try BrandingAssetStorage.saveCustomLogo(customImage, for: brandingProfile)
+    defer { BrandingAssetStorage.deleteCustomLogo(for: brandingProfile) }
+
+    let project = Project(name: "Branded", brandingProfile: brandingProfile)
+    let branding = ResolvedExportBranding.resolve(for: project)
+
+    #expect(branding.logoImageData != nil)
+    #expect(branding.logoImageData != ResolvedExportBranding.legacyDefault.logoImageData)
 }
 
 @Test func docxTemplateReservesHeaderAndFooterSpace() {
@@ -445,7 +635,10 @@ import ZIPFoundation
 
     let footerData = xmlEntries["word/footer1.xml"]
     let footerText = footerData.flatMap { String(data: $0, encoding: .utf8) } ?? ""
-    #expect(footerText.contains("‎iter@iter.co.il‎ מייל ‎054-6222577‎ אבישי"))
+    #expect(footerText.contains(">iter@iter.co.il </w:t>"))
+    #expect(footerText.contains(">דוא&quot;ל </w:t>"))
+    #expect(footerText.contains(">054-6222577 </w:t>"))
+    #expect(footerText.contains(">אבישי</w:t>"))
 
     let documentText = xmlEntries["word/document.xml"]
         .flatMap { String(data: $0, encoding: .utf8) } ?? ""

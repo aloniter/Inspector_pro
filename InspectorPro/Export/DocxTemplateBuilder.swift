@@ -270,53 +270,28 @@ final class DocxTemplateBuilder {
 """
     }
 
-    static func footerXML() -> String {
+    static func footerXML(branding: ResolvedExportBranding) -> String {
 """
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:p>
-    <w:pPr>
-      <w:pBdr><w:top w:val="single" w:sz="4" w:space="1" w:color="000000"/></w:pBdr>
-      <w:spacing w:after="0" w:line="240" w:lineRule="auto"/>
-      <w:jc w:val="center"/>
-    </w:pPr>
-    <w:r>
-      <w:rPr>
-        <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
-        <w:color w:val="002060"/>
-        <w:sz w:val="16"/><w:szCs w:val="16"/>
-      </w:rPr>
-      <w:t xml:space="preserve">כפר ויתקין, ת"ד 635 מיקוד 4020000</w:t>
-    </w:r>
-  </w:p>
-  <w:p>
-    <w:pPr>
-      <w:spacing w:after="0" w:line="240" w:lineRule="auto"/>
-      <w:jc w:val="center"/>
-    </w:pPr>
-    <w:r>
-      <w:rPr>
-        <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
-        <w:color w:val="002060"/>
-        <w:sz w:val="16"/><w:szCs w:val="16"/>
-      </w:rPr>
-      <w:t xml:space="preserve">‎iter@iter.co.il‎ מייל ‎054-6222577‎ אבישי</w:t>
-    </w:r>
-  </w:p>
-  <w:p>
-    <w:pPr>
-      <w:spacing w:after="0" w:line="240" w:lineRule="auto"/>
-      <w:jc w:val="center"/>
-    </w:pPr>
-    <w:r>
-      <w:rPr>
-        <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
-        <w:color w:val="002060"/>
-        <w:sz w:val="16"/><w:szCs w:val="16"/>
-      </w:rPr>
-      <w:t xml:space="preserve">דפנה 054-6222575 משרד 09-8665885</w:t>
-    </w:r>
-  </w:p>
+  \(OpenXMLBuilder.footerParagraph(
+      text: branding.footerAddressLine,
+      fontSize: 16,
+      color: branding.footerTextColorHex,
+      topBorder: true
+  ))
+  \(OpenXMLBuilder.footerParagraph(
+      runs: branding.primaryFooterDisplayRuns,
+      fontSize: 16,
+      color: branding.footerTextColorHex,
+      enforcesVisualOrder: true
+  ))
+  \(OpenXMLBuilder.footerParagraph(
+      runs: branding.secondaryFooterDisplayRuns,
+      fontSize: 16,
+      color: branding.footerTextColorHex,
+      enforcesVisualOrder: true
+  ))
 </w:ftr>
 """
     }
