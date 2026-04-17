@@ -1,9 +1,9 @@
 import Foundation
 import SwiftData
 
-typealias Project = InspectorProSchemaV4.Project
+typealias Project = InspectorProSchemaV5.Project
 
-extension InspectorProSchemaV4.Project {
+extension InspectorProSchemaV5.Project {
     var sortedPhotos: [PhotoRecord] {
         photos.sorted { lhs, rhs in
             if lhs.position != rhs.position {

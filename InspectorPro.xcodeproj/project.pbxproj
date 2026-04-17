@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -78,7 +78,7 @@
 		9E949DD5078F59B2E114E1CD /* PhotoRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoRecord.swift; sourceTree = "<group>"; };
 		A07E143472BCA8DF142C9D71 /* Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Project.swift; sourceTree = "<group>"; };
 		A157C843E792CBCC8332C1E4 /* DirectionalTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectionalTextEditor.swift; sourceTree = "<group>"; };
-		A78CCC2D2864588E52D716C2 /* template.docx */ = {isa = PBXFileReference; path = template.docx; sourceTree = "<group>"; };
+		A78CCC2D2864588E52D716C2 /* template.docx */ = {isa = PBXFileReference; lastKnownFileType = file; path = template.docx; sourceTree = "<group>"; };
 		A8B62DD3F09EC8E24B52C6F3 /* DocxTemplateBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocxTemplateBuilder.swift; sourceTree = "<group>"; };
 		AB143F75D35501113F93AF18 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		B234417662171E07C6F59494 /* InspectorProMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorProMigration.swift; sourceTree = "<group>"; };
@@ -334,7 +334,6 @@
 			packageReferences = (
 				A263488A13732210B0504FC0 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 			);
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (

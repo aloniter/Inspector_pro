@@ -2,20 +2,76 @@ import Foundation
 
 enum ExportTextFormatter {
     struct DescriptionLine: Equatable {
+        struct TextRun: Equatable {
+            let text: String
+            let isBold: Bool
+        }
+
         enum Style: Equatable {
             case bullet
             case numberedHeading
         }
 
-        let text: String
+        let bodyText: String
         let style: Style
+        let number: String?
+        let emphasizesNumberPrefixOnly: Bool
+
+        init(
+            bodyText: String,
+            style: Style,
+            number: String? = nil,
+            emphasizesNumberPrefixOnly: Bool = false
+        ) {
+            self.bodyText = bodyText
+            self.style = style
+            self.number = number
+            self.emphasizesNumberPrefixOnly = emphasizesNumberPrefixOnly
+        }
+
+        var text: String {
+            guard let number else { return bodyText }
+            return bodyText.isEmpty ? number : "\(number) \(bodyText)"
+        }
 
         var isBold: Bool {
-            style == .numberedHeading
+            style == .numberedHeading && !emphasizesNumberPrefixOnly
         }
 
         var usesBullet: Bool {
             style == .bullet
+        }
+
+        var runs: [TextRun] {
+            if usesBullet {
+                return [TextRun(
+                    text: "\(ExportTextFormatter.rtlEmbeddingStart)\(ExportTextFormatter.bullet)\(ExportTextFormatter.bulletSeparator)\(bodyText)\(ExportTextFormatter.rtlEmbeddingEnd)",
+                    isBold: false
+                )]
+            }
+
+            guard let number else {
+                return [TextRun(
+                    text: "\(ExportTextFormatter.rtlEmbeddingStart)\(bodyText)\(ExportTextFormatter.rtlEmbeddingEnd)",
+                    isBold: isBold
+                )]
+            }
+
+            if emphasizesNumberPrefixOnly {
+                let prefix = bodyText.isEmpty
+                    ? "\(ExportTextFormatter.rtlEmbeddingStart)\(number)\(ExportTextFormatter.rtlEmbeddingEnd)"
+                    : "\(ExportTextFormatter.rtlEmbeddingStart)\(number) "
+                var runs = [TextRun(text: prefix, isBold: true)]
+                if !bodyText.isEmpty {
+                    runs.append(TextRun(text: "\(bodyText)\(ExportTextFormatter.rtlEmbeddingEnd)", isBold: false))
+                }
+                return runs
+            }
+
+            return [TextRun(
+                text: "\(ExportTextFormatter.rtlEmbeddingStart)\(text)\(ExportTextFormatter.rtlEmbeddingEnd)",
+                isBold: true
+            )]
         }
 
         var exportText: String {
@@ -45,12 +101,38 @@ enum ExportTextFormatter {
         descriptionLines(from: text).map(\.exportText)
     }
 
-    static func descriptionLines(from text: String) -> [DescriptionLine] {
-        text
+    static func numberedAttendeeLines(from text: String) -> [String] {
+        normalizedNonEmptyLines(from: text)
+            .enumerated()
+            .map { index, line in
+                "\(rtlEmbeddingStart)\(index + 1).\(bulletSeparator)\(line)\(rtlEmbeddingEnd)"
+            }
+    }
+
+    static func reportCoverDateString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "d.M.yyyy"
+        return formatter.string(from: date)
+    }
+
+    static func descriptionLines(
+        from text: String,
+        itemNumber: Int? = nil,
+        showsNumberedImagesInReport: Bool = false
+    ) -> [DescriptionLine] {
+        let parsedLines = text
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .compactMap(parsedDescriptionLine)
+
+        guard showsNumberedImagesInReport, let itemNumber else {
+            return parsedLines
+        }
+
+        return applyingBuiltInItemNumber("\(itemNumber).", to: parsedLines)
     }
 
     static func coverPageFieldText(label: String, value: String) -> String {
@@ -78,18 +160,31 @@ enum ExportTextFormatter {
         return normalized
     }
 
+    private static func normalizedNonEmptyLines(from text: String) -> [String] {
+        text
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .compactMap { segment -> String? in
+                let line = String(segment).trimmingCharacters(in: .whitespacesAndNewlines)
+                return line.isEmpty ? nil : line
+            }
+    }
+
     private static func parsedDescriptionLine(_ line: String) -> DescriptionLine? {
         let normalizedLine = normalizedBulletContent(from: line)
         guard !normalizedLine.isEmpty else { return nil }
 
         if let numberedHeading = normalizedNumberedHeading(from: normalizedLine) {
-            return DescriptionLine(text: numberedHeading, style: .numberedHeading)
+            return DescriptionLine(
+                bodyText: numberedHeading.bodyText,
+                style: .numberedHeading,
+                number: numberedHeading.number
+            )
         }
 
-        return DescriptionLine(text: normalizedLine, style: .bullet)
+        return DescriptionLine(bodyText: normalizedLine, style: .bullet)
     }
 
-    private static func normalizedNumberedHeading(from line: String) -> String? {
+    private static func normalizedNumberedHeading(from line: String) -> (number: String, bodyText: String)? {
         let range = NSRange(line.startIndex..<line.endIndex, in: line)
         guard let match = numberedHeadingPattern.firstMatch(in: line, options: [], range: range),
               let numberRange = Range(match.range(at: 1), in: line) else {
@@ -104,7 +199,32 @@ enum ExportTextFormatter {
             body = ""
         }
 
-        return body.isEmpty ? number : "\(number) \(body)"
+        return (number: number, bodyText: body)
+    }
+
+    private static func applyingBuiltInItemNumber(
+        _ itemNumber: String,
+        to lines: [DescriptionLine]
+    ) -> [DescriptionLine] {
+        guard let firstLine = lines.first else {
+            return [
+                DescriptionLine(
+                    bodyText: "",
+                    style: .numberedHeading,
+                    number: itemNumber,
+                    emphasizesNumberPrefixOnly: true
+                )
+            ]
+        }
+
+        var updatedLines = lines
+        updatedLines[0] = DescriptionLine(
+            bodyText: firstLine.bodyText,
+            style: .numberedHeading,
+            number: itemNumber,
+            emphasizesNumberPrefixOnly: false
+        )
+        return updatedLines
     }
 
     private static func directionallyIsolated(_ text: String) -> String {

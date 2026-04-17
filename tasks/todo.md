@@ -1,5 +1,30 @@
 # TODO
 
+- [x] Confirm the repository is already initialized and points at the requested GitHub remote
+- [x] Create a savepoint commit for the current project state so it can be restored later
+- [x] Push the savepoint to GitHub and verify the remote branch reflects the new snapshot
+
+- [x] Inspect the cover-page attendees block in both exporters to confirm why attendee names render to the visual right of the `נוכחים` heading
+- [x] Center exported attendee names directly beneath the `נוכחים` heading in both PDF and DOCX without changing unrelated cover metadata
+- [x] Verify the updated attendees alignment with focused export tests and record the result
+
+- [x] Inspect the PDF/DOCX report row builders to find where the image-side number and reduced image height were introduced
+- [x] Remove the export number from above the image while keeping numbering only in the right-hand description/notes column
+- [x] Restore image sizing/cropping so exported photos fill the square image cell again
+- [x] Verify the updated numbered-row behavior with focused export tests and record the outcome
+
+- [x] Inspect the current project form, cover-page builders, attendees formatting, and image-row numbering to confirm the exact edit points for this follow-up export pass
+- [x] Number attendee names under `נוכחים` in both export formats while keeping the dark-blue 12pt heading and polished RTL spacing
+- [x] Strengthen the numbered row presentation so the full opening numbered line is emphasized and the image-side number is more prominent when the per-project toggle is ON
+- [x] Change the report cover-page date to numeric `d.M.yyyy` formatting in all relevant export builders without affecting unrelated dates
+- [x] Verify the persisted project setting, ON/OFF numbered-image behavior, attendee numbering, and numeric cover-page date with focused tests and simulator build/run
+
+- [x] Inspect the current attendees cover styling and report row builders to identify the minimal edit points for export numbering
+- [x] Darken the exported `נוכחים` title styling and reduce its title size from 14pt to 12pt without changing unrelated metadata fields
+- [x] Add a persisted per-project toggle in the project settings form for numbered images in exported reports
+- [x] Update PDF and DOCX report row generation so the toggle adds matching item numbers on the image side and description side while preserving RTL layout
+- [x] Verify storage, migration, and both export paths with focused tests/build validation and record the result
+
 - [x] Reduce exported address and date values to 10pt
 - [x] Make exported `נוכחים:` 14pt and left-aligned with the colon after the word
 - [x] Align the in-app attendees header to the left while matching the surrounding header style
@@ -52,6 +77,27 @@
 - [x] Verify numbered-note export formatting with focused tests
 
 # Review
+
+- Exported attendee names now stay visually under the `נוכחים` heading in both PDF and DOCX by centering the attendee lines to the same anchor as the heading instead of pushing them to the right edge.
+- Validation: `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' test -only-testing:InspectorProTests` passed 28/28 Swift Testing tests after the attendees alignment update.
+- The pre-existing CoreData checksum warning still appears in the Xcode test-host path and was not changed by this layout fix.
+
+- Numbered export rows now keep the item number only in the right-hand description/notes side; the image cell no longer renders a separate number above the photo in either PDF or DOCX.
+- The photo image target height in both exporters now uses the full square cell area again, restoring the previous center-crop fill behavior instead of shrinking the image to make room for an image-side number.
+- Validation: `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' test` passed 28/28 Swift Testing tests after updating the export-row assertions.
+- The pre-existing CoreData checksum warning still appears in the Xcode test-host path and was not changed by this fix.
+
+- Follow-up export pass: attendees under `נוכחים` are now emitted as numbered RTL list items in both PDF and DOCX while keeping the dark-blue 12pt heading.
+- The per-project `showsNumberedImagesInReport` toggle remains stored on `Project` and now drives a stronger ON state: the image-side number is larger and the full opening numbered description line is emphasized, while OFF still keeps the previous unnumbered export behavior.
+- The report cover-page date now uses numeric `d.M.yyyy` formatting through a shared formatter, so the main page renders values like `6.4.2026` instead of month text.
+- Validation: `xcodebuild test` passed 28/28 Swift Testing tests on simulator `iPhone 16`, including new coverage for numbered attendees, numeric cover dates, and the stronger numbered-row presentation, and `build_run_sim` launched the app successfully afterward.
+- The existing CoreData checksum warning still appears only in the Xcode test-host path and was not introduced by this task.
+
+- Added `showsNumberedImagesInReport` to the project schema, migrated existing V4 projects to V5 with the flag defaulting to `false`, and surfaced the setting as a per-project toggle in the project form.
+- Report export now checks `project.showsNumberedImagesInReport` in both the PDF and DOCX exporters; when enabled it injects matching row numbers on the image side and prefixes the first description line with the same number while emphasizing only the number prefix.
+- Exported `נוכחים:` cover-page styling now uses a darker blue accent (`#1F4E79`) and a 12pt title in both PDF and DOCX, without changing the other cover metadata fields.
+- Validation: `xcodebuild test` on simulator `iPhone 16` passed 26/26 Swift Testing tests, including new coverage for the per-project flag and numbered export rows, and `build_run_sim` launched the app successfully on the same simulator.
+- The existing CoreData checksum warning still appears during the Xcode test-host path; this task did not change that pre-existing warning, and the simulator app launch still succeeded afterward.
 
 - Export cover-page address and date values now render at 10pt in the generated report metadata.
 - Exported `נוכחים:` now renders at 14pt, left-aligned, with the colon after the word, and the attendees section remains optional.

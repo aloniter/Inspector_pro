@@ -18,6 +18,7 @@ struct ProjectFormView: View {
     @State private var address = ""
     @State private var date = Date()
     @State private var attendees = ""
+    @State private var showsNumberedImagesInReport = false
     @State private var notes = ""
     @State private var isEditingNotes = false
 
@@ -49,6 +50,10 @@ struct ProjectFormView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .environment(\.layoutDirection, .leftToRight)
+            }
+
+            Section {
+                Toggle(AppStrings.text("מספור תמונות בדוח"), isOn: $showsNumberedImagesInReport)
             }
 
             Section(AppStrings.text("הערות")) {
@@ -85,6 +90,7 @@ struct ProjectFormView: View {
                 address = project.address ?? ""
                 date = project.date
                 attendees = project.attendees ?? ""
+                showsNumberedImagesInReport = project.showsNumberedImagesInReport
                 notes = project.notes ?? ""
             }
         }
@@ -96,6 +102,7 @@ struct ProjectFormView: View {
             project.address = normalizedOptional(address)
             project.date = date
             project.attendees = normalizedOptional(attendees)
+            project.showsNumberedImagesInReport = showsNumberedImagesInReport
             project.notes = normalizedOptional(notes)
             try? modelContext.save()
             onProjectSaved?(project)
@@ -105,7 +112,8 @@ struct ProjectFormView: View {
                 address: normalizedOptional(address),
                 date: date,
                 attendees: normalizedOptional(attendees),
-                notes: normalizedOptional(notes)
+                notes: normalizedOptional(notes),
+                showsNumberedImagesInReport: showsNumberedImagesInReport
             )
             modelContext.insert(newProject)
             try? modelContext.save()

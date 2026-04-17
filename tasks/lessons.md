@@ -33,3 +33,11 @@
 ## SwiftUI section headers may ignore intended RTL placement unless layout is forced
 - In `Form`/`Section` headers, a simple `.frame(..., alignment: .trailing)` is not always enough to keep Hebrew labels on the visual right.
 - Preferred approach: wrap the header in an explicit container and force the container layout direction when the system header styling fights the intended RTL position.
+
+## Follow-up export tweaks often need identical intent across PDF and DOCX
+- When a user refines report presentation after an initial pass, do not assume the first acceptable implementation is semantically complete.
+- Verification rule: if a feature exists in both PDF and DOCX, mirror the exact user-facing behavior in both builders for list numbering, heading emphasis, and cover-page date formatting, and add tests for the shared formatter rules that drive both outputs.
+
+## Cover-page stacked fields need alignment parity between heading and value
+- For dedicated stacked cover sections like `נוכחים`, do not mix a centered heading with right-aligned value lines unless the user explicitly wants that asymmetry.
+- Verification rule: when a user requests that names/details sit "under" a heading, align the value block to the same visual anchor in both PDF and DOCX and update string-based export tests to lock that layout in.

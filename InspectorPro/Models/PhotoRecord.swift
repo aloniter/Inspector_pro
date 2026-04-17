@@ -1,9 +1,9 @@
 import Foundation
 import SwiftData
 
-typealias PhotoRecord = InspectorProSchemaV4.PhotoRecord
+typealias PhotoRecord = InspectorProSchemaV5.PhotoRecord
 
-extension InspectorProSchemaV4.PhotoRecord {
+extension InspectorProSchemaV5.PhotoRecord {
     var displayImagePath: String {
         annotatedImagePath ?? imagePath
     }

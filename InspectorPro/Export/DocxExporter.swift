@@ -40,7 +40,9 @@ final class DocxExporter {
         var imageRelationships: [String] = []
         var photoRowsXML = ""
 
-        for photo in photos {
+        for (index, photo) in photos.enumerated() {
+            let itemNumber = project.showsNumberedImagesInReport ? index + 1 : nil
+
             let result = try processImage(
                 photo: photo,
                 quality: options.quality,
@@ -65,6 +67,8 @@ final class DocxExporter {
                 imageHeightEMU: result.heightEMU,
                 imageId: imageId,
                 imageCrop: result.crop,
+                itemNumber: itemNumber,
+                showsNumberedImagesInReport: project.showsNumberedImagesInReport,
                 rowHeightTwips: options.targetPhotoRowHeightTwips,
                 imageColumnWidthTwips: options.imageColumnWidthTwips,
                 textColumnWidthTwips: options.textColumnWidthTwips
@@ -83,14 +87,10 @@ final class DocxExporter {
             textColumnWidthTwips: options.textColumnWidthTwips
         )
 
-        let dateFormatter = DateFormatter()
-        dateFormatter.locale = AppLanguage.current.locale
-        dateFormatter.dateStyle = .long
-
         let address = normalizedText(project.address)
         let attendees = normalizedOptionalText(project.attendees)
         let notes = normalizedText(project.notes)
-        let date = dateFormatter.string(from: project.date)
+        let date = ExportTextFormatter.reportCoverDateString(from: project.date)
         var documentXML = DocxTemplateBuilder.documentXML(options: options)
         documentXML = documentXML.replacingOccurrences(of: "{{PROJECT_TITLE}}", with: OpenXMLBuilder.escapeXML(project.name))
         documentXML = documentXML.replacingOccurrences(

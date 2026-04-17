@@ -155,42 +155,30 @@ final class DocxTemplateBuilder {
         label: String,
         value: String
     ) -> String {
-        let valueLines = normalizedCoverValueLines(from: value)
+        let valueLines = ExportTextFormatter.numberedAttendeeLines(from: value)
 
         let labelParagraph = coverParagraphXML(
             text: ExportTextFormatter.rtlHeadingText("\(label):"),
-            fontSize: 28,
+            fontSize: 24,
             bold: true,
-            color: "1D4ED8",
+            color: "1F4E79",
             spacingBefore: 0,
-            spacingAfter: 70
+            spacingAfter: 70,
+            alignment: "center"
         )
 
         let valueParagraphs = valueLines.enumerated().map { index, line in
             coverParagraphXML(
                 text: line,
                 fontSize: 24,
-                color: "1D4ED8",
+                color: "1F4E79",
                 spacingBefore: 0,
-                spacingAfter: index == valueLines.count - 1 ? 260 : 40
+                spacingAfter: index == valueLines.count - 1 ? 260 : 40,
+                alignment: "center"
             )
         }.joined()
 
         return labelParagraph + valueParagraphs
-    }
-
-    private static func normalizedCoverValueLines(from value: String) -> [String] {
-        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedValue.isEmpty else { return ["—"] }
-
-        let lines = trimmedValue
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .compactMap { segment -> String? in
-                let line = String(segment).trimmingCharacters(in: .whitespacesAndNewlines)
-                return line.isEmpty ? nil : line
-            }
-
-        return lines.isEmpty ? ["—"] : lines
     }
 
     private static func coverParagraphXML(

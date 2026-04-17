@@ -31,9 +31,14 @@ final class PdfExporter {
 
             currentY += drawTableHeader(options: options, y: currentY)
 
-            for photo in photos {
+            for (index, photo) in photos.enumerated() {
                 let image = loadCompressedImage(photo: photo, options: options)
-                let descriptionLines = descriptionLines(photo: photo)
+                let itemNumber = project.showsNumberedImagesInReport ? index + 1 : nil
+                let descriptionLines = descriptionLines(
+                    photo: photo,
+                    itemNumber: itemNumber,
+                    showsNumberedImagesInReport: project.showsNumberedImagesInReport
+                )
                 let rowHeight = options.targetPhotoRowHeight
 
                 if currentY + rowHeight > pageBottom {
@@ -73,7 +78,7 @@ final class PdfExporter {
         options: ExportOptions
     ) {
         let mutedLabelColor = UIColor(red: 0x64 / 255.0, green: 0x74 / 255.0, blue: 0x8B / 255.0, alpha: 1)
-        let accentBlue = UIColor(red: 0x1D / 255.0, green: 0x4E / 255.0, blue: 0xD8 / 255.0, alpha: 1)
+        let attendeesAccentColor = UIColor(red: 0x1F / 255.0, green: 0x4E / 255.0, blue: 0x79 / 255.0, alpha: 1)
         var y: CGFloat = options.pageHeight * 0.28
 
         drawRTLText(
@@ -99,12 +104,9 @@ final class PdfExporter {
             )
         }
 
-        let dateFormatter = DateFormatter()
-        dateFormatter.locale = AppLanguage.current.locale
-        dateFormatter.dateStyle = .long
         y += drawCoverFieldSection(
             label: AppStrings.text("תאריך"),
-            value: dateFormatter.string(from: project.date),
+            value: ExportTextFormatter.reportCoverDateString(from: project.date),
             originY: y,
             width: options.contentWidth,
             x: options.marginLeft,
@@ -114,18 +116,15 @@ final class PdfExporter {
             labelColor: mutedLabelColor
         )
 
-        if let attendees = normalizedOptionalCoverText(project.attendees) {
-            y += drawCoverFieldSection(
+        if let attendees = numberedAttendeeLines(project.attendees) {
+            y += drawAttendeesCoverFieldSection(
                 label: ExportTextFormatter.rtlHeadingText("\(AppStrings.text("נוכחים")):"),
-                value: attendees,
+                attendees: attendees,
                 originY: y,
                 width: options.contentWidth,
                 x: options.marginLeft,
-                labelFontSize: 14,
-                valueFontSize: 12,
-                valueBold: false,
-                labelColor: accentBlue,
-                valueColor: accentBlue
+                labelColor: attendeesAccentColor,
+                valueColor: attendeesAccentColor
             )
         }
 
@@ -155,6 +154,13 @@ final class PdfExporter {
 
         guard !lines.isEmpty else { return nil }
         return lines.joined(separator: "\n")
+    }
+
+    private static func numberedAttendeeLines(_ value: String?) -> [String]? {
+        guard let normalizedValue = normalizedOptionalCoverText(value) else { return nil }
+
+        let attendees = ExportTextFormatter.numberedAttendeeLines(from: normalizedValue)
+        return attendees.isEmpty ? nil : attendees
     }
 
     private static func drawCoverFieldSection(
@@ -195,6 +201,43 @@ final class PdfExporter {
         )
 
         return labelHeight + valuesHeight + 12
+    }
+
+    private static func drawAttendeesCoverFieldSection(
+        label: String,
+        attendees: [String],
+        originY: CGFloat,
+        width: CGFloat,
+        x: CGFloat,
+        labelColor: UIColor,
+        valueColor: UIColor
+    ) -> CGFloat {
+        let labelFontSize: CGFloat = 12
+        let attendeeFontSize: CGFloat = 12
+        let labelHeight = labelFontSize + 8
+        let attendeeLineHeight = attendeeFontSize + 10
+        let attendeesHeight = max(CGFloat(attendees.count) * attendeeLineHeight, attendeeLineHeight)
+
+        drawRTLText(
+            label,
+            in: CGRect(x: x, y: originY, width: width, height: labelHeight),
+            fontSize: labelFontSize,
+            bold: true,
+            alignment: .center,
+            color: labelColor
+        )
+
+        drawRTLText(
+            attendees.joined(separator: "\n"),
+            in: CGRect(x: x, y: originY + labelHeight, width: width, height: attendeesHeight),
+            fontSize: attendeeFontSize,
+            bold: false,
+            alignment: .center,
+            color: valueColor,
+            lineSpacing: 4
+        )
+
+        return labelHeight + attendeesHeight + 12
     }
 
     // MARK: - Table
@@ -461,17 +504,26 @@ final class PdfExporter {
         let attributedText = NSMutableAttributedString()
 
         for (index, line) in lines.enumerated() {
-            let font = line.isBold ? UIFont.boldSystemFont(ofSize: fontSize) : UIFont.systemFont(ofSize: fontSize)
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: font,
-                .foregroundColor: color,
-                .paragraphStyle: paragraphStyle,
-            ]
+            for run in line.runs {
+                let font = run.isBold ? UIFont.boldSystemFont(ofSize: fontSize) : UIFont.systemFont(ofSize: fontSize)
+                let attributes: [NSAttributedString.Key: Any] = [
+                    .font: font,
+                    .foregroundColor: color,
+                    .paragraphStyle: paragraphStyle,
+                ]
 
-            attributedText.append(NSAttributedString(string: line.exportText, attributes: attributes))
+                attributedText.append(NSAttributedString(string: run.text, attributes: attributes))
+            }
 
             if index < lines.count - 1 {
-                attributedText.append(NSAttributedString(string: "\n", attributes: attributes))
+                attributedText.append(NSAttributedString(
+                    string: "\n",
+                    attributes: [
+                        .font: UIFont.systemFont(ofSize: fontSize),
+                        .foregroundColor: color,
+                        .paragraphStyle: paragraphStyle,
+                    ]
+                ))
             }
         }
 
@@ -480,8 +532,16 @@ final class PdfExporter {
 
     // MARK: - Helpers
 
-    private static func descriptionLines(photo: PhotoRecord) -> [ExportTextFormatter.DescriptionLine] {
-        ExportTextFormatter.descriptionLines(from: photo.freeText)
+    private static func descriptionLines(
+        photo: PhotoRecord,
+        itemNumber: Int?,
+        showsNumberedImagesInReport: Bool
+    ) -> [ExportTextFormatter.DescriptionLine] {
+        ExportTextFormatter.descriptionLines(
+            from: photo.freeText,
+            itemNumber: itemNumber,
+            showsNumberedImagesInReport: showsNumberedImagesInReport
+        )
     }
 
     private static func scaledImageSize(for image: UIImage, maxSize: CGSize) -> CGSize {

@@ -43,6 +43,11 @@ import ZIPFoundation
     #expect(project.sortedPhotos.map(\.imagePath) == ["c.jpg", "b.jpg", "a.jpg"])
 }
 
+@Test func projectDefaultsToDisabledNumberedImageExport() {
+    let project = Project(name: "Project")
+    #expect(project.showsNumberedImagesInReport == false)
+}
+
 @Test func xmlEscaping() {
     let input = "Test & <value> \"quoted\" 'apos'"
     let escaped = OpenXMLBuilder.escapeXML(input)
@@ -107,6 +112,48 @@ import ZIPFoundation
     #expect(lines[1].exportText == "\u{202B}•\u{00A0}שחור תקול\u{202C}")
 }
 
+@Test func exportFormatterPrependsBuiltInItemNumberWhenEnabled() {
+    let lines = ExportTextFormatter.descriptionLines(
+        from: "כללי:\nבסלון נראים ברגים לבנים",
+        itemNumber: 3,
+        showsNumberedImagesInReport: true
+    )
+
+    #expect(lines.count == 2)
+    #expect(lines[0].text == "3. כללי:")
+    #expect(lines[0].isBold)
+    #expect(lines[0].exportText == "\u{202B}3. כללי:\u{202C}")
+    #expect(lines[0].runs == [
+        .init(text: "\u{202B}3. כללי:\u{202C}", isBold: true),
+    ])
+    #expect(lines[1].text == "בסלון נראים ברגים לבנים")
+    #expect(!lines[1].isBold)
+    #expect(lines[1].runs == [
+        .init(text: "\u{202B}•\u{00A0}בסלון נראים ברגים לבנים\u{202C}", isBold: false),
+    ])
+}
+
+@Test func exportFormatterBuildsNumberedAttendeeLinesForRTL() {
+    let lines = ExportTextFormatter.numberedAttendeeLines(from: "אלון\nדפנה\n אבישי ")
+
+    #expect(lines == [
+        "\u{202B}1.\u{00A0}אלון\u{202C}",
+        "\u{202B}2.\u{00A0}דפנה\u{202C}",
+        "\u{202B}3.\u{00A0}אבישי\u{202C}",
+    ])
+}
+
+@Test func exportFormatterUsesNumericCoverDate() {
+    let date = DateComponents(
+        calendar: Calendar(identifier: .gregorian),
+        year: 2026,
+        month: 4,
+        day: 6
+    ).date!
+
+    #expect(ExportTextFormatter.reportCoverDateString(from: date) == "6.4.2026")
+}
+
 @Test func coverPageFieldFormatterKeepsHebrewLabelAndColonTogether() {
     let formatted = ExportTextFormatter.coverPageFieldText(label: "כתובת", value: "—")
 
@@ -159,7 +206,7 @@ import ZIPFoundation
 @Test func docxCoverDetailsAvoidsDirectionalIsolatesAndUsesSeparateLabelValueParagraphs() {
     let xml = DocxTemplateBuilder.coverDetailsXML(
         address: "כפר ויתקין",
-        date: "30 במרץ 2026",
+        date: "6.4.2026",
         attendees: "אלון\nדפנה",
         notes: "נדרש תיקון"
     )
@@ -170,14 +217,15 @@ import ZIPFoundation
     #expect(xml.contains(">כתובת<"))
     #expect(xml.contains(">כפר ויתקין<"))
     #expect(xml.contains(">תאריך<"))
-    #expect(xml.contains(">30 במרץ 2026<"))
+    #expect(xml.contains(">6.4.2026<"))
     #expect(xml.contains(OpenXMLBuilder.escapeXML(ExportTextFormatter.rtlHeadingText("נוכחים:"))))
-    #expect(xml.contains("w:color w:val=\"1D4ED8\""))
+    #expect(xml.contains("w:color w:val=\"1F4E79\""))
     #expect(xml.contains("w:jc w:val=\"center\""))
-    #expect(xml.contains("w:sz w:val=\"28\""))
+    #expect(!xml.contains("w:jc w:val=\"right\""))
+    #expect(xml.contains("w:sz w:val=\"24\""))
     #expect(xml.contains("w:sz w:val=\"20\""))
-    #expect(xml.contains(">אלון<"))
-    #expect(xml.contains(">דפנה<"))
+    #expect(xml.contains(OpenXMLBuilder.escapeXML("\u{202B}1.\u{00A0}אלון\u{202C}")))
+    #expect(xml.contains(OpenXMLBuilder.escapeXML("\u{202B}2.\u{00A0}דפנה\u{202C}")))
     #expect(xml.contains(">הערות<"))
     #expect(xml.contains(">נדרש תיקון<"))
 }
@@ -185,13 +233,33 @@ import ZIPFoundation
 @Test func docxCoverDetailsOmitsAttendeesSectionWhenValueIsMissing() {
     let xml = DocxTemplateBuilder.coverDetailsXML(
         address: "כפר ויתקין",
-        date: "30 במרץ 2026",
+        date: "6.4.2026",
         attendees: nil,
         notes: "נדרש תיקון"
     )
 
     #expect(!xml.contains(">נוכחים:<"))
-    #expect(!xml.contains("1D4ED8"))
+    #expect(!xml.contains("1F4E79"))
+}
+
+@Test func openXMLBuilderKeepsNumberOnlyInDescriptionSideForNumberedReportRows() {
+    let row = OpenXMLBuilder.buildPhotoRow(
+        freeText: "כללי:\nבסלון נראים ברגים לבנים",
+        imageRelId: "rId10",
+        imageWidthEMU: 1_500_000,
+        imageHeightEMU: 1_000_000,
+        imageId: 1,
+        itemNumber: 1,
+        showsNumberedImagesInReport: true,
+        rowHeightTwips: 7200,
+        imageColumnWidthTwips: 5000,
+        textColumnWidthTwips: 3300
+    )
+
+    #expect(row.contains("w:color w:val=\"1F4E79\"") == false)
+    #expect(row.contains("<w:t xml:space=\"preserve\">1</w:t>") == false)
+    #expect(row.contains(OpenXMLBuilder.escapeXML("\u{202B}1. כללי:\u{202C}")))
+    #expect(row.contains(OpenXMLBuilder.escapeXML("\u{202B}•\u{00A0}בסלון נראים ברגים לבנים\u{202C}")))
 }
 
 @Test func docxFooterPutsEmailBeforeInspectorName() {
@@ -386,6 +454,7 @@ import ZIPFoundation
     #expect(!documentText.contains("\u{2069}"))
     #expect(documentText.contains(">כתובת<"))
     #expect(documentText.contains(">כפר ויתקין<"))
+    #expect(documentText.contains(">\(ExportTextFormatter.reportCoverDateString(from: project.date))<"))
     #expect(!documentText.contains(">נוכחים:<"))
     #expect(documentText.contains(">הערות<"))
     #expect(documentText.contains(">תקין<"))

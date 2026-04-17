@@ -298,13 +298,81 @@ enum InspectorProSchemaV4: VersionedSchema {
     }
 }
 
+enum InspectorProSchemaV5: VersionedSchema {
+    static var versionIdentifier = Schema.Version(5, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        [Project.self, PhotoRecord.self]
+    }
+
+    @Model
+    final class Project {
+        @Attribute(.unique) var id: UUID
+        var name: String
+        var address: String?
+        var date: Date
+        var attendees: String?
+        var notes: String?
+        var showsNumberedImagesInReport: Bool
+
+        @Relationship(deleteRule: .cascade, inverse: \PhotoRecord.project)
+        var photos: [PhotoRecord] = []
+
+        init(
+            id: UUID = UUID(),
+            name: String = "",
+            address: String? = nil,
+            date: Date = .now,
+            attendees: String? = nil,
+            notes: String? = nil,
+            showsNumberedImagesInReport: Bool = false
+        ) {
+            self.id = id
+            self.name = name
+            self.address = address
+            self.date = date
+            self.attendees = attendees
+            self.notes = notes
+            self.showsNumberedImagesInReport = showsNumberedImagesInReport
+        }
+    }
+
+    @Model
+    final class PhotoRecord {
+        @Attribute(.unique) var id: UUID
+        var imagePath: String
+        var annotatedImagePath: String?
+        var freeText: String
+        var position: Int
+        var createdAt: Date
+
+        var project: Project?
+
+        init(
+            id: UUID = UUID(),
+            imagePath: String,
+            annotatedImagePath: String? = nil,
+            freeText: String = "",
+            position: Int = 0,
+            createdAt: Date = .now
+        ) {
+            self.id = id
+            self.imagePath = imagePath
+            self.annotatedImagePath = annotatedImagePath
+            self.freeText = freeText
+            self.position = position
+            self.createdAt = createdAt
+        }
+    }
+}
+
 enum InspectorProMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [InspectorProSchemaV1.self, InspectorProSchemaV2.self, InspectorProSchemaV3.self, InspectorProSchemaV4.self]
+        [InspectorProSchemaV1.self, InspectorProSchemaV2.self, InspectorProSchemaV3.self, InspectorProSchemaV4.self, InspectorProSchemaV5.self]
     }
 
     static var stages: [MigrationStage] {
-        [migrateV1ToV2, migrateV2ToV3, migrateV3ToV4]
+        [migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, migrateV4ToV5]
     }
 
     static let migrateV1ToV2 = MigrationStage.custom(
@@ -463,6 +531,60 @@ enum InspectorProMigrationPlan: SchemaMigrationPlan {
             try context.save()
         }
     )
+
+    static let migrateV4ToV5 = MigrationStage.custom(
+        fromVersion: InspectorProSchemaV4.self,
+        toVersion: InspectorProSchemaV5.self,
+        willMigrate: { context in
+            let fetchDescriptor = FetchDescriptor<InspectorProSchemaV4.Project>()
+            let legacyProjects = try context.fetch(fetchDescriptor)
+            let payload = legacyProjects.map(MigrationProjectV4Payload.init)
+
+            let data = try JSONEncoder().encode(payload)
+            try data.write(to: migrationPayloadV4ToV5URL, options: .atomic)
+
+            for project in legacyProjects {
+                context.delete(project)
+            }
+            try context.save()
+        },
+        didMigrate: { context in
+            guard FileManager.default.fileExists(atPath: migrationPayloadV4ToV5URL.path) else { return }
+
+            defer { try? FileManager.default.removeItem(at: migrationPayloadV4ToV5URL) }
+
+            let data = try Data(contentsOf: migrationPayloadV4ToV5URL)
+            let legacyProjects = try JSONDecoder().decode([MigrationProjectV4Payload].self, from: data)
+
+            for legacyProject in legacyProjects {
+                let project = InspectorProSchemaV5.Project(
+                    id: legacyProject.id,
+                    name: legacyProject.name,
+                    address: legacyProject.address,
+                    date: legacyProject.date,
+                    attendees: legacyProject.attendees,
+                    notes: legacyProject.notes,
+                    showsNumberedImagesInReport: false
+                )
+                context.insert(project)
+
+                for legacyPhoto in legacyProject.photos {
+                    let photoRecord = InspectorProSchemaV5.PhotoRecord(
+                        id: legacyPhoto.id,
+                        imagePath: legacyPhoto.imagePath,
+                        annotatedImagePath: legacyPhoto.annotatedImagePath,
+                        freeText: legacyPhoto.freeText,
+                        position: legacyPhoto.position,
+                        createdAt: legacyPhoto.createdAt
+                    )
+                    photoRecord.project = project
+                    context.insert(photoRecord)
+                }
+            }
+
+            try context.save()
+        }
+    )
 }
 
 private let migrationPayloadV1ToV2URL = FileManager.default.temporaryDirectory
@@ -473,6 +595,9 @@ private let migrationPayloadV2ToV3URL = FileManager.default.temporaryDirectory
 
 private let migrationPayloadV3ToV4URL = FileManager.default.temporaryDirectory
     .appendingPathComponent("inspectorpro-v3-v4-migration.json")
+
+private let migrationPayloadV4ToV5URL = FileManager.default.temporaryDirectory
+    .appendingPathComponent("inspectorpro-v4-v5-migration.json")
 
 private struct MigrationProjectPayload: Codable {
     let name: String
@@ -594,5 +719,44 @@ private struct MigrationPhotoV3Payload: Codable {
         freeText = legacyPhoto.freeText
         position = legacyPhoto.position
         createdAt = legacyPhoto.createdAt
+    }
+
+    init(legacyPhoto: InspectorProSchemaV4.PhotoRecord) {
+        id = legacyPhoto.id
+        imagePath = legacyPhoto.imagePath
+        annotatedImagePath = legacyPhoto.annotatedImagePath
+        freeText = legacyPhoto.freeText
+        position = legacyPhoto.position
+        createdAt = legacyPhoto.createdAt
+    }
+}
+
+private struct MigrationProjectV4Payload: Codable {
+    let id: UUID
+    let name: String
+    let address: String?
+    let date: Date
+    let attendees: String?
+    let notes: String?
+    let photos: [MigrationPhotoV3Payload]
+
+    init(legacyProject: InspectorProSchemaV4.Project) {
+        id = legacyProject.id
+        name = legacyProject.name
+        address = legacyProject.address
+        date = legacyProject.date
+        attendees = legacyProject.attendees
+        notes = legacyProject.notes
+        photos = legacyProject.photos
+            .sorted {
+                if $0.position != $1.position {
+                    return $0.position < $1.position
+                }
+                if $0.createdAt != $1.createdAt {
+                    return $0.createdAt < $1.createdAt
+                }
+                return $0.id.uuidString < $1.id.uuidString
+            }
+            .map(MigrationPhotoV3Payload.init)
     }
 }
