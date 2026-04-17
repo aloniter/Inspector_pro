@@ -490,7 +490,7 @@ final class PdfExporter {
         guard !runs.isEmpty else { return }
         let font = UIFont.systemFont(ofSize: fontSize)
 
-        let spaceWidth = (" " as NSString).size(withAttributes: [.font: font]).width
+        let spaceWidth = max((" " as NSString).size(withAttributes: [.font: font]).width, 4)
         let tokenWidths = runs.map { run in
             (run.text as NSString).size(withAttributes: [.font: font]).width
         }

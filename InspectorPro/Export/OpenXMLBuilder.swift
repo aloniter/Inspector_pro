@@ -42,13 +42,12 @@ final class OpenXMLBuilder {
         let borderTag = topBorder ? "<w:pBdr><w:top w:val=\"single\" w:sz=\"4\" w:space=\"1\" w:color=\"000000\"/></w:pBdr>" : ""
         let bidiTag = enforcesVisualOrder ? "" : "<w:bidi/>"
         let runsXML = runs.enumerated().map { index, run -> String in
-            let text = index < runs.count - 1 ? "\(run.text) " : run.text
             let rtlTag = run.direction == .rightToLeft ? "<w:rtl/>" : ""
             let langTag = run.direction == .rightToLeft
                 ? "<w:lang w:val=\"he-IL\" w:bidi=\"he-IL\"/>"
                 : "<w:lang w:val=\"en-US\"/>"
 
-            return """
+            let tokenRun = """
     <w:r>
       <w:rPr>
         <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
@@ -57,9 +56,26 @@ final class OpenXMLBuilder {
         <w:color w:val="\(color)"/>
         <w:sz w:val="\(fontSize)"/><w:szCs w:val="\(fontSize)"/>
       </w:rPr>
-      <w:t xml:space="preserve">\(escapeXML(text))</w:t>
+      <w:t xml:space="preserve">\(escapeXML(run.text))</w:t>
     </w:r>
 """
+
+            guard index < runs.count - 1 else {
+                return tokenRun
+            }
+
+            let spacerRun = """
+    <w:r>
+      <w:rPr>
+        <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
+        <w:color w:val="\(color)"/>
+        <w:sz w:val="\(fontSize)"/><w:szCs w:val="\(fontSize)"/>
+      </w:rPr>
+      <w:t xml:space="preserve"> </w:t>
+    </w:r>
+"""
+
+            return tokenRun + "\n" + spacerRun
         }.joined(separator: "\n")
 
         return """

@@ -265,14 +265,14 @@ import ZIPFoundation
 @Test func docxFooterUsesSeparateRunsForPrimaryLine() {
     let footer = DocxTemplateBuilder.footerXML(branding: .legacyDefault)
     #expect(footer.contains("<w:bidi/>"))
-    #expect(footer.contains(">iter@iter.co.il </w:t>"))
-    #expect(footer.contains(">מייל <") || footer.contains(">דוא&quot;ל <"))
-    #expect(footer.contains(">054-6222577 <"))
-    #expect(footer.contains(">אבישי</w:t>") || footer.contains(">אבישי </w:t>"))
-    #expect(footer.contains(">09-8665885 <"))
-    #expect(footer.contains(">משרד <"))
-    #expect(footer.contains(">054-6222575 <"))
-    #expect(footer.contains(">דפנה</w:t>") || footer.contains(">דפנה </w:t>"))
+    #expect(footer.contains(">iter@iter.co.il</w:t>"))
+    #expect(footer.contains(">מייל</w:t>") || footer.contains(">דוא&quot;ל</w:t>"))
+    #expect(footer.contains(">054-6222577</w:t>"))
+    #expect(footer.contains(">אבישי</w:t>"))
+    #expect(footer.contains(">09-8665885</w:t>"))
+    #expect(footer.contains(">משרד</w:t>"))
+    #expect(footer.contains(">054-6222575</w:t>"))
+    #expect(footer.contains(">דפנה</w:t>"))
     #expect(!footer.contains("אבישי 054-6222577 מייל iter@iter.co.il"))
     #expect(footer.firstRange(of: "iter@iter.co.il")!.lowerBound < footer.firstRange(of: "054-6222577")!.lowerBound)
     #expect(footer.firstRange(of: "09-8665885")!.lowerBound < footer.firstRange(of: "054-6222575")!.lowerBound)
@@ -635,9 +635,9 @@ import ZIPFoundation
 
     let footerData = xmlEntries["word/footer1.xml"]
     let footerText = footerData.flatMap { String(data: $0, encoding: .utf8) } ?? ""
-    #expect(footerText.contains(">iter@iter.co.il </w:t>"))
-    #expect(footerText.contains(">דוא&quot;ל </w:t>"))
-    #expect(footerText.contains(">054-6222577 </w:t>"))
+    #expect(footerText.contains(">iter@iter.co.il</w:t>"))
+    #expect(footerText.contains(">דוא&quot;ל</w:t>"))
+    #expect(footerText.contains(">054-6222577</w:t>"))
     #expect(footerText.contains(">אבישי</w:t>"))
 
     let documentText = xmlEntries["word/document.xml"]
