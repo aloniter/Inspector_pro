@@ -1,6 +1,6 @@
 name: InspectorPro
 options:
-  bundleIdPrefix: com.inspectorpro
+  bundleIdPrefix: com.aloniter.inspectorpro
   deploymentTarget:
     iOS: "18.0"
   groupSortPosition: top
@@ -31,9 +31,14 @@ targets:
       - path: InspectorPro/Resources
     dependencies:
       - package: ZIPFoundation
+    scheme:
+      testTargets:
+        - InspectorProTests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.inspectorpro.app
+        PRODUCT_BUNDLE_IDENTIFIER: com.aloniter.inspectorpro
+        DEVELOPMENT_TEAM: H29SVV6K2S
+        CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: YES
         TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_KEY_UIRequiresFullScreen: YES
@@ -55,4 +60,5 @@ targets:
       - target: InspectorPro
     settings:
       base:
+        DEVELOPMENT_TEAM: H29SVV6K2S
         GENERATE_INFOPLIST_FILE: YES

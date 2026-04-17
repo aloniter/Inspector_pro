@@ -17,7 +17,10 @@ struct ProjectFormView: View {
     @State private var name = ""
     @State private var address = ""
     @State private var date = Date()
+    @State private var attendees = ""
+    @State private var showsNumberedImagesInReport = false
     @State private var notes = ""
+    @State private var isEditingNotes = false
 
     private var textAlignment: TextAlignment {
         AppTextDirection.textAlignment(for: layoutDirection)
@@ -34,10 +37,32 @@ struct ProjectFormView: View {
                     .environment(\.locale, AppLanguage.current.locale)
             }
 
-            Section(AppStrings.text("הערות")) {
-                TextEditor(text: $notes)
-                    .frame(minHeight: 80)
+            Section {
+                TextField(AppStrings.text("נוכחים"), text: $attendees, axis: .vertical)
                     .multilineTextAlignment(textAlignment)
+                    .lineLimit(1...3)
+            } header: {
+                HStack {
+                    Spacer(minLength: 0)
+                    Text(ExportTextFormatter.rtlHeadingText("\(AppStrings.text("נוכחים")):"))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                }
+                .frame(maxWidth: .infinity)
+                .environment(\.layoutDirection, .leftToRight)
+            }
+
+            Section {
+                Toggle(AppStrings.text("מספור תמונות בדוח"), isOn: $showsNumberedImagesInReport)
+            }
+
+            Section(AppStrings.text("הערות")) {
+                DirectionalTextEditor(
+                    text: $notes,
+                    isFocused: $isEditingNotes,
+                    layoutDirection: layoutDirection
+                )
+                    .frame(minHeight: 80)
             }
         }
         .navigationTitle(
@@ -64,6 +89,8 @@ struct ProjectFormView: View {
                 name = project.name
                 address = project.address ?? ""
                 date = project.date
+                attendees = project.attendees ?? ""
+                showsNumberedImagesInReport = project.showsNumberedImagesInReport
                 notes = project.notes ?? ""
             }
         }
@@ -74,6 +101,8 @@ struct ProjectFormView: View {
             project.name = name
             project.address = normalizedOptional(address)
             project.date = date
+            project.attendees = normalizedOptional(attendees)
+            project.showsNumberedImagesInReport = showsNumberedImagesInReport
             project.notes = normalizedOptional(notes)
             try? modelContext.save()
             onProjectSaved?(project)
@@ -82,7 +111,9 @@ struct ProjectFormView: View {
                 name: name,
                 address: normalizedOptional(address),
                 date: date,
-                notes: normalizedOptional(notes)
+                attendees: normalizedOptional(attendees),
+                notes: normalizedOptional(notes),
+                showsNumberedImagesInReport: showsNumberedImagesInReport
             )
             modelContext.insert(newProject)
             try? modelContext.save()

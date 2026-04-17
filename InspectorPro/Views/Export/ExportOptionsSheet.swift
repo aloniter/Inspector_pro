@@ -6,8 +6,8 @@ struct ExportOptionsSheet: View {
     @Environment(\.layoutDirection) private var layoutDirection
     let project: Project
 
-    @State private var selectedFormat: ExportFormat = .pdf
-    @State private var selectedQuality: ImageQuality = .balanced
+    @State private var selectedFormat: ExportFormat = .docx
+    @State private var selectedQuality: ImageQuality = .economical
     @State private var isExporting = false
     @State private var exportProgress: Double = 0
     @State private var exportedURL: URL?

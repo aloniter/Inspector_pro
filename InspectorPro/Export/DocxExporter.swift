@@ -40,7 +40,9 @@ final class DocxExporter {
         var imageRelationships: [String] = []
         var photoRowsXML = ""
 
-        for photo in photos {
+        for (index, photo) in photos.enumerated() {
+            let itemNumber = project.showsNumberedImagesInReport ? index + 1 : nil
+
             let result = try processImage(
                 photo: photo,
                 quality: options.quality,
@@ -65,6 +67,8 @@ final class DocxExporter {
                 imageHeightEMU: result.heightEMU,
                 imageId: imageId,
                 imageCrop: result.crop,
+                itemNumber: itemNumber,
+                showsNumberedImagesInReport: project.showsNumberedImagesInReport,
                 rowHeightTwips: options.targetPhotoRowHeightTwips,
                 imageColumnWidthTwips: options.imageColumnWidthTwips,
                 textColumnWidthTwips: options.textColumnWidthTwips
@@ -83,17 +87,21 @@ final class DocxExporter {
             textColumnWidthTwips: options.textColumnWidthTwips
         )
 
-        let dateFormatter = DateFormatter()
-        dateFormatter.locale = AppLanguage.current.locale
-        dateFormatter.dateStyle = .long
-
         let address = normalizedText(project.address)
+        let attendees = normalizedOptionalText(project.attendees)
         let notes = normalizedText(project.notes)
+        let date = ExportTextFormatter.reportCoverDateString(from: project.date)
         var documentXML = DocxTemplateBuilder.documentXML(options: options)
         documentXML = documentXML.replacingOccurrences(of: "{{PROJECT_TITLE}}", with: OpenXMLBuilder.escapeXML(project.name))
-        documentXML = documentXML.replacingOccurrences(of: "{{ADDRESS}}", with: OpenXMLBuilder.escapeXML(address))
-        documentXML = documentXML.replacingOccurrences(of: "{{DATE}}", with: OpenXMLBuilder.escapeXML(dateFormatter.string(from: project.date)))
-        documentXML = documentXML.replacingOccurrences(of: "{{NOTES}}", with: OpenXMLBuilder.escapeXML(notes))
+        documentXML = documentXML.replacingOccurrences(
+            of: "{{COVER_DETAILS}}",
+            with: DocxTemplateBuilder.coverDetailsXML(
+                address: address,
+                date: date,
+                attendees: attendees,
+                notes: notes
+            )
+        )
         documentXML = documentXML.replacingOccurrences(of: "{{PHOTOS_TABLE}}", with: photosContentXML)
 
         try DocxTemplateBuilder.contentTypesXML().write(to: tempDir.appendingPathComponent("[Content_Types].xml"), atomically: true, encoding: .utf8)
@@ -194,6 +202,12 @@ final class DocxExporter {
         guard let value else { return "—" }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "—" : trimmed
+    }
+
+    private static func normalizedOptionalText(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private static func dateString(_ date: Date) -> String {

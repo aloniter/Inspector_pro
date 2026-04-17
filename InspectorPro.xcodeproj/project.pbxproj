@@ -16,6 +16,7 @@
 		1D406F25A505DC3F2D8F5C1E /* ProjectFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD28A3C22F5461BB48310800 /* ProjectFormView.swift */; };
 		20B9AE319DCE061EE77009CA /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 4568F659681DC1742665E4E0 /* Localizable.strings */; };
 		31ADFA59853BDC7B1E7B800D /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 250DC10D00ACB77A01990241 /* Constants.swift */; };
+		32D719DECC96929E953E82B9 /* ExportTextFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2B16FCBBC0E9A90EF640892 /* ExportTextFormatter.swift */; };
 		3418BA02853649EE589C1B4D /* ExportEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89D09CE2BE015C00BA34A9B3 /* ExportEngine.swift */; };
 		393773F14F2011DFD8F13F78 /* ExportOptionsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B96112AC8ED09BBBD6D62D9 /* ExportOptionsSheet.swift */; };
 		40AB1EDC00702B61E65B2460 /* InspectorProMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B234417662171E07C6F59494 /* InspectorProMigration.swift */; };
@@ -37,6 +38,7 @@
 		B54D2D41F1EC076850424093 /* ExportOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA3CE7031A5AD7898BDA4673 /* ExportOptions.swift */; };
 		B6EE190BFDC33B49DC62115B /* ThumbnailService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD6209BD0901AEA23F54D732 /* ThumbnailService.swift */; };
 		C4447CCD6BC76207EFC5123F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 7265AAAAB75B5AC2D38A6883 /* LaunchScreen.storyboard */; };
+		CFC5B8680F175A992FC55F62 /* DirectionalTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A157C843E792CBCC8332C1E4 /* DirectionalTextEditor.swift */; };
 		D24867DE2C284DB62B2878BE /* PdfExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24FCA22A35747A0FCBDDF333 /* PdfExporter.swift */; };
 		D2CE9DC8881DFCBD650B2EE8 /* ProjectDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D02C5F70710C772005A3623B /* ProjectDetailView.swift */; };
 		EEC8B450C2C6AC77EF82B739 /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = A07E143472BCA8DF142C9D71 /* Project.swift */; };
@@ -75,6 +77,7 @@
 		9BBBE3BB0DE9EC7D13278610 /* ImageStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageStorageService.swift; sourceTree = "<group>"; };
 		9E949DD5078F59B2E114E1CD /* PhotoRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoRecord.swift; sourceTree = "<group>"; };
 		A07E143472BCA8DF142C9D71 /* Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Project.swift; sourceTree = "<group>"; };
+		A157C843E792CBCC8332C1E4 /* DirectionalTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectionalTextEditor.swift; sourceTree = "<group>"; };
 		A78CCC2D2864588E52D716C2 /* template.docx */ = {isa = PBXFileReference; lastKnownFileType = file; path = template.docx; sourceTree = "<group>"; };
 		A8B62DD3F09EC8E24B52C6F3 /* DocxTemplateBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocxTemplateBuilder.swift; sourceTree = "<group>"; };
 		AB143F75D35501113F93AF18 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
@@ -90,10 +93,11 @@
 		DD6209BD0901AEA23F54D732 /* ThumbnailService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailService.swift; sourceTree = "<group>"; };
 		DE3CAA6394E63D2AE4067417 /* ExportCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportCache.swift; sourceTree = "<group>"; };
 		E0708DD194B48A0D59F5FD10 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		E2B16FCBBC0E9A90EF640892 /* ExportTextFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportTextFormatter.swift; sourceTree = "<group>"; };
 		E5F34B531BA4399726E6098A /* ExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportTests.swift; sourceTree = "<group>"; };
 		EA3CE7031A5AD7898BDA4673 /* ExportOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportOptions.swift; sourceTree = "<group>"; };
 		F56D2A245B0D2323F87A406A /* TemplateExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateExtractor.swift; sourceTree = "<group>"; };
-		F7D74ED2E469D3997EE4DF95 /* InspectorPro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = InspectorPro.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F7D74ED2E469D3997EE4DF95 /* InspectorPro.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = InspectorPro.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -111,6 +115,7 @@
 		0FF3C769674F7B3F84A238D6 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				A157C843E792CBCC8332C1E4 /* DirectionalTextEditor.swift */,
 				AB143F75D35501113F93AF18 /* EmptyStateView.swift */,
 			);
 			path = Components;
@@ -228,6 +233,7 @@
 			isa = PBXGroup;
 			children = (
 				250DC10D00ACB77A01990241 /* Constants.swift */,
+				E2B16FCBBC0E9A90EF640892 /* ExportTextFormatter.swift */,
 				8F16CB3736D4EAD7A910794A /* UIImage+Extensions.swift */,
 			);
 			path = Utilities;
@@ -304,6 +310,15 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					5FC36B5BA4698632E03DECAF = {
+						DevelopmentTeam = H29SVV6K2S;
+						ProvisioningStyle = Automatic;
+					};
+					B786DEF78136EA2E0D76BFE5 = {
+						DevelopmentTeam = H29SVV6K2S;
+					};
+				};
 			};
 			buildConfigurationList = A2EE572B56C54DADE32E6FB2 /* Build configuration list for PBXProject "InspectorPro" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -349,6 +364,7 @@
 			files = (
 				464046CD43F9BD2495EAF129 /* AnnotationView.swift in Sources */,
 				31ADFA59853BDC7B1E7B800D /* Constants.swift in Sources */,
+				CFC5B8680F175A992FC55F62 /* DirectionalTextEditor.swift in Sources */,
 				7D7C9C630C121053953A02BE /* DocxExporter.swift in Sources */,
 				066CACDA620D966DCF40EF61 /* DocxTemplateBuilder.swift in Sources */,
 				06DC8B4D2E4AEE9B86A97DF0 /* EmptyStateView.swift in Sources */,
@@ -358,6 +374,7 @@
 				B54D2D41F1EC076850424093 /* ExportOptions.swift in Sources */,
 				393773F14F2011DFD8F13F78 /* ExportOptionsSheet.swift in Sources */,
 				0A21A31DC269F9C8BC0D9352 /* ExportProgressView.swift in Sources */,
+				32D719DECC96929E953E82B9 /* ExportTextFormatter.swift in Sources */,
 				7A0F73B173C6834E4A7BF1E4 /* FileManagerService.swift in Sources */,
 				A8020999354BBC892C1E3914 /* ImageCompressor.swift in Sources */,
 				7D1AA9CD62C2BBD45FE426C2 /* ImagePickerView.swift in Sources */,
@@ -415,13 +432,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = H29SVV6K2S;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.inspectorpro.InspectorProTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aloniter.inspectorpro.InspectorProTests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/InspectorPro.app/InspectorPro";
@@ -433,6 +451,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = H29SVV6K2S;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -448,7 +467,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.inspectorpro.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aloniter.inspectorpro;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -517,6 +536,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = H29SVV6K2S;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -532,7 +552,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.inspectorpro.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aloniter.inspectorpro;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -542,13 +562,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = H29SVV6K2S;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.inspectorpro.InspectorProTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aloniter.inspectorpro.InspectorProTests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/InspectorPro.app/InspectorPro";

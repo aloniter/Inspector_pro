@@ -45,11 +45,13 @@ final class OpenXMLBuilder {
         imageHeightEMU: Int,
         imageId: Int,
         imageCrop: ImageCrop = .none,
+        itemNumber: Int? = nil,
+        showsNumberedImagesInReport: Bool = false,
         rowHeightTwips: Int,
         imageColumnWidthTwips: Int,
         textColumnWidthTwips: Int
     ) -> String {
-        """
+        return """
         <w:tr>
           <w:trPr>
             <w:cantSplit/>
@@ -73,7 +75,11 @@ final class OpenXMLBuilder {
               <w:shd w:val="clear" w:color="auto" w:fill="F2F2F2"/>
               <w:vAlign w:val="top"/>
             </w:tcPr>
-            \(buildDescriptionCell(freeText: freeText))
+            \(buildDescriptionCell(
+                freeText: freeText,
+                itemNumber: itemNumber,
+                showsNumberedImagesInReport: showsNumberedImagesInReport
+            ))
           </w:tc>
         </w:tr>
         """
@@ -86,23 +92,18 @@ final class OpenXMLBuilder {
     }
 
     static func rtlParagraph(
-        text: String,
-        bold: Bool = false,
+        runs: [ExportTextFormatter.DescriptionLine.TextRun],
         fontSize: Int = 20,
         alignment: String = "right",
         color: String? = nil,
         spacingAfter: Int? = nil
     ) -> String {
-        let boldTag = bold ? "<w:b/><w:bCs/>" : ""
-        let colorTag = color != nil ? "<w:color w:val=\"\(color!)\"/>" : ""
         let spacingTag = spacingAfter != nil ? "<w:spacing w:after=\"\(spacingAfter!)\"/>" : ""
+        let runsXML = runs.map { run -> String in
+            let boldTag = run.isBold ? "<w:b/><w:bCs/>" : ""
+            let colorTag = color != nil ? "<w:color w:val=\"\(color!)\"/>" : ""
 
-        return """
-        <w:p>
-          <w:pPr>
-            \(spacingTag)
-            <w:jc w:val="\(alignment)"/>
-          </w:pPr>
+            return """
           <w:r>
             <w:rPr>
               <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
@@ -111,10 +112,37 @@ final class OpenXMLBuilder {
               <w:sz w:val="\(fontSize)"/>
               <w:szCs w:val="\(fontSize)"/>
             </w:rPr>
-            <w:t xml:space="preserve">\(escapeXML(text))</w:t>
+            <w:t xml:space="preserve">\(escapeXML(run.text))</w:t>
           </w:r>
+"""
+        }.joined(separator: "\n")
+
+        return """
+        <w:p>
+          <w:pPr>
+            \(spacingTag)
+            <w:jc w:val="\(alignment)"/>
+          </w:pPr>
+          \(runsXML)
         </w:p>
         """
+    }
+
+    static func rtlParagraph(
+        text: String,
+        bold: Bool = false,
+        fontSize: Int = 20,
+        alignment: String = "right",
+        color: String? = nil,
+        spacingAfter: Int? = nil
+    ) -> String {
+        rtlParagraph(
+            runs: [ExportTextFormatter.DescriptionLine.TextRun(text: text, isBold: bold)],
+            fontSize: fontSize,
+            alignment: alignment,
+            color: color,
+            spacingAfter: spacingAfter
+        )
     }
 
     static func escapeXML(_ text: String) -> String {
@@ -151,25 +179,30 @@ final class OpenXMLBuilder {
         """
     }
 
-    private static func buildDescriptionCell(freeText: String) -> String {
-        let lines = freeText
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .split(whereSeparator: \.isNewline)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        let bulletLines = lines.map {
-            $0.hasPrefix("•") ? $0 : "• \($0)"
-        }
+    private static func buildDescriptionCell(
+        freeText: String,
+        itemNumber: Int? = nil,
+        showsNumberedImagesInReport: Bool = false
+    ) -> String {
+        let descriptionLines = ExportTextFormatter.descriptionLines(
+            from: freeText,
+            itemNumber: itemNumber,
+            showsNumberedImagesInReport: showsNumberedImagesInReport
+        )
 
-        if bulletLines.isEmpty {
+        if descriptionLines.isEmpty {
             return emptyCellParagraph()
         }
 
         var xml = ""
-        for line in bulletLines {
+        for line in descriptionLines {
             xml += rtlParagraph(
-                text: line,
-                bold: false,
+                runs: line.runs.map { run in
+                    ExportTextFormatter.DescriptionLine.TextRun(
+                        text: run.text,
+                        isBold: run.isBold
+                    )
+                },
                 fontSize: 22,
                 alignment: "right",
                 color: "222222",

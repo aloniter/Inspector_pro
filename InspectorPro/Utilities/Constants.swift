@@ -113,4 +113,3 @@ enum AppTextDirection {
         direction == .rightToLeft ? .trailing : .leading
     }
 }
-

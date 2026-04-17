@@ -11,18 +11,11 @@ struct PhotoDetailView: View {
     @State private var originalImage: UIImage?
     @State private var showingAnnotation = false
     @State private var showingDeleteConfirmation = false
-    @FocusState private var isEditingNotes: Bool
+    @State private var isEditingNotes = false
+    @State private var noteText = ""
 
-    private var contentHorizontalAlignment: HorizontalAlignment {
-        AppTextDirection.horizontalAlignment(for: layoutDirection)
-    }
-
-    private var contentTextAlignment: TextAlignment {
-        AppTextDirection.textAlignment(for: layoutDirection)
-    }
-
-    private var frameAlignment: Alignment {
-        AppTextDirection.frameAlignment(for: layoutDirection)
+    private var hasUnsavedNoteChanges: Bool {
+        noteText != photo.freeText
     }
 
     var body: some View {
@@ -42,17 +35,28 @@ struct PhotoDetailView: View {
                 .frame(maxWidth: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
 
-                VStack(alignment: contentHorizontalAlignment, spacing: 8) {
+                VStack(alignment: .leading, spacing: 8) {
                     Text(AppStrings.text("הערות"))
                         .font(.headline)
-                        .frame(maxWidth: .infinity, alignment: frameAlignment)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
-                    TextEditor(text: $photo.freeText)
+                    DirectionalTextEditor(
+                        text: $noteText,
+                        isFocused: $isEditingNotes,
+                        layoutDirection: layoutDirection
+                    )
                         .frame(minHeight: 140)
                         .padding(8)
                         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
-                        .multilineTextAlignment(contentTextAlignment)
-                        .focused($isEditingNotes)
+
+                    Button {
+                        finishNotesEditing()
+                    } label: {
+                        Label(AppStrings.text("סיום ושמירת הערות"), systemImage: "checkmark.circle.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!isEditingNotes && !hasUnsavedNoteChanges)
                 }
             }
             .padding()
@@ -79,14 +83,17 @@ struct PhotoDetailView: View {
                 Spacer()
 
                 Button(AppStrings.text("סיום")) {
-                    isEditingNotes = false
+                    finishNotesEditing()
                 }
             }
         }
         .onChange(of: isEditingNotes) { _, isFocused in
             if !isFocused {
-                saveChanges()
+                commitNoteChanges()
             }
+        }
+        .onAppear {
+            noteText = photo.freeText
         }
         .alert(AppStrings.text("למחוק את התמונה?"), isPresented: $showingDeleteConfirmation) {
             Button(AppStrings.text("ביטול"), role: .cancel) {}
@@ -129,6 +136,17 @@ struct PhotoDetailView: View {
 
     private func saveChanges() {
         try? modelContext.save()
+    }
+
+    private func finishNotesEditing() {
+        commitNoteChanges()
+        isEditingNotes = false
+    }
+
+    private func commitNoteChanges() {
+        guard hasUnsavedNoteChanges else { return }
+        photo.freeText = noteText
+        saveChanges()
     }
 
     @MainActor
