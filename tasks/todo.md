@@ -4,6 +4,12 @@
 - [x] Create a savepoint commit for the current project state so it can be restored later
 - [x] Push the savepoint to GitHub and verify the remote branch reflects the new snapshot
 
+## Review
+
+- Savepoint commit created at `3aeac97` on branch `codex/attendees-rtl-export`
+- Savepoint tag `savepoint-2026-04-17` created and pushed; it resolves to commit `3aeac97`
+- Remote `origin` at `https://github.com/aloniter/Inspector_pro.git` now contains both the updated branch head and the savepoint tag
+
 - [x] Inspect the cover-page attendees block in both exporters to confirm why attendee names render to the visual right of the `נוכחים` heading
 - [x] Center exported attendee names directly beneath the `נוכחים` heading in both PDF and DOCX without changing unrelated cover metadata
 - [x] Verify the updated attendees alignment with focused export tests and record the result
