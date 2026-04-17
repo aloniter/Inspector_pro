@@ -107,13 +107,15 @@ struct ProjectFormView: View {
             try? modelContext.save()
             onProjectSaved?(project)
         } else {
+            let defaultBrandingProfile = try? BrandingBootstrapper.fetchDefaultBrandingProfile(in: modelContext)
             let newProject = Project(
                 name: name,
                 address: normalizedOptional(address),
                 date: date,
                 attendees: normalizedOptional(attendees),
                 notes: normalizedOptional(notes),
-                showsNumberedImagesInReport: showsNumberedImagesInReport
+                showsNumberedImagesInReport: showsNumberedImagesInReport,
+                brandingProfile: defaultBrandingProfile
             )
             modelContext.insert(newProject)
             try? modelContext.save()

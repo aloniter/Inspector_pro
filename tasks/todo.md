@@ -174,3 +174,66 @@
 - The DOCX cover page now uses a cleaner layout: stronger title spacing, a divider line, and stacked metadata sections with separate label/value paragraphs instead of inline `label: value` text.
 - `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' test` passed with 21 Swift Testing tests, including DOCX cover-page structure checks that assert no isolate characters are emitted.
 - Visual DOCX rendering from the terminal was not available because `soffice` and `pdftoppm` are not installed in this environment.
+
+- [x] Add a minimal `BrandingProfile` schema and lightweight V5 -> V6 migration without changing project behavior or app identity
+- [x] Seed/link the default export branding through a best-effort bootstrapper with non-fatal fallback behavior
+- [x] Route PDF and DOCX export branding through one shared resolved-branding layer and lock the fallback path with tests
+
+## Review
+
+- Added `InspectorProSchemaV6` with a minimal `BrandingProfile` model and an optional `Project.brandingProfile` relationship; the migration remains lightweight, with seeding/backfill handled outside the migration plan.
+- `BrandingBootstrapper` now schedules a best-effort default-profile seed/link pass after startup, but export remains independent of bootstrap success because `ResolvedExportBranding` falls back to the current hardcoded branding values in code.
+- PDF and DOCX exporters now pull logo/footer branding from the shared resolver, and focused tests cover both the linked-profile path and the nil-profile fallback path before the end-to-end export assertions run.
+
+- [x] Add a minimal branding editor under the existing settings sheet for the default branding profile only
+- [x] Allow manual editing of company name, logo image, footer address line, primary footer line, and secondary footer line without changing export layout geometry
+- [x] Keep export header/footer composition fixed while loading custom branding content through the existing resolved-branding layer
+
+## Review
+
+- Added a default-profile branding editor under the existing gear/settings sheet, with a single form for company name, logo selection from the photo library, and the three footer lines.
+- Custom logos are stored on disk at a fixed derived path under `Documents/InspectorPro/Branding/<profile-id>.jpg`; the persisted model still only uses the existing `usesBundledDefaultLogo` flag to switch between bundled and custom content.
+- PDF and DOCX exporters keep the same fixed logo area, footer area, line count, spacing, and font sizing; only the logo bytes and footer strings now change.
+- Validation will rely on `xcodegen generate`, simulator build/test, and a launch pass after the settings/editor wiring lands.
+
+- [x] Replace raw mixed-direction footer-line editing with structured bidi-safe inputs while keeping the same branding/settings screen and export geometry
+- [x] Normalize stored footer/address content so mixed Hebrew, English, email, and phone values render stably in PDF and DOCX without redesigning the footer
+- [x] Verify the bidi footer fix with focused formatter/export tests plus simulator build/test
+
+## Review
+
+- The branding editor now keeps the same screen flow but replaces raw primary/secondary footer-line editing with structured contact fields, while the address line uses a UIKit-backed directional text field instead of a plain SwiftUI text field.
+- Footer storage/export now flows through one shared bidi formatter: numeric/email/LTR tokens are wrapped with explicit LTR marks only when the line contains Hebrew, which stabilizes mixed-direction footer output without changing footer geometry in PDF or DOCX.
+- Validation:
+- `xcodegen generate`
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' build`
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' test` passed with 35 Swift Testing tests, including the new bidi formatter coverage.
+- `xcrun simctl install ... && xcrun simctl launch ... com.aloniter.inspectorpro` succeeded on the iPhone 16 simulator.
+
+- [x] Replace the fragmented footer contact editor with compact grouped primary/secondary contact blocks while keeping the branding screen structure intact
+- [x] Update the footer formatter so secondary contacts use fully structured label/number pairs and export lines stay natural in Hebrew without fixed separators
+- [x] Re-verify the compact footer pass with build, tests, and simulator launch
+
+## Review
+
+- The footer section now stays on the same branding screen but uses compact grouped rows: primary contact is edited as `name + role` and `phone + email`, while secondary contact is edited as `label/name + number` and `optional label + optional number`.
+- The formatter still keeps structured data internally, but now emits natural Hebrew-style lines with a fixed token order and no visual separators: primary uses `name phone role email`, and secondary uses `label1 number1 label2 number2` with the trailing pair omitted cleanly when missing.
+
+- [x] Replace mixed-direction footer-line rendering with stable visual-order runs in PDF and DOCX while keeping the footer geometry unchanged
+- [x] Keep the address line in the existing fixed layout but force primary/secondary contact lines to render in the same visual order as the approved Iter example
+- [x] Re-verify the export footer pass with build, full tests, and simulator launch
+
+## Review
+
+- Footer export no longer relies on a single mixed RTL/LTR string for the two contact lines. The branding layer now derives semantic runs from structured contact fields, then emits separate visual-order runs for export.
+- PDF footer contact lines are now laid out token-by-token with explicit measured positions, centered as one line, so phones and email addresses no longer depend on Core Text bidi reordering.
+- DOCX footer contact lines are now emitted as separate OpenXML runs in fixed visual order, centered in the same footer paragraphs as before, which matches the approved `אבישי / דפנה` style without changing logo placement, footer spacing, or paragraph count.
+- Validation:
+- `xcodebuild -project /Users/aloniter/Projects/InspectorPro/InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' build`
+- `xcodebuild -project /Users/aloniter/Projects/InspectorPro/InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' test` passed with 40 Swift Testing tests.
+- `xcrun simctl install AA68CADB-2203-4CB3-A38E-1BA44EC9B389 ...` and `xcrun simctl launch AA68CADB-2203-4CB3-A38E-1BA44EC9B389 com.aloniter.inspectorpro` both succeeded.
+- Validation:
+- `xcodegen generate`
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' build`
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' test` passed with 36 Swift Testing tests.
+- `xcrun simctl install ... && xcrun simctl launch ... com.aloniter.inspectorpro` succeeded on the iPhone 16 simulator.

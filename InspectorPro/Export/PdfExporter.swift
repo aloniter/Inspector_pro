@@ -8,10 +8,9 @@ final class PdfExporter {
         onProgress: @escaping @Sendable (Double) -> Void
     ) async throws -> URL {
         let outputURL = outputFileURL(projectName: project.name, date: project.date, fileExtension: "pdf")
+        let branding = ResolvedExportBranding.resolve(for: project)
 
-        // Load the logo from the bundled template for header branding.
-        let templateAssets = try TemplateExtractor.extract()
-        let logoImage = UIImage(data: templateAssets.logoImageData)
+        let logoImage = branding.logoImageData.flatMap(UIImage.init(data:))
 
         let pageRect = CGRect(x: 0, y: 0, width: options.pageWidth, height: options.pageHeight)
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
@@ -21,11 +20,11 @@ final class PdfExporter {
 
         let data = renderer.pdfData { context in
             context.beginPage()
-            drawBranding(logoImage: logoImage, options: options)
-            drawCoverPage(project: project, options: options)
+            drawBranding(logoImage: logoImage, branding: branding, options: options)
+            drawCoverPage(project: project, branding: branding, options: options)
 
             context.beginPage()
-            drawBranding(logoImage: logoImage, options: options)
+            drawBranding(logoImage: logoImage, branding: branding, options: options)
             var currentY = options.effectiveTopMargin
             let pageBottom = options.pageHeight - options.effectiveBottomMargin
 
@@ -43,7 +42,7 @@ final class PdfExporter {
 
                 if currentY + rowHeight > pageBottom {
                     context.beginPage()
-                    drawBranding(logoImage: logoImage, options: options)
+                    drawBranding(logoImage: logoImage, branding: branding, options: options)
                     currentY = options.effectiveTopMargin
                     currentY += drawTableHeader(options: options, y: currentY)
                 }
@@ -75,10 +74,9 @@ final class PdfExporter {
 
     private static func drawCoverPage(
         project: Project,
+        branding: ResolvedExportBranding,
         options: ExportOptions
     ) {
-        let mutedLabelColor = UIColor(red: 0x64 / 255.0, green: 0x74 / 255.0, blue: 0x8B / 255.0, alpha: 1)
-        let attendeesAccentColor = UIColor(red: 0x1F / 255.0, green: 0x4E / 255.0, blue: 0x79 / 255.0, alpha: 1)
         var y: CGFloat = options.pageHeight * 0.28
 
         drawRTLText(
@@ -100,7 +98,7 @@ final class PdfExporter {
                 labelFontSize: 10,
                 valueFontSize: 10,
                 valueBold: true,
-                labelColor: mutedLabelColor
+                labelColor: branding.coverMutedLabelColor
             )
         }
 
@@ -113,7 +111,7 @@ final class PdfExporter {
             labelFontSize: 10,
             valueFontSize: 10,
             valueBold: true,
-            labelColor: mutedLabelColor
+            labelColor: branding.coverMutedLabelColor
         )
 
         if let attendees = numberedAttendeeLines(project.attendees) {
@@ -123,8 +121,8 @@ final class PdfExporter {
                 originY: y,
                 width: options.contentWidth,
                 x: options.marginLeft,
-                labelColor: attendeesAccentColor,
-                valueColor: attendeesAccentColor
+                labelColor: branding.attendeesAccentColor,
+                valueColor: branding.attendeesAccentColor
             )
         }
 
@@ -388,10 +386,11 @@ final class PdfExporter {
 
     private static func drawBranding(
         logoImage: UIImage?,
+        branding: ResolvedExportBranding,
         options: ExportOptions
     ) {
         drawHeader(logoImage: logoImage, options: options)
-        drawFooter(options: options)
+        drawFooter(branding: branding, options: options)
     }
 
     private static func drawHeader(
@@ -411,7 +410,7 @@ final class PdfExporter {
         logo.draw(in: CGRect(x: x, y: y, width: drawSize.width, height: drawSize.height))
     }
 
-    private static func drawFooter(options: ExportOptions) {
+    private static func drawFooter(branding: ResolvedExportBranding, options: ExportOptions) {
         let footerX = options.marginLeft
         let footerWidth = options.pageWidth - options.marginLeft - options.marginRight
         let footerStartY = options.pageHeight - options.brandedBottomMarginPt + options.brandedFooterDistancePt
@@ -424,34 +423,31 @@ final class PdfExporter {
         borderPath.lineWidth = 0.5
         borderPath.stroke()
 
-        let darkBlue = UIColor(red: 0, green: 0x20 / 255.0, blue: 0x60 / 255.0, alpha: 1) // #002060
         let lineHeight: CGFloat = 11
         var y = footerStartY + 3
 
         drawRTLText(
-            "כפר ויתקין, ת\"ד 635 מיקוד 4020000",
+            branding.footerAddressLine,
             in: CGRect(x: footerX, y: y, width: footerWidth, height: lineHeight),
             fontSize: 8,
             alignment: .center,
-            color: darkBlue
+            color: branding.footerTextColor
         )
         y += lineHeight
 
-        drawRTLText(
-            "אבישי 054-6222577 דוא\"ל iter@iter.co.il",
+        drawFooterDisplayRuns(
+            branding.primaryFooterDisplayRuns,
             in: CGRect(x: footerX, y: y, width: footerWidth, height: lineHeight),
             fontSize: 8,
-            alignment: .center,
-            color: darkBlue
+            color: branding.footerTextColor
         )
         y += lineHeight
 
-        drawRTLText(
-            "דפנה 054-6222575 משרד 09-8665885",
+        drawFooterDisplayRuns(
+            branding.secondaryFooterDisplayRuns,
             in: CGRect(x: footerX, y: y, width: footerWidth, height: lineHeight),
             fontSize: 8,
-            alignment: .center,
-            color: darkBlue
+            color: branding.footerTextColor
         )
     }
 
@@ -483,6 +479,46 @@ final class PdfExporter {
         ]
 
         NSAttributedString(string: text, attributes: attributes).draw(in: rect)
+    }
+
+    private static func drawFooterDisplayRuns(
+        _ runs: [BrandingFooterFormatter.FooterRun],
+        in rect: CGRect,
+        fontSize: CGFloat,
+        color: UIColor
+    ) {
+        guard !runs.isEmpty else { return }
+        let font = UIFont.systemFont(ofSize: fontSize)
+
+        let spaceWidth = (" " as NSString).size(withAttributes: [.font: font]).width
+        let tokenWidths = runs.map { run in
+            (run.text as NSString).size(withAttributes: [.font: font]).width
+        }
+        let totalWidth = tokenWidths.reduce(0, +) + (CGFloat(max(runs.count - 1, 0)) * spaceWidth)
+        var currentX = rect.minX + max((rect.width - totalWidth) / 2, 0)
+        let baselineY = rect.minY + max((rect.height - font.lineHeight) / 2, 0)
+
+        for (index, run) in runs.enumerated() {
+            let tokenRect = CGRect(
+                x: currentX,
+                y: baselineY,
+                width: tokenWidths[index],
+                height: font.lineHeight
+            )
+
+            drawRTLText(
+                run.text,
+                in: tokenRect,
+                fontSize: fontSize,
+                alignment: .left,
+                color: color
+            )
+
+            currentX += tokenWidths[index]
+            if index < runs.count - 1 {
+                currentX += spaceWidth
+            }
+        }
     }
 
     private static func drawDescriptionText(

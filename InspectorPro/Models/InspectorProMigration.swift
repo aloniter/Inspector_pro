@@ -366,13 +366,120 @@ enum InspectorProSchemaV5: VersionedSchema {
     }
 }
 
+enum InspectorProSchemaV6: VersionedSchema {
+    static var versionIdentifier = Schema.Version(6, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        [Project.self, PhotoRecord.self, BrandingProfile.self]
+    }
+
+    @Model
+    final class BrandingProfile {
+        @Attribute(.unique) var id: UUID
+        var name: String
+        var isDefault: Bool
+        var usesBundledDefaultLogo: Bool
+        var footerAddressLine: String
+        var primaryFooterLinePDF: String
+        var primaryFooterLineDOCX: String
+        var secondaryFooterLine: String
+
+        @Relationship(deleteRule: .nullify, inverse: \Project.brandingProfile)
+        var projects: [Project] = []
+
+        init(
+            id: UUID = UUID(),
+            name: String,
+            isDefault: Bool = false,
+            usesBundledDefaultLogo: Bool = true,
+            footerAddressLine: String,
+            primaryFooterLinePDF: String,
+            primaryFooterLineDOCX: String,
+            secondaryFooterLine: String
+        ) {
+            self.id = id
+            self.name = name
+            self.isDefault = isDefault
+            self.usesBundledDefaultLogo = usesBundledDefaultLogo
+            self.footerAddressLine = footerAddressLine
+            self.primaryFooterLinePDF = primaryFooterLinePDF
+            self.primaryFooterLineDOCX = primaryFooterLineDOCX
+            self.secondaryFooterLine = secondaryFooterLine
+        }
+    }
+
+    @Model
+    final class Project {
+        @Attribute(.unique) var id: UUID
+        var name: String
+        var address: String?
+        var date: Date
+        var attendees: String?
+        var notes: String?
+        var showsNumberedImagesInReport: Bool
+
+        @Relationship(deleteRule: .cascade, inverse: \PhotoRecord.project)
+        var photos: [PhotoRecord] = []
+
+        var brandingProfile: BrandingProfile?
+
+        init(
+            id: UUID = UUID(),
+            name: String = "",
+            address: String? = nil,
+            date: Date = .now,
+            attendees: String? = nil,
+            notes: String? = nil,
+            showsNumberedImagesInReport: Bool = false,
+            brandingProfile: BrandingProfile? = nil
+        ) {
+            self.id = id
+            self.name = name
+            self.address = address
+            self.date = date
+            self.attendees = attendees
+            self.notes = notes
+            self.showsNumberedImagesInReport = showsNumberedImagesInReport
+            self.brandingProfile = brandingProfile
+        }
+    }
+
+    @Model
+    final class PhotoRecord {
+        @Attribute(.unique) var id: UUID
+        var imagePath: String
+        var annotatedImagePath: String?
+        var freeText: String
+        var position: Int
+        var createdAt: Date
+
+        var project: Project?
+
+        init(
+            id: UUID = UUID(),
+            imagePath: String,
+            annotatedImagePath: String? = nil,
+            freeText: String = "",
+            position: Int = 0,
+            createdAt: Date = .now
+        ) {
+            self.id = id
+            self.imagePath = imagePath
+            self.annotatedImagePath = annotatedImagePath
+            self.freeText = freeText
+            self.position = position
+            self.createdAt = createdAt
+        }
+    }
+}
+
 enum InspectorProMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [InspectorProSchemaV1.self, InspectorProSchemaV2.self, InspectorProSchemaV3.self, InspectorProSchemaV4.self, InspectorProSchemaV5.self]
+        [InspectorProSchemaV1.self, InspectorProSchemaV2.self, InspectorProSchemaV3.self, InspectorProSchemaV4.self, InspectorProSchemaV5.self, InspectorProSchemaV6.self]
     }
 
     static var stages: [MigrationStage] {
-        [migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, migrateV4ToV5]
+        [migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, migrateV4ToV5, migrateV5ToV6]
     }
 
     static let migrateV1ToV2 = MigrationStage.custom(
@@ -584,6 +691,11 @@ enum InspectorProMigrationPlan: SchemaMigrationPlan {
 
             try context.save()
         }
+    )
+
+    static let migrateV5ToV6 = MigrationStage.lightweight(
+        fromVersion: InspectorProSchemaV5.self,
+        toVersion: InspectorProSchemaV6.self
     )
 }
 

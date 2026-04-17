@@ -2,6 +2,79 @@ import Foundation
 
 /// Generates OpenXML fragments for DOCX document content.
 final class OpenXMLBuilder {
+    static func footerParagraph(
+        text: String,
+        fontSize: Int = 16,
+        color: String,
+        topBorder: Bool = false
+    ) -> String {
+        let borderTag = topBorder ? "<w:pBdr><w:top w:val=\"single\" w:sz=\"4\" w:space=\"1\" w:color=\"000000\"/></w:pBdr>" : ""
+
+        return """
+  <w:p>
+    <w:pPr>
+      \(borderTag)
+      <w:bidi/>
+      <w:spacing w:after="0" w:line="240" w:lineRule="auto"/>
+      <w:jc w:val="center"/>
+    </w:pPr>
+    <w:r>
+      <w:rPr>
+        <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
+        <w:rtl/>
+        <w:lang w:val="he-IL" w:bidi="he-IL"/>
+        <w:color w:val="\(color)"/>
+        <w:sz w:val="\(fontSize)"/><w:szCs w:val="\(fontSize)"/>
+      </w:rPr>
+      <w:t xml:space="preserve">\(escapeXML(text))</w:t>
+    </w:r>
+  </w:p>
+"""
+    }
+
+    static func footerParagraph(
+        runs: [BrandingFooterFormatter.FooterRun],
+        fontSize: Int = 16,
+        color: String,
+        topBorder: Bool = false,
+        enforcesVisualOrder: Bool = false
+    ) -> String {
+        let borderTag = topBorder ? "<w:pBdr><w:top w:val=\"single\" w:sz=\"4\" w:space=\"1\" w:color=\"000000\"/></w:pBdr>" : ""
+        let bidiTag = enforcesVisualOrder ? "" : "<w:bidi/>"
+        let runsXML = runs.enumerated().map { index, run -> String in
+            let text = index < runs.count - 1 ? "\(run.text) " : run.text
+            let rtlTag = run.direction == .rightToLeft ? "<w:rtl/>" : ""
+            let langTag = run.direction == .rightToLeft
+                ? "<w:lang w:val=\"he-IL\" w:bidi=\"he-IL\"/>"
+                : "<w:lang w:val=\"en-US\"/>"
+
+            return """
+    <w:r>
+      <w:rPr>
+        <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
+        \(rtlTag)
+        \(langTag)
+        <w:color w:val="\(color)"/>
+        <w:sz w:val="\(fontSize)"/><w:szCs w:val="\(fontSize)"/>
+      </w:rPr>
+      <w:t xml:space="preserve">\(escapeXML(text))</w:t>
+    </w:r>
+"""
+        }.joined(separator: "\n")
+
+        return """
+  <w:p>
+    <w:pPr>
+      \(borderTag)
+      \(bidiTag)
+      <w:spacing w:after="0" w:line="240" w:lineRule="auto"/>
+      <w:jc w:val="center"/>
+    </w:pPr>
+\(runsXML)
+  </w:p>
+"""
+    }
+
     static func buildPhotosTable(
         rowsXML: String,
         tableWidthTwips: Int,

@@ -4,11 +4,14 @@ import SwiftUI
 enum AppConstants {
     static let appDirectoryName = "InspectorPro"
     static let imagesDirectoryName = "Images"
+    static let brandingDirectoryName = "Branding"
     static let exportCacheDirectoryName = "ExportCache"
     static let exportsDirectoryName = "Exports"
     static let thumbnailMaxSize: CGFloat = 200
     static let thumbnailJPEGQuality: CGFloat = 0.6
     static let importMaxWidth: CGFloat = 2000
+    static let brandingLogoMaxSize: CGFloat = 1200
+    static let brandingLogoJPEGQuality: CGFloat = 0.85
     static let gallerySelectionLimit = 500
     static let importSaveCheckpoint = 20
 
@@ -22,6 +25,10 @@ enum AppConstants {
 
     static var imagesBaseURL: URL {
         appBaseURL.appendingPathComponent(imagesDirectoryName)
+    }
+
+    static var brandingAssetsURL: URL {
+        appBaseURL.appendingPathComponent(brandingDirectoryName)
     }
 
     static var exportCacheURL: URL {
