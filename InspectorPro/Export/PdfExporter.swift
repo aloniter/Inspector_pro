@@ -32,6 +32,7 @@ final class PdfExporter {
 
             for (index, photo) in photos.enumerated() {
                 let image = loadCompressedImage(photo: photo, options: options)
+                let hasAnnotations = photo.annotatedImagePath != nil
                 let itemNumber = project.showsNumberedImagesInReport ? index + 1 : nil
                 let descriptionLines = descriptionLines(
                     photo: photo,
@@ -49,6 +50,7 @@ final class PdfExporter {
 
                 drawPhotoRow(
                     image: image,
+                    hasAnnotations: hasAnnotations,
                     descriptionLines: descriptionLines,
                     options: options,
                     y: currentY,
@@ -297,6 +299,7 @@ final class PdfExporter {
 
     private static func drawPhotoRow(
         image: UIImage?,
+        hasAnnotations: Bool,
         descriptionLines: [ExportTextFormatter.DescriptionLine],
         options: ExportOptions,
         y: CGFloat,
@@ -336,32 +339,42 @@ final class PdfExporter {
         divider.stroke()
 
         if let image {
-            let pad = ExportImageConstants.imageCellPaddingPoints
-            let maxW = options.imageColumnWidth - pad * 2
-            let maxH = min(max(rowHeight - pad * 2, 40), options.targetPhotoImageHeight)
-
-            // Cover scaling: fill the target area, cropping overflow from center.
-            let widthScale = maxW / image.size.width
-            let heightScale = maxH / image.size.height
-            let coverScale = max(widthScale, heightScale)
-            let drawW = image.size.width * coverScale
-            let drawH = image.size.height * coverScale
-
-            // Center the (possibly oversized) image in the clip rect.
-            let clipRect = CGRect(
-                x: imageCellRect.minX + (imageCellRect.width - maxW) / 2,
-                y: imageCellRect.minY + (imageCellRect.height - maxH) / 2,
-                width: maxW,
-                height: maxH
+            let targetRect = CGRect(
+                x: imageCellRect.minX + (imageCellRect.width - options.imageContentWidth) / 2,
+                y: imageCellRect.minY + (imageCellRect.height - options.targetPhotoImageHeight) / 2,
+                width: options.imageContentWidth,
+                height: options.targetPhotoImageHeight
             )
-            let drawX = clipRect.midX - drawW / 2
-            let drawY = clipRect.midY - drawH / 2
+            let fit = SmartImageFit.resolve(
+                sourceSize: image.size,
+                targetSize: targetRect.size,
+                hasAnnotations: hasAnnotations
+            )
 
-            if let ctx = UIGraphicsGetCurrentContext() {
-                ctx.saveGState()
-                ctx.clip(to: clipRect)
-                image.draw(in: CGRect(x: drawX, y: drawY, width: drawW, height: drawH))
-                ctx.restoreGState()
+            switch fit.mode {
+            case .fit:
+                let drawRect = CGRect(
+                    x: targetRect.midX - fit.drawSize.width / 2,
+                    y: targetRect.midY - fit.drawSize.height / 2,
+                    width: fit.drawSize.width,
+                    height: fit.drawSize.height
+                )
+                image.draw(in: drawRect)
+
+            case .limitedCover:
+                let drawRect = CGRect(
+                    x: targetRect.midX - fit.drawSize.width / 2,
+                    y: targetRect.midY - fit.drawSize.height / 2,
+                    width: fit.drawSize.width,
+                    height: fit.drawSize.height
+                )
+
+                if let ctx = UIGraphicsGetCurrentContext() {
+                    ctx.saveGState()
+                    ctx.clip(to: targetRect)
+                    image.draw(in: drawRect)
+                    ctx.restoreGState()
+                }
             }
         } else {
             drawRTLText(

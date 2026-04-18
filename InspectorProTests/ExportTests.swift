@@ -3,6 +3,31 @@ import UIKit
 import ZIPFoundation
 @testable import InspectorPro
 
+private func docxXMLEntries(from archiveURL: URL) throws -> [String: Data] {
+    let archive = try Archive(url: archiveURL, accessMode: .read)
+    var xmlEntries: [String: Data] = [:]
+
+    for entry in archive where entry.path.hasSuffix(".xml") || entry.path.hasSuffix(".rels") {
+        var data = Data()
+        _ = try archive.extract(entry) { chunk in data.append(chunk) }
+        xmlEntries[entry.path] = data
+    }
+
+    return xmlEntries
+}
+
+private func firstRegexMatch(in text: String, pattern: String) -> [String]? {
+    guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+    let range = NSRange(text.startIndex..., in: text)
+    guard let match = regex.firstMatch(in: text, range: range) else { return nil }
+
+    return (0..<match.numberOfRanges).compactMap { index in
+        let matchRange = match.range(at: index)
+        guard let range = Range(matchRange, in: text) else { return nil }
+        return String(text[range])
+    }
+}
+
 @Test func imageQualityPresets() {
     #expect(ImageQuality.economical.maxWidth == 900)
     #expect(ImageQuality.economical.jpegQuality == 0.45)
@@ -543,6 +568,73 @@ import ZIPFoundation
     #expect(options.exportImageMaxBytes == ImageQuality.economical.targetExportBytesPerImage)
 }
 
+@Test func smartImageFitUsesAspectFitForAnnotatedLandscapeImage() {
+    let result = SmartImageFit.resolve(
+        sourceSize: CGSize(width: 1600, height: 900),
+        targetSize: CGSize(width: 300, height: 400),
+        hasAnnotations: true
+    )
+
+    #expect(result.mode == .fit)
+    #expect(result.crop == .none)
+    #expect(abs(result.displaySize.width - 300) < 0.001)
+    #expect(abs(result.displaySize.height - 168.75) < 0.001)
+}
+
+@Test func smartImageFitUsesAspectFitForAnnotatedPortraitImage() {
+    let result = SmartImageFit.resolve(
+        sourceSize: CGSize(width: 900, height: 1600),
+        targetSize: CGSize(width: 400, height: 300),
+        hasAnnotations: true
+    )
+
+    #expect(result.mode == .fit)
+    #expect(result.crop == .none)
+    #expect(abs(result.displaySize.width - 168.75) < 0.001)
+    #expect(abs(result.displaySize.height - 300) < 0.001)
+}
+
+@Test func smartImageFitAllowsTinyCropForUnannotatedImage() {
+    let result = SmartImageFit.resolve(
+        sourceSize: CGSize(width: 1000, height: 1010),
+        targetSize: CGSize(width: 300, height: 300),
+        hasAnnotations: false
+    )
+
+    #expect(result.mode == .limitedCover)
+    #expect(result.displaySize == CGSize(width: 300, height: 300))
+    #expect(result.crop.left == 0)
+    #expect(result.crop.right == 0)
+    #expect(result.crop.top > 0)
+    #expect(result.crop.bottom > 0)
+    #expect(result.crop.maxSide <= SmartImageFit.defaultMaxCropPerSide)
+}
+
+@Test func smartImageFitFallsBackToAspectFitWhenCropWouldBeLarge() {
+    let result = SmartImageFit.resolve(
+        sourceSize: CGSize(width: 1600, height: 900),
+        targetSize: CGSize(width: 300, height: 400),
+        hasAnnotations: false
+    )
+
+    #expect(result.mode == .fit)
+    #expect(result.crop == .none)
+    #expect(abs(result.displaySize.width - 300) < 0.001)
+    #expect(abs(result.displaySize.height - 168.75) < 0.001)
+}
+
+@Test func smartImageFitLeavesSquareImageFullyFilledWithoutCrop() {
+    let result = SmartImageFit.resolve(
+        sourceSize: CGSize(width: 1200, height: 1200),
+        targetSize: CGSize(width: 300, height: 300),
+        hasAnnotations: false
+    )
+
+    #expect(result.mode == .fit)
+    #expect(result.crop == .none)
+    #expect(result.displaySize == CGSize(width: 300, height: 300))
+}
+
 @Test func docxExporterProducesWellFormedXMLParts() async throws {
     FileManagerService.shared.ensureDirectoriesExist()
 
@@ -651,6 +743,155 @@ import ZIPFoundation
     #expect(!documentText.contains(">נוכחים:<"))
     #expect(documentText.contains(">הערות<"))
     #expect(documentText.contains(">תקין<"))
+}
+
+@Test func docxExporterUsesNoCropForAnnotatedPhotos() async throws {
+    FileManagerService.shared.ensureDirectoriesExist()
+
+    let image = UIGraphicsImageRenderer(size: CGSize(width: 1200, height: 900)).image { context in
+        UIColor.systemTeal.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: 1200, height: 900))
+    }
+    guard let jpeg = image.jpegData(compressionQuality: 0.8) else {
+        Issue.record("Failed creating annotated fixture image")
+        return
+    }
+
+    let originalPath = "tests/annotated-original.jpg"
+    let annotatedPath = "tests/annotated-export.jpg"
+    let originalURL = AppConstants.imagesBaseURL.appendingPathComponent(originalPath)
+    let annotatedURL = AppConstants.imagesBaseURL.appendingPathComponent(annotatedPath)
+    try FileManager.default.createDirectory(
+        at: originalURL.deletingLastPathComponent(),
+        withIntermediateDirectories: true
+    )
+    try jpeg.write(to: originalURL)
+    try jpeg.write(to: annotatedURL)
+    defer {
+        try? FileManager.default.removeItem(at: originalURL)
+        try? FileManager.default.removeItem(at: annotatedURL)
+    }
+
+    let project = Project(
+        name: "בדיקת יצוא",
+        address: "כפר ויתקין",
+        date: Date(timeIntervalSince1970: 1_700_000_000),
+        notes: "תקין"
+    )
+    let photo = PhotoRecord(
+        imagePath: originalPath,
+        annotatedImagePath: annotatedPath,
+        freeText: "שורת בדיקה",
+        position: 0
+    )
+    photo.project = project
+    project.photos = [photo]
+
+    let options = ExportOptions(format: .docx, quality: .balanced, photoCount: 1)
+    let outputURL = try await DocxExporter.export(
+        project: project,
+        photos: [photo],
+        options: options,
+        onProgress: { _ in }
+    )
+    defer { try? FileManager.default.removeItem(at: outputURL) }
+
+    let xmlEntries = try docxXMLEntries(from: outputURL)
+    let documentText = xmlEntries["word/document.xml"]
+        .flatMap { String(data: $0, encoding: .utf8) } ?? ""
+    #expect(!documentText.contains("<a:srcRect"))
+}
+
+@Test func docxExporterUsesLimitedCropOnlyForTinyUnannotatedMismatch() async throws {
+    FileManagerService.shared.ensureDirectoriesExist()
+
+    let image = UIGraphicsImageRenderer(size: CGSize(width: 1000, height: 1010)).image { context in
+        UIColor.systemGreen.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: 1000, height: 1010))
+    }
+    guard let jpeg = image.jpegData(compressionQuality: 0.8) else {
+        Issue.record("Failed creating small-crop fixture image")
+        return
+    }
+
+    let imagePath = "tests/small-crop-export.jpg"
+    let imageURL = AppConstants.imagesBaseURL.appendingPathComponent(imagePath)
+    try FileManager.default.createDirectory(
+        at: imageURL.deletingLastPathComponent(),
+        withIntermediateDirectories: true
+    )
+    try jpeg.write(to: imageURL)
+    defer { try? FileManager.default.removeItem(at: imageURL) }
+
+    let project = Project(name: "בדיקת יצוא", address: "כפר ויתקין", date: .now, notes: "תקין")
+    let photo = PhotoRecord(imagePath: imagePath, freeText: "שורת בדיקה", position: 0)
+    photo.project = project
+    project.photos = [photo]
+
+    let options = ExportOptions(format: .docx, quality: .balanced, photoCount: 1)
+    let outputURL = try await DocxExporter.export(
+        project: project,
+        photos: [photo],
+        options: options,
+        onProgress: { _ in }
+    )
+    defer { try? FileManager.default.removeItem(at: outputURL) }
+
+    let xmlEntries = try docxXMLEntries(from: outputURL)
+    let documentText = xmlEntries["word/document.xml"]
+        .flatMap { String(data: $0, encoding: .utf8) } ?? ""
+    let srcRectMatch = firstRegexMatch(
+        in: documentText,
+        pattern: #"<a:srcRect l="(\d+)" t="(\d+)" r="(\d+)" b="(\d+)"/>"#
+    )
+
+    #expect(srcRectMatch != nil)
+    let cropValues = srcRectMatch?.dropFirst().compactMap(Int.init) ?? []
+    #expect(cropValues.count == 4)
+    #expect(cropValues.contains(where: { $0 > 0 }))
+    #expect((cropValues.max() ?? .max) <= SmartImageFit.defaultMaxCropPerSide)
+    #expect(documentText.contains("wp:extent cx=\"\(options.imageContentWidthEMU)\" cy=\"\(options.targetPhotoImageHeightEMU)\""))
+}
+
+@Test func docxExporterFallsBackToNoCropWhenUnannotatedImageWouldNeedLargeCrop() async throws {
+    FileManagerService.shared.ensureDirectoriesExist()
+
+    let image = UIGraphicsImageRenderer(size: CGSize(width: 1600, height: 900)).image { context in
+        UIColor.systemOrange.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: 1600, height: 900))
+    }
+    guard let jpeg = image.jpegData(compressionQuality: 0.8) else {
+        Issue.record("Failed creating large-crop fixture image")
+        return
+    }
+
+    let imagePath = "tests/large-crop-export.jpg"
+    let imageURL = AppConstants.imagesBaseURL.appendingPathComponent(imagePath)
+    try FileManager.default.createDirectory(
+        at: imageURL.deletingLastPathComponent(),
+        withIntermediateDirectories: true
+    )
+    try jpeg.write(to: imageURL)
+    defer { try? FileManager.default.removeItem(at: imageURL) }
+
+    let project = Project(name: "בדיקת יצוא", address: "כפר ויתקין", date: .now, notes: "תקין")
+    let photo = PhotoRecord(imagePath: imagePath, freeText: "שורת בדיקה", position: 0)
+    photo.project = project
+    project.photos = [photo]
+
+    let options = ExportOptions(format: .docx, quality: .balanced, photoCount: 1)
+    let outputURL = try await DocxExporter.export(
+        project: project,
+        photos: [photo],
+        options: options,
+        onProgress: { _ in }
+    )
+    defer { try? FileManager.default.removeItem(at: outputURL) }
+
+    let xmlEntries = try docxXMLEntries(from: outputURL)
+    let documentText = xmlEntries["word/document.xml"]
+        .flatMap { String(data: $0, encoding: .utf8) } ?? ""
+    #expect(!documentText.contains("<a:srcRect"))
 }
 
 @Test func docxExporterRemovesStaleWordLockFile() async throws {
