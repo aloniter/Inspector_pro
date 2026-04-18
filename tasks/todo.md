@@ -237,3 +237,18 @@
 - `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' build`
 - `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' test` passed with 36 Swift Testing tests.
 - `xcrun simctl install ... && xcrun simctl launch ... com.aloniter.inspectorpro` succeeded on the iPhone 16 simulator.
+
+- [x] Inspect the annotation and export pipeline to confirm what image/annotation data is available at export time
+- [x] Add a shared Smart Fit export helper and apply the same fitting policy in PDF and DOCX
+- [x] Verify Smart Fit behavior with focused helper tests, DOCX export assertions, and the full export test suite
+
+## Review
+
+- Active export data remains photo-level only: export can tell whether `annotatedImagePath` exists, but annotation bounds are not persisted once the flattened annotated JPEG is saved.
+- Added a shared `SmartImageFit` policy that uses zero-crop aspect-fit for annotated photos and only allows tiny capped center-crop for unannotated photos; larger crop requests now fall back to zero-crop aspect-fit.
+- Export-specific image padding is now removed so the image uses the full cell content area without changing table structure, row heights, header/footer spacing, or the in-app photo UI.
+- PDF and DOCX now both route through the same fit decision, so the same photo gets the same crop-vs-fit outcome in both formats.
+- Validation:
+- `xcodegen generate`
+- `xcodebuild -project /Users/aloniter/Projects/InspectorPro/InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' test` passed with 48 Swift Testing tests.
+- The existing CoreData checksum warning still appears in the test-host launch path and was not changed by this export fit work.
