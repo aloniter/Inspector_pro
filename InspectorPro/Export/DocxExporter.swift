@@ -9,7 +9,22 @@ final class DocxExporter {
         options: ExportOptions,
         onProgress: @escaping @Sendable (Double) -> Void
     ) async throws -> URL {
-        let branding = ResolvedExportBranding.resolve(for: project)
+        try await export(
+            project: project,
+            photos: photos,
+            options: options,
+            branding: ResolvedExportBranding.resolve(for: project),
+            onProgress: onProgress
+        )
+    }
+
+    static func export(
+        project: Project,
+        photos: [PhotoRecord],
+        options: ExportOptions,
+        branding: ResolvedExportBranding,
+        onProgress: @escaping @Sendable (Double) -> Void
+    ) async throws -> URL {
         let fm = FileManager.default
         let tempDir = fm.temporaryDirectory
             .appendingPathComponent("docx_export_\(UUID().uuidString)")
@@ -27,14 +42,22 @@ final class DocxExporter {
             try fm.createDirectory(at: dir, withIntermediateDirectories: true)
         }
 
-        guard let logoImageData = branding.logoImageData else {
-            throw ExportError.templateMissing
+        if let logoImageData = branding.logoImageData {
+            try logoImageData.write(to: mediaDir.appendingPathComponent("image1.jpeg"))
         }
 
-        try logoImageData.write(to: mediaDir.appendingPathComponent("image1.jpeg"))
-        try DocxTemplateBuilder.headerXML().write(to: wordDir.appendingPathComponent("header1.xml"), atomically: true, encoding: .utf8)
+        let includesLogo = branding.logoImageData != nil
+        try DocxTemplateBuilder.headerXML(includesLogo: includesLogo).write(
+            to: wordDir.appendingPathComponent("header1.xml"),
+            atomically: true,
+            encoding: .utf8
+        )
         try DocxTemplateBuilder.footerXML(branding: branding).write(to: wordDir.appendingPathComponent("footer1.xml"), atomically: true, encoding: .utf8)
-        try DocxTemplateBuilder.headerRelsXML().write(to: wordRelsDir.appendingPathComponent("header1.xml.rels"), atomically: true, encoding: .utf8)
+        try DocxTemplateBuilder.headerRelsXML(includesLogo: includesLogo).write(
+            to: wordRelsDir.appendingPathComponent("header1.xml.rels"),
+            atomically: true,
+            encoding: .utf8
+        )
 
         let totalPhotos = photos.count
         var processedPhotos = 0

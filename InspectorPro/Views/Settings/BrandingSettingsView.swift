@@ -4,19 +4,34 @@ import SwiftUI
 import UIKit
 
 struct BrandingSettingsContainerView: View {
+    private enum LoadState {
+        case loading
+        case loaded(BrandingProfile)
+        case failed
+    }
+
     @Environment(\.modelContext) private var modelContext
-    @State private var brandingProfile: BrandingProfile?
+    @State private var loadState: LoadState = .loading
 
     var body: some View {
         Group {
-            if let brandingProfile {
+            switch loadState {
+            case .loaded(let brandingProfile):
                 BrandingSettingsView(brandingProfile: brandingProfile)
-            } else {
-                ProgressView()
-                    .task {
-                        await loadBrandingProfileIfNeeded()
-                    }
+            case .loading:
+                ProgressView(AppStrings.text("טוען..."))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .failed:
+                EmptyStateView(
+                    icon: "exclamationmark.triangle",
+                    title: AppStrings.text("לא ניתן לטעון את הגדרות המיתוג"),
+                    subtitle: AppStrings.text("נסה שוב מאוחר יותר")
+                )
+                .padding()
             }
+        }
+        .task {
+            await loadBrandingProfileIfNeeded()
         }
         .navigationTitle(AppStrings.text("מיתוג חברה"))
         .navigationBarTitleDisplayMode(.inline)
@@ -24,8 +39,14 @@ struct BrandingSettingsContainerView: View {
 
     @MainActor
     private func loadBrandingProfileIfNeeded() async {
-        guard brandingProfile == nil else { return }
-        brandingProfile = try? BrandingBootstrapper.fetchOrCreateDefaultBrandingProfile(in: modelContext)
+        guard case .loading = loadState else { return }
+
+        do {
+            let brandingProfile = try BrandingBootstrapper.fetchOrCreateDefaultBrandingProfile(in: modelContext)
+            loadState = .loaded(brandingProfile)
+        } catch {
+            loadState = .failed
+        }
     }
 }
 
