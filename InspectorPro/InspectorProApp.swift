@@ -6,11 +6,15 @@ struct InspectorProApp: App {
     @AppStorage(AppPreferenceKeys.darkModeEnabled) private var darkModeEnabled = false
     @AppStorage(AppPreferenceKeys.languageCode) private var languageCode = AppLanguage.hebrew.rawValue
 
-    let modelContainer: ModelContainer
+    private let modelContainer: ModelContainer
+    private let didFailToLaunch: Bool
 
     init() {
+        FileManagerService.shared.ensureDirectoriesExist()
+
+        let schema = Schema(versionedSchema: InspectorProSchemaV6.self)
+
         do {
-            let schema = Schema(versionedSchema: InspectorProSchemaV6.self)
             let config = ModelConfiguration(
                 schema: schema,
                 isStoredInMemoryOnly: false
@@ -21,23 +25,55 @@ struct InspectorProApp: App {
                 configurations: [config]
             )
             modelContainer = container
+            didFailToLaunch = false
             BrandingBootstrapper.scheduleBootstrap(modelContainer: container)
         } catch {
-            fatalError("Failed to create ModelContainer: \(error)")
+            let fallbackConfig = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: true
+            )
+            modelContainer = try! ModelContainer(
+                for: schema,
+                migrationPlan: InspectorProMigrationPlan.self,
+                configurations: [fallbackConfig]
+            )
+            didFailToLaunch = true
         }
+    }
 
-        FileManagerService.shared.ensureDirectoriesExist()
+    private var appLanguage: AppLanguage {
+        AppLanguage(rawValue: languageCode) ?? .hebrew
+    }
+
+    private func configuredRootView<Content: View>(_ content: Content) -> some View {
+        content
+            .environment(\.layoutDirection, appLanguage.layoutDirection)
+            .environment(\.locale, appLanguage.locale)
+            .preferredColorScheme(darkModeEnabled ? .dark : .light)
     }
 
     var body: some Scene {
-        let appLanguage = AppLanguage(rawValue: languageCode) ?? .hebrew
-
         WindowGroup {
-            ProjectListView()
-                .environment(\.layoutDirection, appLanguage.layoutDirection)
-                .environment(\.locale, appLanguage.locale)
-                .preferredColorScheme(darkModeEnabled ? .dark : .light)
+            configuredRootView(
+                Group {
+                    if didFailToLaunch {
+                        AppLaunchFailureView()
+                    } else {
+                        ProjectListView()
+                    }
+                }
+            )
         }
         .modelContainer(modelContainer)
+    }
+}
+
+private struct AppLaunchFailureView: View {
+    var body: some View {
+        ContentUnavailableView {
+            Label(AppStrings.text("לא ניתן לפתוח את האפליקציה"), systemImage: "exclamationmark.triangle")
+        } description: {
+            Text(AppStrings.text("נתוני האפליקציה לא נטענו"))
+        }
     }
 }

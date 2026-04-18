@@ -99,3 +99,11 @@
 "ערך" = "Value";
 "אפליקציה" = "App";
 "גרסה" = "Version";
+"לא ניתן לפתוח את האפליקציה" = "Unable to open the app";
+"נתוני האפליקציה לא נטענו" = "App data could not be loaded";
+"לא ניתן לטעון את הגדרות המיתוג" = "Unable to load branding settings";
+"נסה שוב מאוחר יותר" = "Please try again later";
+"אין תמונות לייצוא" = "No photos to export";
+"אחת מתמונות הדוח לא נטענה" = "One of the report images could not be loaded";
+"ייצוא PDF נכשל. נסה שוב." = "PDF export failed. Please try again.";
+"ייצוא DOCX נכשל. נסה שוב." = "DOCX export failed. Please try again.";

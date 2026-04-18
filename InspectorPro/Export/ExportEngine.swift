@@ -10,11 +10,14 @@ enum ExportError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .noPhotos: return "No photos to export"
-        case .imageLoadFailed(let path): return "Failed to load image: \(path)"
-        case .pdfGenerationFailed: return "Failed to generate PDF"
-        case .docxGenerationFailed(let reason): return "DOCX generation failed: \(reason)"
-        case .templateMissing: return "DOCX template not found"
+        case .noPhotos:
+            return AppStrings.text("אין תמונות לייצוא")
+        case .imageLoadFailed:
+            return AppStrings.text("אחת מתמונות הדוח לא נטענה")
+        case .pdfGenerationFailed:
+            return AppStrings.text("ייצוא PDF נכשל. נסה שוב.")
+        case .docxGenerationFailed, .templateMissing:
+            return AppStrings.text("ייצוא DOCX נכשל. נסה שוב.")
         }
     }
 }
@@ -39,19 +42,31 @@ final class ExportEngine {
 
         switch options.format {
         case .pdf:
-            return try await PdfExporter.export(
-                project: project,
-                photos: photos,
-                options: options,
-                onProgress: onProgress
-            )
+            do {
+                return try await PdfExporter.export(
+                    project: project,
+                    photos: photos,
+                    options: options,
+                    onProgress: onProgress
+                )
+            } catch let error as ExportError {
+                throw error
+            } catch {
+                throw ExportError.pdfGenerationFailed
+            }
         case .docx:
-            return try await DocxExporter.export(
-                project: project,
-                photos: photos,
-                options: options,
-                onProgress: onProgress
-            )
+            do {
+                return try await DocxExporter.export(
+                    project: project,
+                    photos: photos,
+                    options: options,
+                    onProgress: onProgress
+                )
+            } catch let error as ExportError {
+                throw error
+            } catch {
+                throw ExportError.docxGenerationFailed("")
+            }
         }
     }
 }

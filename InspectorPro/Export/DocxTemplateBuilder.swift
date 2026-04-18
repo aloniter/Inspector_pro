@@ -224,7 +224,18 @@ final class DocxTemplateBuilder {
 
     // MARK: - Header / Footer
 
-    static func headerXML() -> String {
+    static func headerXML(includesLogo: Bool = true) -> String {
+        guard includesLogo else {
+            return """
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:p>
+    <w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="left"/></w:pPr>
+  </w:p>
+</w:hdr>
+"""
+        }
+
         let logoSizeEMU = 952500 // 75pt
         return """
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -296,8 +307,16 @@ final class DocxTemplateBuilder {
 """
     }
 
-    static func headerRelsXML() -> String {
+    static func headerRelsXML(includesLogo: Bool = true) -> String {
+        guard includesLogo else {
+            return """
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+</Relationships>
 """
+        }
+
+        return """
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.jpeg"/>

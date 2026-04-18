@@ -482,6 +482,14 @@ private func firstRegexMatch(in text: String, pattern: String) -> [String]? {
     #expect(branding.logoImageData != ResolvedExportBranding.legacyDefault.logoImageData)
 }
 
+@Test func exportErrorsUseStableUserFacingMessages() {
+    #expect(ExportError.noPhotos.errorDescription == AppStrings.text("אין תמונות לייצוא"))
+    #expect(ExportError.imageLoadFailed("tests/missing.jpg").errorDescription == AppStrings.text("אחת מתמונות הדוח לא נטענה"))
+    #expect(ExportError.pdfGenerationFailed.errorDescription == AppStrings.text("ייצוא PDF נכשל. נסה שוב."))
+    #expect(ExportError.docxGenerationFailed("missing template part").errorDescription == AppStrings.text("ייצוא DOCX נכשל. נסה שוב."))
+    #expect(ExportError.templateMissing.errorDescription == AppStrings.text("ייצוא DOCX נכשל. נסה שוב."))
+}
+
 @Test func docxTemplateReservesHeaderAndFooterSpace() {
     let options = ExportOptions(
         format: .docx,
@@ -743,6 +751,85 @@ private func firstRegexMatch(in text: String, pattern: String) -> [String]? {
     #expect(!documentText.contains(">נוכחים:<"))
     #expect(documentText.contains(">הערות<"))
     #expect(documentText.contains(">תקין<"))
+}
+
+@Test func docxExporterProducesWellFormedXMLPartsWithoutLogo() async throws {
+    FileManagerService.shared.ensureDirectoriesExist()
+
+    let image = UIGraphicsImageRenderer(size: CGSize(width: 1200, height: 900)).image { context in
+        UIColor.systemIndigo.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: 1200, height: 900))
+    }
+    guard let jpeg = image.jpegData(compressionQuality: 0.8) else {
+        Issue.record("Failed creating no-logo fixture image")
+        return
+    }
+
+    let imagePath = "tests/export-fixture-no-logo.jpg"
+    let imageURL = AppConstants.imagesBaseURL.appendingPathComponent(imagePath)
+    try FileManager.default.createDirectory(
+        at: imageURL.deletingLastPathComponent(),
+        withIntermediateDirectories: true
+    )
+    try jpeg.write(to: imageURL)
+    defer { try? FileManager.default.removeItem(at: imageURL) }
+
+    let project = Project(
+        name: "בדיקת יצוא ללא לוגו",
+        address: "כפר ויתקין",
+        date: Date(timeIntervalSince1970: 1_700_000_000),
+        notes: "תקין"
+    )
+    let photo = PhotoRecord(
+        imagePath: imagePath,
+        freeText: "שורת בדיקה",
+        position: 0
+    )
+    photo.project = project
+    project.photos = [photo]
+
+    let branding = ResolvedExportBranding(
+        logoImageData: nil,
+        footerAddressLine: ResolvedExportBranding.legacyDefault.footerAddressLine,
+        primaryFooterLinePDF: ResolvedExportBranding.legacyDefault.primaryFooterLinePDF,
+        primaryFooterLineDOCX: ResolvedExportBranding.legacyDefault.primaryFooterLineDOCX,
+        secondaryFooterLine: ResolvedExportBranding.legacyDefault.secondaryFooterLine,
+        footerAddressRuns: ResolvedExportBranding.legacyDefault.footerAddressRuns,
+        primaryFooterRuns: ResolvedExportBranding.legacyDefault.primaryFooterRuns,
+        secondaryFooterRuns: ResolvedExportBranding.legacyDefault.secondaryFooterRuns,
+        primaryFooterDisplayRuns: ResolvedExportBranding.legacyDefault.primaryFooterDisplayRuns,
+        secondaryFooterDisplayRuns: ResolvedExportBranding.legacyDefault.secondaryFooterDisplayRuns
+    )
+    let options = ExportOptions(
+        format: .docx,
+        quality: .balanced,
+        photoCount: 1
+    )
+
+    let outputURL = try await DocxExporter.export(
+        project: project,
+        photos: [photo],
+        options: options,
+        branding: branding,
+        onProgress: { _ in }
+    )
+    defer { try? FileManager.default.removeItem(at: outputURL) }
+
+    let xmlEntries = try docxXMLEntries(from: outputURL)
+
+    for (path, data) in xmlEntries {
+        let parser = XMLParser(data: data)
+        #expect(parser.parse(), "XML parse failed for \(path): \(parser.parserError?.localizedDescription ?? "Unknown error")")
+    }
+
+    let headerText = xmlEntries["word/header1.xml"]
+        .flatMap { String(data: $0, encoding: .utf8) } ?? ""
+    #expect(!headerText.contains("<w:drawing>"))
+    #expect(!headerText.contains("r:embed=\"rId1\""))
+
+    let headerRelsText = xmlEntries["word/_rels/header1.xml.rels"]
+        .flatMap { String(data: $0, encoding: .utf8) } ?? ""
+    #expect(!headerRelsText.contains("Target=\"media/image1.jpeg\""))
 }
 
 @Test func docxExporterUsesNoCropForAnnotatedPhotos() async throws {
