@@ -424,6 +424,8 @@ final class PdfExporter {
     }
 
     private static func drawFooter(branding: ResolvedExportBranding, options: ExportOptions) {
+        guard branding.hasVisibleFooterContent else { return }
+
         let footerX = options.marginLeft
         let footerWidth = options.pageWidth - options.marginLeft - options.marginRight
         let footerStartY = options.pageHeight - options.brandedBottomMarginPt + options.brandedFooterDistancePt
@@ -439,29 +441,35 @@ final class PdfExporter {
         let lineHeight: CGFloat = 11
         var y = footerStartY + 3
 
-        drawRTLText(
-            branding.footerAddressLine,
-            in: CGRect(x: footerX, y: y, width: footerWidth, height: lineHeight),
-            fontSize: 8,
-            alignment: .center,
-            color: branding.footerTextColor
-        )
-        y += lineHeight
+        if !branding.footerAddressLine.isEmpty {
+            drawRTLText(
+                branding.footerAddressLine,
+                in: CGRect(x: footerX, y: y, width: footerWidth, height: lineHeight),
+                fontSize: 8,
+                alignment: .center,
+                color: branding.footerTextColor
+            )
+            y += lineHeight
+        }
 
-        drawFooterDisplayRuns(
-            branding.primaryFooterDisplayRuns,
-            in: CGRect(x: footerX, y: y, width: footerWidth, height: lineHeight),
-            fontSize: 8,
-            color: branding.footerTextColor
-        )
-        y += lineHeight
+        if !branding.primaryFooterDisplayRuns.isEmpty {
+            drawFooterDisplayRuns(
+                branding.primaryFooterDisplayRuns,
+                in: CGRect(x: footerX, y: y, width: footerWidth, height: lineHeight),
+                fontSize: 8,
+                color: branding.footerTextColor
+            )
+            y += lineHeight
+        }
 
-        drawFooterDisplayRuns(
-            branding.secondaryFooterDisplayRuns,
-            in: CGRect(x: footerX, y: y, width: footerWidth, height: lineHeight),
-            fontSize: 8,
-            color: branding.footerTextColor
-        )
+        if !branding.secondaryFooterDisplayRuns.isEmpty {
+            drawFooterDisplayRuns(
+                branding.secondaryFooterDisplayRuns,
+                in: CGRect(x: footerX, y: y, width: footerWidth, height: lineHeight),
+                fontSize: 8,
+                color: branding.footerTextColor
+            )
+        }
     }
 
     // MARK: - Text Helpers

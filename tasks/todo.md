@@ -1,5 +1,22 @@
 # TODO
 
+- [x] Inspect the current branding schema, settings UI, and export builders for the smallest safe hooks for logo/footer visibility and optional secondary contact
+- [x] Add persisted branding visibility defaults that keep existing users on logo ON / footer ON without making branding required for export
+- [x] Update the branding settings UI with logo/footer toggles plus collapsible secondary contact fields that auto-expand when data already exists
+- [x] Update PDF and DOCX branding rendering to skip hidden or empty logo/footer content without changing report layout or photo rendering
+- [x] Verify the change with focused export tests and the full test suite, then record results in the review section
+
+## Review
+
+- Added persisted `BrandingProfile` visibility flags for logo/footer with default `true` behavior preserved for both new profiles and migrated `V6` stores via a custom `V6 -> V7` migration.
+- Branding settings now expose `הצג לוגו בדוח` and `הצג פוטר בדוח`, while the secondary contact block is collapsed by default when empty, auto-expands when existing data is present, and can be cleared with `הסר פרטי קשר נוספים`.
+- PDF and DOCX exports now skip hidden branding and omit empty footer lines cleanly, including suppressing the secondary footer line when its fields are empty, without changing the report’s existing layout or photo rendering path.
+- Validation:
+- `xcodebuild -project /Users/aloniter/Projects/InspectorPro/InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' build`
+- `xcodebuild -project /Users/aloniter/Projects/InspectorPro/InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' test` passed with 53 Swift Testing tests.
+- Residual warning:
+- The existing CoreData checksum warning still appears during test-host startup, but the prior `BrandingProfile.showFooterInReport` migration failure is resolved and the app/test host now loads the store successfully.
+
 - [x] Confirm the repository is already initialized and points at the requested GitHub remote
 - [x] Create a savepoint commit for the current project state so it can be restored later
 - [x] Push the savepoint to GitHub and verify the remote branch reflects the new snapshot

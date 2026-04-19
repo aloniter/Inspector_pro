@@ -473,13 +473,126 @@ enum InspectorProSchemaV6: VersionedSchema {
     }
 }
 
+enum InspectorProSchemaV7: VersionedSchema {
+    static var versionIdentifier = Schema.Version(7, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        [Project.self, PhotoRecord.self, BrandingProfile.self]
+    }
+
+    @Model
+    final class BrandingProfile {
+        @Attribute(.unique) var id: UUID
+        var name: String
+        var isDefault: Bool
+        var usesBundledDefaultLogo: Bool
+        var showLogoInReport: Bool
+        var showFooterInReport: Bool
+        var footerAddressLine: String
+        var primaryFooterLinePDF: String
+        var primaryFooterLineDOCX: String
+        var secondaryFooterLine: String
+
+        @Relationship(deleteRule: .nullify, inverse: \Project.brandingProfile)
+        var projects: [Project] = []
+
+        init(
+            id: UUID = UUID(),
+            name: String,
+            isDefault: Bool = false,
+            usesBundledDefaultLogo: Bool = true,
+            showLogoInReport: Bool = true,
+            showFooterInReport: Bool = true,
+            footerAddressLine: String,
+            primaryFooterLinePDF: String,
+            primaryFooterLineDOCX: String,
+            secondaryFooterLine: String
+        ) {
+            self.id = id
+            self.name = name
+            self.isDefault = isDefault
+            self.usesBundledDefaultLogo = usesBundledDefaultLogo
+            self.showLogoInReport = showLogoInReport
+            self.showFooterInReport = showFooterInReport
+            self.footerAddressLine = footerAddressLine
+            self.primaryFooterLinePDF = primaryFooterLinePDF
+            self.primaryFooterLineDOCX = primaryFooterLineDOCX
+            self.secondaryFooterLine = secondaryFooterLine
+        }
+    }
+
+    @Model
+    final class Project {
+        @Attribute(.unique) var id: UUID
+        var name: String
+        var address: String?
+        var date: Date
+        var attendees: String?
+        var notes: String?
+        var showsNumberedImagesInReport: Bool
+
+        @Relationship(deleteRule: .cascade, inverse: \PhotoRecord.project)
+        var photos: [PhotoRecord] = []
+
+        var brandingProfile: BrandingProfile?
+
+        init(
+            id: UUID = UUID(),
+            name: String = "",
+            address: String? = nil,
+            date: Date = .now,
+            attendees: String? = nil,
+            notes: String? = nil,
+            showsNumberedImagesInReport: Bool = false,
+            brandingProfile: BrandingProfile? = nil
+        ) {
+            self.id = id
+            self.name = name
+            self.address = address
+            self.date = date
+            self.attendees = attendees
+            self.notes = notes
+            self.showsNumberedImagesInReport = showsNumberedImagesInReport
+            self.brandingProfile = brandingProfile
+        }
+    }
+
+    @Model
+    final class PhotoRecord {
+        @Attribute(.unique) var id: UUID
+        var imagePath: String
+        var annotatedImagePath: String?
+        var freeText: String
+        var position: Int
+        var createdAt: Date
+
+        var project: Project?
+
+        init(
+            id: UUID = UUID(),
+            imagePath: String,
+            annotatedImagePath: String? = nil,
+            freeText: String = "",
+            position: Int = 0,
+            createdAt: Date = .now
+        ) {
+            self.id = id
+            self.imagePath = imagePath
+            self.annotatedImagePath = annotatedImagePath
+            self.freeText = freeText
+            self.position = position
+            self.createdAt = createdAt
+        }
+    }
+}
+
 enum InspectorProMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [InspectorProSchemaV1.self, InspectorProSchemaV2.self, InspectorProSchemaV3.self, InspectorProSchemaV4.self, InspectorProSchemaV5.self, InspectorProSchemaV6.self]
+        [InspectorProSchemaV1.self, InspectorProSchemaV2.self, InspectorProSchemaV3.self, InspectorProSchemaV4.self, InspectorProSchemaV5.self, InspectorProSchemaV6.self, InspectorProSchemaV7.self]
     }
 
     static var stages: [MigrationStage] {
-        [migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, migrateV4ToV5, migrateV5ToV6]
+        [migrateV1ToV2, migrateV2ToV3, migrateV3ToV4, migrateV4ToV5, migrateV5ToV6, migrateV6ToV7]
     }
 
     static let migrateV1ToV2 = MigrationStage.custom(
@@ -697,6 +810,103 @@ enum InspectorProMigrationPlan: SchemaMigrationPlan {
         fromVersion: InspectorProSchemaV5.self,
         toVersion: InspectorProSchemaV6.self
     )
+
+    static let migrateV6ToV7 = MigrationStage.custom(
+        fromVersion: InspectorProSchemaV6.self,
+        toVersion: InspectorProSchemaV7.self,
+        willMigrate: migrateV6ToV7WillMigrate,
+        didMigrate: migrateV6ToV7DidMigrate
+    )
+
+    private static func migrateV6ToV7WillMigrate(context: ModelContext) throws {
+        let brandingProfiles = try context.fetch(FetchDescriptor<InspectorProSchemaV6.BrandingProfile>())
+        let projects = try context.fetch(FetchDescriptor<InspectorProSchemaV6.Project>())
+        let brandingPayloads: [MigrationBrandingProfileV6Payload] = brandingProfiles.map { brandingProfile in
+            MigrationBrandingProfileV6Payload(legacyBrandingProfile: brandingProfile)
+        }
+        let projectPayloads: [MigrationProjectV6Payload] = projects.map { project in
+            MigrationProjectV6Payload(legacyProject: project)
+        }
+        let payload = MigrationPayloadV6ToV7(
+            brandingProfiles: brandingPayloads,
+            projects: projectPayloads
+        )
+
+        let data = try JSONEncoder().encode(payload)
+        try data.write(to: migrationPayloadV6ToV7URL, options: .atomic)
+
+        for project in projects {
+            context.delete(project)
+        }
+        for brandingProfile in brandingProfiles {
+            context.delete(brandingProfile)
+        }
+        try context.save()
+    }
+
+    private static func migrateV6ToV7DidMigrate(context: ModelContext) throws {
+        guard FileManager.default.fileExists(atPath: migrationPayloadV6ToV7URL.path) else { return }
+
+        defer { try? FileManager.default.removeItem(at: migrationPayloadV6ToV7URL) }
+
+        let data = try Data(contentsOf: migrationPayloadV6ToV7URL)
+        let payload = try JSONDecoder().decode(MigrationPayloadV6ToV7.self, from: data)
+
+        var brandingProfilesByID: [UUID: InspectorProSchemaV7.BrandingProfile] = [:]
+
+        for legacyBrandingProfile in payload.brandingProfiles {
+            let brandingProfile = InspectorProSchemaV7.BrandingProfile(
+                id: legacyBrandingProfile.id,
+                name: legacyBrandingProfile.name,
+                isDefault: legacyBrandingProfile.isDefault,
+                usesBundledDefaultLogo: legacyBrandingProfile.usesBundledDefaultLogo,
+                showLogoInReport: true,
+                showFooterInReport: true,
+                footerAddressLine: legacyBrandingProfile.footerAddressLine,
+                primaryFooterLinePDF: legacyBrandingProfile.primaryFooterLinePDF,
+                primaryFooterLineDOCX: legacyBrandingProfile.primaryFooterLineDOCX,
+                secondaryFooterLine: legacyBrandingProfile.secondaryFooterLine
+            )
+            context.insert(brandingProfile)
+            brandingProfilesByID[brandingProfile.id] = brandingProfile
+        }
+
+        for legacyProject in payload.projects {
+            let linkedBrandingProfile: InspectorProSchemaV7.BrandingProfile?
+            if let brandingProfileID = legacyProject.brandingProfileID {
+                linkedBrandingProfile = brandingProfilesByID[brandingProfileID]
+            } else {
+                linkedBrandingProfile = nil
+            }
+
+            let project = InspectorProSchemaV7.Project(
+                id: legacyProject.id,
+                name: legacyProject.name,
+                address: legacyProject.address,
+                date: legacyProject.date,
+                attendees: legacyProject.attendees,
+                notes: legacyProject.notes,
+                showsNumberedImagesInReport: legacyProject.showsNumberedImagesInReport,
+                brandingProfile: linkedBrandingProfile
+            )
+            context.insert(project)
+
+            for legacyPhoto in legacyProject.photos {
+                let photoRecord = InspectorProSchemaV7.PhotoRecord(
+                    id: legacyPhoto.id,
+                    imagePath: legacyPhoto.imagePath,
+                    annotatedImagePath: legacyPhoto.annotatedImagePath,
+                    freeText: legacyPhoto.freeText,
+                    position: legacyPhoto.position,
+                    createdAt: legacyPhoto.createdAt
+                )
+                photoRecord.project = project
+                context.insert(photoRecord)
+            }
+        }
+
+        try context.save()
+    }
 }
 
 private let migrationPayloadV1ToV2URL = FileManager.default.temporaryDirectory
@@ -710,6 +920,9 @@ private let migrationPayloadV3ToV4URL = FileManager.default.temporaryDirectory
 
 private let migrationPayloadV4ToV5URL = FileManager.default.temporaryDirectory
     .appendingPathComponent("inspectorpro-v4-v5-migration.json")
+
+private let migrationPayloadV6ToV7URL = FileManager.default.temporaryDirectory
+    .appendingPathComponent("inspectorpro-v6-v7-migration.json")
 
 private struct MigrationProjectPayload: Codable {
     let name: String
@@ -824,6 +1037,22 @@ private struct MigrationPhotoV3Payload: Codable {
     let position: Int
     let createdAt: Date
 
+    init(
+        id: UUID,
+        imagePath: String,
+        annotatedImagePath: String?,
+        freeText: String,
+        position: Int,
+        createdAt: Date
+    ) {
+        self.id = id
+        self.imagePath = imagePath
+        self.annotatedImagePath = annotatedImagePath
+        self.freeText = freeText
+        self.position = position
+        self.createdAt = createdAt
+    }
+
     init(legacyPhoto: InspectorProSchemaV3.PhotoRecord) {
         id = legacyPhoto.id
         imagePath = legacyPhoto.imagePath
@@ -870,5 +1099,74 @@ private struct MigrationProjectV4Payload: Codable {
                 return $0.id.uuidString < $1.id.uuidString
             }
             .map(MigrationPhotoV3Payload.init)
+    }
+}
+
+private struct MigrationPayloadV6ToV7: Codable {
+    let brandingProfiles: [MigrationBrandingProfileV6Payload]
+    let projects: [MigrationProjectV6Payload]
+}
+
+private struct MigrationBrandingProfileV6Payload: Codable {
+    let id: UUID
+    let name: String
+    let isDefault: Bool
+    let usesBundledDefaultLogo: Bool
+    let footerAddressLine: String
+    let primaryFooterLinePDF: String
+    let primaryFooterLineDOCX: String
+    let secondaryFooterLine: String
+
+    init(legacyBrandingProfile: InspectorProSchemaV6.BrandingProfile) {
+        id = legacyBrandingProfile.id
+        name = legacyBrandingProfile.name
+        isDefault = legacyBrandingProfile.isDefault
+        usesBundledDefaultLogo = legacyBrandingProfile.usesBundledDefaultLogo
+        footerAddressLine = legacyBrandingProfile.footerAddressLine
+        primaryFooterLinePDF = legacyBrandingProfile.primaryFooterLinePDF
+        primaryFooterLineDOCX = legacyBrandingProfile.primaryFooterLineDOCX
+        secondaryFooterLine = legacyBrandingProfile.secondaryFooterLine
+    }
+}
+
+private struct MigrationProjectV6Payload: Codable {
+    let id: UUID
+    let name: String
+    let address: String?
+    let date: Date
+    let attendees: String?
+    let notes: String?
+    let showsNumberedImagesInReport: Bool
+    let brandingProfileID: UUID?
+    let photos: [MigrationPhotoV3Payload]
+
+    init(legacyProject: InspectorProSchemaV6.Project) {
+        id = legacyProject.id
+        name = legacyProject.name
+        address = legacyProject.address
+        date = legacyProject.date
+        attendees = legacyProject.attendees
+        notes = legacyProject.notes
+        showsNumberedImagesInReport = legacyProject.showsNumberedImagesInReport
+        brandingProfileID = legacyProject.brandingProfile?.id
+        let sortedPhotos = legacyProject.photos.sorted { lhs, rhs in
+            if lhs.position != rhs.position {
+                return lhs.position < rhs.position
+            }
+            if lhs.createdAt != rhs.createdAt {
+                return lhs.createdAt < rhs.createdAt
+            }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+        photos = sortedPhotos.map { photo in
+            MigrationPhotoV3Payload(
+                id: photo.id,
+                imagePath: photo.imagePath,
+                annotatedImagePath: photo.annotatedImagePath,
+                freeText: photo.freeText,
+                position: photo.position,
+                createdAt: photo.createdAt
+            )
+        }
     }
 }

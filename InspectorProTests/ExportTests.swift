@@ -303,6 +303,33 @@ private func firstRegexMatch(in text: String, pattern: String) -> [String]? {
     #expect(footer.firstRange(of: "09-8665885")!.lowerBound < footer.firstRange(of: "054-6222575")!.lowerBound)
 }
 
+@Test func docxFooterOmitsEmptySecondaryLine() {
+    let branding = ResolvedExportBranding(
+        logoImageData: ResolvedExportBranding.legacyDefault.logoImageData,
+        footerAddressLine: "Address",
+        primaryFooterLinePDF: "Primary",
+        primaryFooterLineDOCX: "Primary",
+        secondaryFooterLine: "",
+        footerAddressRuns: BrandingFooterFormatter.addressRuns(from: "Address"),
+        primaryFooterRuns: BrandingFooterFormatter.primaryRuns(
+            BrandingPrimaryFooterFields(contactName: "אבישי", phoneNumber: "054-6222577")
+        ),
+        secondaryFooterRuns: [],
+        primaryFooterDisplayRuns: BrandingFooterFormatter.primaryDisplayRuns(
+            BrandingPrimaryFooterFields(contactName: "אבישי", phoneNumber: "054-6222577")
+        ),
+        secondaryFooterDisplayRuns: []
+    )
+
+    let footer = DocxTemplateBuilder.footerXML(branding: branding)
+
+    #expect(footer.contains(">Address<"))
+    #expect(footer.contains(">054-6222577</w:t>"))
+    #expect(footer.contains(">אבישי</w:t>"))
+    #expect(!footer.contains("09-8665885"))
+    #expect(footer.components(separatedBy: "<w:p>").count - 1 == 2)
+}
+
 @Test func brandingFooterFormatterNormalizesAddressNumbersForRTL() {
     let normalized = BrandingFooterFormatter.normalizeAddressLine("תל אביב, ת\"ד 635 מיקוד 4020000")
     #expect(normalized == "תל אביב, ת\"ד ‎635‎ מיקוד ‎4020000‎")
@@ -436,6 +463,45 @@ private func firstRegexMatch(in text: String, pattern: String) -> [String]? {
     #expect(branding.primaryFooterLineDOCX == "Custom docx line")
     #expect(branding.secondaryFooterLine == "Custom secondary line")
     #expect(branding.logoImageData != nil)
+}
+
+@Test func brandingProfileDefaultsToVisibleLogoAndFooter() {
+    let brandingProfile = BrandingProfile(
+        name: "Client",
+        footerAddressLine: "Address",
+        primaryFooterLinePDF: "Primary",
+        primaryFooterLineDOCX: "Primary",
+        secondaryFooterLine: "Secondary"
+    )
+
+    #expect(brandingProfile.showLogoInReport == true)
+    #expect(brandingProfile.showFooterInReport == true)
+}
+
+@Test func resolvedExportBrandingHidesLogoAndFooterWhenDisabled() {
+    let brandingProfile = BrandingProfile(
+        name: "Client",
+        isDefault: false,
+        usesBundledDefaultLogo: true,
+        showLogoInReport: false,
+        showFooterInReport: false,
+        footerAddressLine: "Address",
+        primaryFooterLinePDF: "Primary",
+        primaryFooterLineDOCX: "Primary",
+        secondaryFooterLine: "Secondary"
+    )
+    let project = Project(name: "Branded", brandingProfile: brandingProfile)
+
+    let branding = ResolvedExportBranding.resolve(for: project)
+
+    #expect(branding.logoImageData == nil)
+    #expect(branding.footerAddressLine.isEmpty)
+    #expect(branding.primaryFooterLinePDF.isEmpty)
+    #expect(branding.primaryFooterLineDOCX.isEmpty)
+    #expect(branding.secondaryFooterLine.isEmpty)
+    #expect(branding.primaryFooterDisplayRuns.isEmpty)
+    #expect(branding.secondaryFooterDisplayRuns.isEmpty)
+    #expect(branding.hasVisibleFooterContent == false)
 }
 
 @Test func resolvedExportBrandingFallsBackToBundledLogoWhenCustomLogoIsMissing() {

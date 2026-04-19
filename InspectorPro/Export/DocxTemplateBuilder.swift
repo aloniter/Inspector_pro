@@ -282,27 +282,56 @@ final class DocxTemplateBuilder {
     }
 
     static func footerXML(branding: ResolvedExportBranding) -> String {
-"""
+        guard branding.hasVisibleFooterContent else {
+            return """
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  \(OpenXMLBuilder.footerParagraph(
-      text: branding.footerAddressLine,
-      fontSize: 16,
-      color: branding.footerTextColorHex,
-      topBorder: true
-  ))
-  \(OpenXMLBuilder.footerParagraph(
-      runs: branding.primaryFooterDisplayRuns,
-      fontSize: 16,
-      color: branding.footerTextColorHex,
-      enforcesVisualOrder: true
-  ))
-  \(OpenXMLBuilder.footerParagraph(
-      runs: branding.secondaryFooterDisplayRuns,
-      fontSize: 16,
-      color: branding.footerTextColorHex,
-      enforcesVisualOrder: true
-  ))
+  <w:p/>
+</w:ftr>
+"""
+        }
+
+        var paragraphs: [String] = []
+
+        if !branding.footerAddressLine.isEmpty {
+            paragraphs.append(
+                OpenXMLBuilder.footerParagraph(
+                    text: branding.footerAddressLine,
+                    fontSize: 16,
+                    color: branding.footerTextColorHex,
+                    topBorder: paragraphs.isEmpty
+                )
+            )
+        }
+
+        if !branding.primaryFooterDisplayRuns.isEmpty {
+            paragraphs.append(
+                OpenXMLBuilder.footerParagraph(
+                    runs: branding.primaryFooterDisplayRuns,
+                    fontSize: 16,
+                    color: branding.footerTextColorHex,
+                    topBorder: paragraphs.isEmpty,
+                    enforcesVisualOrder: true
+                )
+            )
+        }
+
+        if !branding.secondaryFooterDisplayRuns.isEmpty {
+            paragraphs.append(
+                OpenXMLBuilder.footerParagraph(
+                    runs: branding.secondaryFooterDisplayRuns,
+                    fontSize: 16,
+                    color: branding.footerTextColorHex,
+                    topBorder: paragraphs.isEmpty,
+                    enforcesVisualOrder: true
+                )
+            )
+        }
+
+        return """
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  \(paragraphs.joined(separator: "\n  "))
 </w:ftr>
 """
     }

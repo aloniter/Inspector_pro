@@ -12,7 +12,7 @@ struct InspectorProApp: App {
     init() {
         FileManagerService.shared.ensureDirectoriesExist()
 
-        let schema = Schema(versionedSchema: InspectorProSchemaV6.self)
+        let schema = Schema(versionedSchema: InspectorProSchemaV7.self)
 
         do {
             let config = ModelConfiguration(

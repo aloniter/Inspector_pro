@@ -98,6 +98,9 @@ private struct BrandingSettingsView: View {
     @State private var primaryFooterFields = BrandingPrimaryFooterFields()
     @State private var secondaryFooterFields = BrandingSecondaryFooterFields()
     @State private var usesBundledDefaultLogo = true
+    @State private var showLogoInReport = true
+    @State private var showFooterInReport = true
+    @State private var showsSecondaryContactFields = false
     @State private var selectedLogoItem: PhotosPickerItem?
     @State private var logoPreviewImage: UIImage?
     @State private var pendingCustomLogoImage: UIImage?
@@ -112,10 +115,7 @@ private struct BrandingSettingsView: View {
     }
 
     private var isFormValid: Bool {
-        !normalized(companyName).isEmpty &&
-        !normalized(footerAddressLine).isEmpty &&
-        primaryFooterFields.isComplete &&
-        secondaryFooterFields.isComplete
+        !normalized(companyName).isEmpty
     }
 
     var body: some View {
@@ -126,6 +126,8 @@ private struct BrandingSettingsView: View {
             }
 
             Section(AppStrings.text("לוגו")) {
+                Toggle(AppStrings.text("הצג לוגו בדוח"), isOn: $showLogoInReport)
+
                 HStack {
                     Spacer()
                     BrandingLogoPreview(image: logoPreviewImage)
@@ -149,6 +151,8 @@ private struct BrandingSettingsView: View {
             }
 
             Section(AppStrings.text("כותרת תחתונה")) {
+                Toggle(AppStrings.text("הצג פוטר בדוח"), isOn: $showFooterInReport)
+
                 VStack(alignment: .trailing, spacing: 8) {
                     Text(AppStrings.text("שורת כתובת תחתונה"))
                         .font(.caption)
@@ -184,25 +188,37 @@ private struct BrandingSettingsView: View {
                     secondTrailingAutocorrectionType: .no
                 )
 
-                BrandingFooterFieldsSection(
-                    title: AppStrings.text("שורת קשר משנית"),
-                    firstLeadingTitle: AppStrings.text("שם / תווית"),
-                    firstTrailingTitle: AppStrings.text("מספר"),
-                    secondLeadingTitle: AppStrings.text("תווית נוספת"),
-                    secondTrailingTitle: AppStrings.text("מספר נוסף"),
-                    firstLeadingValue: $secondaryFooterFields.firstLabel,
-                    firstTrailingValue: $secondaryFooterFields.firstNumber,
-                    secondLeadingValue: $secondaryFooterFields.secondLabel,
-                    secondTrailingValue: $secondaryFooterFields.secondNumber,
-                    firstLeadingLayoutDirection: layoutDirection,
-                    firstTrailingLayoutDirection: .leftToRight,
-                    secondLeadingLayoutDirection: layoutDirection,
-                    secondTrailingLayoutDirection: .leftToRight,
-                    firstTrailingKeyboardType: .phonePad,
-                    firstTrailingTextContentType: .telephoneNumber,
-                    secondTrailingKeyboardType: .phonePad,
-                    secondTrailingTextContentType: .telephoneNumber
-                )
+                if showsSecondaryContactFields {
+                    BrandingFooterFieldsSection(
+                        title: AppStrings.text("שורת קשר משנית"),
+                        firstLeadingTitle: AppStrings.text("שם / תווית"),
+                        firstTrailingTitle: AppStrings.text("מספר"),
+                        secondLeadingTitle: AppStrings.text("תווית נוספת"),
+                        secondTrailingTitle: AppStrings.text("מספר נוסף"),
+                        firstLeadingValue: $secondaryFooterFields.firstLabel,
+                        firstTrailingValue: $secondaryFooterFields.firstNumber,
+                        secondLeadingValue: $secondaryFooterFields.secondLabel,
+                        secondTrailingValue: $secondaryFooterFields.secondNumber,
+                        firstLeadingLayoutDirection: layoutDirection,
+                        firstTrailingLayoutDirection: .leftToRight,
+                        secondLeadingLayoutDirection: layoutDirection,
+                        secondTrailingLayoutDirection: .leftToRight,
+                        firstTrailingKeyboardType: .phonePad,
+                        firstTrailingTextContentType: .telephoneNumber,
+                        secondTrailingKeyboardType: .phonePad,
+                        secondTrailingTextContentType: .telephoneNumber
+                    )
+
+                    Button(AppStrings.text("הסר פרטי קשר נוספים")) {
+                        clearSecondaryFooterFields()
+                    }
+                    .font(.footnote)
+                } else {
+                    Button(AppStrings.text("+ הוסף פרטי קשר נוספים")) {
+                        showsSecondaryContactFields = true
+                    }
+                    .font(.footnote)
+                }
             }
         }
         .onAppear(perform: loadInitialStateIfNeeded)
@@ -258,6 +274,9 @@ private struct BrandingSettingsView: View {
         secondaryFooterFields = BrandingSecondaryFooterFields.fromStoredLine(brandingProfile.secondaryFooterLine)
         initialSecondaryFooterFields = secondaryFooterFields
         usesBundledDefaultLogo = brandingProfile.usesBundledDefaultLogo
+        showLogoInReport = brandingProfile.showLogoInReport
+        showFooterInReport = brandingProfile.showFooterInReport
+        showsSecondaryContactFields = secondaryFooterFields.hasAnyValue
         logoPreviewImage = BrandingAssetStorage.displayLogoImage(for: brandingProfile)
     }
 
@@ -303,10 +322,7 @@ private struct BrandingSettingsView: View {
             secondNumber: normalized(secondaryFooterFields.secondNumber)
         )
 
-        guard !normalizedCompanyName.isEmpty,
-              !normalizedFooterAddressLine.isEmpty,
-              normalizedPrimaryFooterFields.isComplete,
-              normalizedSecondaryFooterFields.isComplete else {
+        guard !normalizedCompanyName.isEmpty else {
             return
         }
 
@@ -315,6 +331,8 @@ private struct BrandingSettingsView: View {
         do {
             brandingProfile.name = normalizedCompanyName
             brandingProfile.footerAddressLine = normalizedFooterAddressLine
+            brandingProfile.showLogoInReport = showLogoInReport
+            brandingProfile.showFooterInReport = showFooterInReport
 
             if normalizedPrimaryFooterFields != initialPrimaryFooterFields {
                 let normalizedPrimaryLine = BrandingFooterFormatter.composePrimaryLine(normalizedPrimaryFooterFields)
@@ -350,6 +368,11 @@ private struct BrandingSettingsView: View {
 
     private func normalized(_ value: String) -> String {
         value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func clearSecondaryFooterFields() {
+        secondaryFooterFields = BrandingSecondaryFooterFields()
+        showsSecondaryContactFields = false
     }
 }
 
