@@ -17,6 +17,11 @@ struct ResolvedExportBranding {
     var attendeesAccentColor: UIColor { Self.attendeesAccentColorValue }
     var footerTextColor: UIColor { Self.footerTextColorValue }
     var footerTextColorHex: String { Self.footerTextColorHexValue }
+    var hasVisibleFooterContent: Bool {
+        !footerAddressLine.isEmpty ||
+        !primaryFooterDisplayRuns.isEmpty ||
+        !secondaryFooterDisplayRuns.isEmpty
+    }
 
     static func resolve(for project: Project) -> ResolvedExportBranding {
         if let brandingProfile = project.brandingProfile {
@@ -77,19 +82,27 @@ struct ResolvedExportBranding {
     private static let footerTextColorHexValue = "002060"
 
     private static func resolved(from brandingProfile: BrandingProfile) -> ResolvedExportBranding {
+        let logoImageData = brandingProfile.showLogoInReport
+            ? BrandingAssetStorage.displayLogoImageData(for: brandingProfile)
+            : nil
+        let footerAddressSource = brandingProfile.showFooterInReport ? brandingProfile.footerAddressLine : ""
+        let primaryFooterPDFSource = brandingProfile.showFooterInReport ? brandingProfile.primaryFooterLinePDF : ""
+        let primaryFooterDOCXSource = brandingProfile.showFooterInReport ? brandingProfile.primaryFooterLineDOCX : ""
+        let secondaryFooterSource = brandingProfile.showFooterInReport ? brandingProfile.secondaryFooterLine : ""
+
         let primaryFields = BrandingPrimaryFooterFields.fromStoredLines(
-            pdf: brandingProfile.primaryFooterLinePDF,
-            docx: brandingProfile.primaryFooterLineDOCX
+            pdf: primaryFooterPDFSource,
+            docx: primaryFooterDOCXSource
         )
-        let secondaryFields = BrandingSecondaryFooterFields.fromStoredLine(brandingProfile.secondaryFooterLine)
+        let secondaryFields = BrandingSecondaryFooterFields.fromStoredLine(secondaryFooterSource)
 
         return ResolvedExportBranding(
-            logoImageData: BrandingAssetStorage.displayLogoImageData(for: brandingProfile),
-            footerAddressLine: BrandingFooterFormatter.normalizeAddressLine(brandingProfile.footerAddressLine),
-            primaryFooterLinePDF: BrandingFooterFormatter.normalizeFreeformLine(brandingProfile.primaryFooterLinePDF),
-            primaryFooterLineDOCX: BrandingFooterFormatter.normalizeFreeformLine(brandingProfile.primaryFooterLineDOCX),
-            secondaryFooterLine: BrandingFooterFormatter.normalizeFreeformLine(brandingProfile.secondaryFooterLine),
-            footerAddressRuns: BrandingFooterFormatter.addressRuns(from: brandingProfile.footerAddressLine),
+            logoImageData: logoImageData,
+            footerAddressLine: BrandingFooterFormatter.normalizeAddressLine(footerAddressSource),
+            primaryFooterLinePDF: BrandingFooterFormatter.normalizeFreeformLine(primaryFooterPDFSource),
+            primaryFooterLineDOCX: BrandingFooterFormatter.normalizeFreeformLine(primaryFooterDOCXSource),
+            secondaryFooterLine: BrandingFooterFormatter.normalizeFreeformLine(secondaryFooterSource),
+            footerAddressRuns: BrandingFooterFormatter.addressRuns(from: footerAddressSource),
             primaryFooterRuns: BrandingFooterFormatter.primaryRuns(primaryFields),
             secondaryFooterRuns: BrandingFooterFormatter.secondaryRuns(secondaryFields),
             primaryFooterDisplayRuns: BrandingFooterFormatter.primaryDisplayRuns(primaryFields),

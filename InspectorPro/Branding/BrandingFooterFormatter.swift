@@ -34,6 +34,13 @@ struct BrandingSecondaryFooterFields: Equatable {
     var secondLabel: String = ""
     var secondNumber: String = ""
 
+    var hasAnyValue: Bool {
+        !firstLabel.isEmpty ||
+        !firstNumber.isEmpty ||
+        !secondLabel.isEmpty ||
+        !secondNumber.isEmpty
+    }
+
     var isComplete: Bool {
         !firstLabel.isEmpty && !firstNumber.isEmpty
     }

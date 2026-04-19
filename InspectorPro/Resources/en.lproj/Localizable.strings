@@ -81,12 +81,16 @@
 "פרטי חברה" = "Company details";
 "שם החברה" = "Company name";
 "לוגו" = "Logo";
+"הצג לוגו בדוח" = "Show logo in report";
 "בחר לוגו מהספריה" = "Choose logo from library";
 "השתמש בלוגו ברירת מחדל" = "Use default logo";
 "כותרת תחתונה" = "Footer";
+"הצג פוטר בדוח" = "Show footer in report";
 "שורת כתובת תחתונה" = "Footer address line";
 "שורת קשר ראשית" = "Primary footer line";
 "שורת קשר משנית" = "Secondary footer line";
+"+ הוסף פרטי קשר נוספים" = "+ Add more contact details";
+"הסר פרטי קשר נוספים" = "Remove extra contact details";
 "שם" = "Name";
 "תפקיד / תווית" = "Role / label";
 "שם / תווית" = "Name / label";
