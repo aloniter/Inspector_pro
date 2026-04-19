@@ -42,11 +42,11 @@ enum AppConstants {
 
 enum ExportImageConstants {
     /// Padding between image and cell border (points).
-    static let imageCellPaddingPoints: CGFloat = 0
+    static let imageCellPaddingPoints: CGFloat = 4
     /// Padding in twips (1/20th of a point) for DOCX table cell margins.
-    static let imageCellPaddingTwips: Int = 0
+    static let imageCellPaddingTwips: Int = 80
     /// Padding in EMU for DOCX image content area calculation.
-    static let imageCellPaddingEMU: Int = 0
+    static let imageCellPaddingEMU: Int = 50800
 }
 
 enum AppPreferenceKeys {

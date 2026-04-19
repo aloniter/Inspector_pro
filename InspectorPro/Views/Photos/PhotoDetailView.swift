@@ -13,6 +13,7 @@ struct PhotoDetailView: View {
     @State private var showingDeleteConfirmation = false
     @State private var isEditingNotes = false
     @State private var noteText = ""
+    @State private var errorMessage: String?
 
     private var hasUnsavedNoteChanges: Bool {
         noteText != photo.freeText
@@ -103,6 +104,13 @@ struct PhotoDetailView: View {
         } message: {
             Text(AppStrings.text("האם אתה בטוח שברצונך למחוק את התמונה? לא ניתן לבטל פעולה זו."))
         }
+        .alert(AppStrings.text("הפעולה נכשלה"), isPresented: errorAlertPresented) {
+            Button(AppStrings.text("אישור"), role: .cancel) {
+                errorMessage = nil
+            }
+        } message: {
+            Text(errorMessage ?? AppStrings.text("אירעה שגיאה בשמירה"))
+        }
         .task(id: photo.displayImagePath) {
             await reloadImages()
         }
@@ -124,29 +132,60 @@ struct PhotoDetailView: View {
     private func deletePhoto() {
         let imagePath = photo.imagePath
         let annotatedPath = photo.annotatedImagePath
-        Task {
-            await ImageStorageService.shared.deletePhotoFiles(
-                originalPath: imagePath,
-                annotatedPath: annotatedPath
-            )
-        }
+
         modelContext.delete(photo)
-        dismiss()
+
+        do {
+            try modelContext.save()
+            Task {
+                await ImageStorageService.shared.deletePhotoFiles(
+                    originalPath: imagePath,
+                    annotatedPath: annotatedPath
+                )
+            }
+            dismiss()
+        } catch {
+            modelContext.insert(photo)
+            errorMessage = userFacingErrorMessage(for: error)
+        }
     }
 
-    private func saveChanges() {
-        try? modelContext.save()
+    private var errorAlertPresented: Binding<Bool> {
+        Binding(
+            get: { errorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    errorMessage = nil
+                }
+            }
+        )
+    }
+
+    private func saveChanges() throws {
+        try modelContext.save()
     }
 
     private func finishNotesEditing() {
-        commitNoteChanges()
-        isEditingNotes = false
+        if commitNoteChanges() {
+            isEditingNotes = false
+        }
     }
 
-    private func commitNoteChanges() {
-        guard hasUnsavedNoteChanges else { return }
+    @discardableResult
+    private func commitNoteChanges() -> Bool {
+        guard hasUnsavedNoteChanges else { return true }
+
+        let originalText = photo.freeText
         photo.freeText = noteText
-        saveChanges()
+
+        do {
+            try saveChanges()
+            return true
+        } catch {
+            photo.freeText = originalText
+            errorMessage = userFacingErrorMessage(for: error)
+            return false
+        }
     }
 
     @MainActor
@@ -158,8 +197,14 @@ struct PhotoDetailView: View {
             loadedAnnotated = await ImageStorageService.shared.loadImage(at: annotatedPath)
             if loadedAnnotated == nil {
                 // Recover from a stale/missing annotation file path.
+                let originalAnnotatedPath = photo.annotatedImagePath
                 photo.annotatedImagePath = nil
-                try? modelContext.save()
+                do {
+                    try modelContext.save()
+                } catch {
+                    photo.annotatedImagePath = originalAnnotatedPath
+                    errorMessage = userFacingErrorMessage(for: error)
+                }
             }
         } else {
             loadedAnnotated = nil
@@ -167,5 +212,10 @@ struct PhotoDetailView: View {
 
         displayedImage = loadedAnnotated ?? loadedOriginal
         originalImage = loadedOriginal ?? loadedAnnotated
+    }
+
+    private func userFacingErrorMessage(for error: Error) -> String {
+        let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        return description.isEmpty ? AppStrings.text("אירעה שגיאה בשמירה") : description
     }
 }

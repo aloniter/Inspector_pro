@@ -14,6 +14,7 @@ struct ProjectDetailView: View {
     @State private var showingImportSummary = false
     @State private var importSummaryMessage = ""
     @State private var editMode: EditMode = .inactive
+    @State private var errorMessage: String?
 
     var body: some View {
         let sortedPhotos = project.sortedPhotos
@@ -153,6 +154,13 @@ struct ProjectDetailView: View {
         } message: {
             Text(importSummaryMessage)
         }
+        .alert(AppStrings.text("הפעולה נכשלה"), isPresented: errorAlertPresented) {
+            Button(AppStrings.text("אישור"), role: .cancel) {
+                errorMessage = nil
+            }
+        } message: {
+            Text(errorMessage ?? AppStrings.text("אירעה שגיאה בשמירה"))
+        }
     }
 
     @MainActor
@@ -164,13 +172,19 @@ struct ProjectDetailView: View {
             importProgress = nil
         }
 
+        var importedPhoto: PhotoRecord?
+
         do {
-            try await savePhotoRecord(from: image)
+            let photo = try await savePhotoRecord(from: image)
+            importedPhoto = photo
+            try saveModelContext()
             importProgress = ImportProgress(processed: 1, total: 1)
-            saveModelContext()
         } catch {
-            print("Failed to save photo: \(error)")
-            presentImportSummary(successCount: 0, failedCount: 1)
+            if let importedPhoto {
+                rollbackImportedPhotos([importedPhoto])
+                await deleteImportedFiles(for: [importedPhoto])
+            }
+            errorMessage = userFacingErrorMessage(for: error)
         }
     }
 
@@ -183,24 +197,36 @@ struct ProjectDetailView: View {
 
         var successCount = 0
         var failedCount = 0
+        var pendingImportedPhotos: [PhotoRecord] = []
         defer {
             isSavingPhotos = false
             importProgress = nil
-            presentImportSummary(successCount: successCount, failedCount: failedCount)
+            if errorMessage == nil {
+                presentImportSummary(successCount: successCount, failedCount: failedCount)
+            }
         }
 
         for (index, result) in results.enumerated() {
             do {
                 let image = try await result.itemProvider.loadUIImage()
-                try await savePhotoRecord(from: image)
-                successCount += 1
+                let photo = try await savePhotoRecord(from: image)
+                pendingImportedPhotos.append(photo)
 
-                if successCount % AppConstants.importSaveCheckpoint == 0 {
-                    saveModelContext()
+                if pendingImportedPhotos.count >= AppConstants.importSaveCheckpoint {
+                    let persistedCount = try await persistImportedPhotos(pendingImportedPhotos)
+                    successCount += persistedCount
+                    pendingImportedPhotos.removeAll(keepingCapacity: true)
                 }
             } catch {
                 failedCount += 1
-                print("Failed to import selected image: \(error)")
+                let errorMessage = userFacingErrorMessage(for: error)
+                if shouldAbortImport(for: error) {
+                    rollbackImportedPhotos(pendingImportedPhotos)
+                    await deleteImportedFiles(for: pendingImportedPhotos)
+                    pendingImportedPhotos.removeAll(keepingCapacity: true)
+                    self.errorMessage = errorMessage
+                    return
+                }
             }
 
             importProgress = ImportProgress(processed: index + 1, total: results.count)
@@ -209,11 +235,16 @@ struct ProjectDetailView: View {
             }
         }
 
-        saveModelContext()
+        do {
+            let persistedCount = try await persistImportedPhotos(pendingImportedPhotos)
+            successCount += persistedCount
+        } catch {
+            errorMessage = userFacingErrorMessage(for: error)
+        }
     }
 
     @MainActor
-    private func savePhotoRecord(from image: UIImage) async throws {
+    private func savePhotoRecord(from image: UIImage) async throws -> PhotoRecord {
         let imagePath = try await ImageStorageService.shared.saveImage(
             image,
             projectID: project.id.uuidString
@@ -224,14 +255,53 @@ struct ProjectDetailView: View {
         )
         photo.project = project
         modelContext.insert(photo)
+        return photo
     }
 
     @MainActor
-    private func saveModelContext() {
+    private var errorAlertPresented: Binding<Bool> {
+        Binding(
+            get: { errorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    errorMessage = nil
+                }
+            }
+        )
+    }
+
+    @MainActor
+    private func saveModelContext() throws {
+        try modelContext.save()
+    }
+
+    @MainActor
+    private func persistImportedPhotos(_ photos: [PhotoRecord]) async throws -> Int {
+        guard !photos.isEmpty else { return 0 }
+
         do {
-            try modelContext.save()
+            try saveModelContext()
+            return photos.count
         } catch {
-            print("Failed to save model context: \(error)")
+            rollbackImportedPhotos(photos)
+            await deleteImportedFiles(for: photos)
+            throw error
+        }
+    }
+
+    @MainActor
+    private func rollbackImportedPhotos(_ photos: [PhotoRecord]) {
+        for photo in photos {
+            modelContext.delete(photo)
+        }
+    }
+
+    private func deleteImportedFiles(for photos: [PhotoRecord]) async {
+        for photo in photos {
+            await ImageStorageService.shared.deletePhotoFiles(
+                originalPath: photo.imagePath,
+                annotatedPath: photo.annotatedImagePath
+            )
         }
     }
 
@@ -260,34 +330,53 @@ struct ProjectDetailView: View {
 
     private func deletePhotos(at offsets: IndexSet) {
         let sorted = project.sortedPhotos
-        for index in offsets {
-            let photo = sorted[index]
-            let imagePath = photo.imagePath
-            let annotatedPath = photo.annotatedImagePath
-            Task {
-                await ImageStorageService.shared.deletePhotoFiles(
-                    originalPath: imagePath,
-                    annotatedPath: annotatedPath
-                )
-            }
+        let deletedPhotos = offsets.map { sorted[$0] }
+        let originalPositions = Dictionary(uniqueKeysWithValues: sorted.map { ($0.id, $0.position) })
+
+        for photo in deletedPhotos {
             modelContext.delete(photo)
         }
 
         var remainingPhotos = sorted
         remainingPhotos.remove(atOffsets: offsets)
         normalizePhotoPositions(using: remainingPhotos)
-        saveModelContext()
 
-        if remainingPhotos.count < 2 {
-            editMode = .inactive
+        do {
+            try saveModelContext()
+
+            Task {
+                for photo in deletedPhotos {
+                    await ImageStorageService.shared.deletePhotoFiles(
+                        originalPath: photo.imagePath,
+                        annotatedPath: photo.annotatedImagePath
+                    )
+                }
+            }
+
+            if remainingPhotos.count < 2 {
+                editMode = .inactive
+            }
+        } catch {
+            for photo in deletedPhotos {
+                modelContext.insert(photo)
+            }
+            restorePhotoPositions(from: originalPositions, photos: sorted)
+            errorMessage = userFacingErrorMessage(for: error)
         }
     }
 
     private func movePhotos(from source: IndexSet, to destination: Int) {
         var reorderedPhotos = project.sortedPhotos
+        let originalPositions = Dictionary(uniqueKeysWithValues: reorderedPhotos.map { ($0.id, $0.position) })
         reorderedPhotos.move(fromOffsets: source, toOffset: destination)
         normalizePhotoPositions(using: reorderedPhotos)
-        saveModelContext()
+
+        do {
+            try saveModelContext()
+        } catch {
+            restorePhotoPositions(from: originalPositions, photos: project.sortedPhotos)
+            errorMessage = userFacingErrorMessage(for: error)
+        }
     }
 
     private func nextPhotoPosition() -> Int {
@@ -300,6 +389,14 @@ struct ProjectDetailView: View {
         }
     }
 
+    private func restorePhotoPositions(from positions: [UUID: Int], photos: [PhotoRecord]) {
+        for photo in photos {
+            if let originalPosition = positions[photo.id] {
+                photo.position = originalPosition
+            }
+        }
+    }
+
     private func togglePhotoReordering() {
         withAnimation {
             editMode = isReorderingPhotos ? .inactive : .active
@@ -309,6 +406,20 @@ struct ProjectDetailView: View {
     private var isReorderingPhotos: Bool {
         editMode == .active || editMode == .transient
     }
+
+    private func shouldAbortImport(for error: Error) -> Bool {
+        ![
+            PhotoImportError.unsupportedContent,
+            PhotoImportError.loadFailed,
+        ].contains { candidate in
+            (error as? PhotoImportError) == candidate
+        }
+    }
+
+    private func userFacingErrorMessage(for error: Error) -> String {
+        let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        return description.isEmpty ? AppStrings.text("אירעה שגיאה בשמירה") : description
+    }
 }
 
 private struct ImportProgress {
@@ -316,7 +427,7 @@ private struct ImportProgress {
     let total: Int
 }
 
-private enum PhotoImportError: Error {
+private enum PhotoImportError: Error, Equatable {
     case unsupportedContent
     case loadFailed
 }

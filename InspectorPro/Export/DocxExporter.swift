@@ -137,6 +137,7 @@ final class DocxExporter {
         try documentXML.write(to: wordDir.appendingPathComponent("document.xml"), atomically: true, encoding: .utf8)
         try DocxTemplateBuilder.documentRelsXML(imageRelationships: imageRelationships).write(to: wordRelsDir.appendingPathComponent("document.xml.rels"), atomically: true, encoding: .utf8)
         try DocxTemplateBuilder.stylesXML().write(to: wordDir.appendingPathComponent("styles.xml"), atomically: true, encoding: .utf8)
+        try DocxTemplateBuilder.numberingXML().write(to: wordDir.appendingPathComponent("numbering.xml"), atomically: true, encoding: .utf8)
         try DocxTemplateBuilder.settingsXML().write(to: wordDir.appendingPathComponent("settings.xml"), atomically: true, encoding: .utf8)
         try DocxTemplateBuilder.webSettingsXML().write(to: wordDir.appendingPathComponent("webSettings.xml"), atomically: true, encoding: .utf8)
         try DocxTemplateBuilder.footnotesXML().write(to: wordDir.appendingPathComponent("footnotes.xml"), atomically: true, encoding: .utf8)
@@ -193,15 +194,29 @@ final class DocxExporter {
             throw ExportError.imageLoadFailed(photo.displayImagePath)
         }
 
-        let targetSizeEMU = CGSize(width: CGFloat(targetWidthEMU), height: CGFloat(targetHeightEMU))
-        let fit = SmartImageFit.resolve(
-            sourceSize: image.size,
-            targetSize: targetSizeEMU,
-            hasAnnotations: photo.annotatedImagePath != nil
-        )
-        let displayWidthEMU = Int(fit.displaySize.width.rounded())
-        let displayHeightEMU = Int(fit.displaySize.height.rounded())
-        let crop = fit.crop.openXMLCrop
+        let pixelToEMU = 914400.0 / 96.0
+        let imageWidthEMU = Double(image.size.width * pixelToEMU)
+        let imageHeightEMU = Double(image.size.height * pixelToEMU)
+
+        // Use cover scaling: scale to fill the target area (max scale).
+        let widthScale = Double(targetWidthEMU) / imageWidthEMU
+        let heightScale = Double(targetHeightEMU) / imageHeightEMU
+        let coverScale = max(widthScale, heightScale)
+
+        let scaledW = imageWidthEMU * coverScale
+        let scaledH = imageHeightEMU * coverScale
+
+        // Compute center-crop percentages (in 1/1000th of percent, i.e. 100000 = 100%).
+        let excessW = max(scaledW - Double(targetWidthEMU), 0)
+        let excessH = max(scaledH - Double(targetHeightEMU), 0)
+        let cropLR = Int((excessW / scaledW) * 50000) // half on each side
+        let cropTB = Int((excessH / scaledH) * 50000)
+
+        let crop = OpenXMLBuilder.ImageCrop(left: cropLR, top: cropTB, right: cropLR, bottom: cropTB)
+
+        // The displayed size is the target (cell content area).
+        let displayWidthEMU = targetWidthEMU
+        let displayHeightEMU = targetHeightEMU
 
         let filename = "image\(relId).jpg"
         let imageURL = mediaDir.appendingPathComponent(filename)
