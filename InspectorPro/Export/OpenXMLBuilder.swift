@@ -285,20 +285,53 @@ final class OpenXMLBuilder {
 
         var xml = ""
         for line in descriptionLines {
-            xml += rtlParagraph(
-                runs: line.runs.map { run in
-                    ExportTextFormatter.DescriptionLine.TextRun(
-                        text: run.text,
-                        isBold: run.isBold
-                    )
-                },
-                fontSize: 22,
-                alignment: "right",
-                color: "222222",
-                spacingAfter: 60
-            )
+            if line.usesBullet {
+                xml += rtlBulletParagraph(text: line.bodyText)
+            } else {
+                xml += rtlParagraph(
+                    runs: line.runs.map { run in
+                        ExportTextFormatter.DescriptionLine.TextRun(
+                            text: run.text,
+                            isBold: run.isBold
+                        )
+                    },
+                    fontSize: 22,
+                    alignment: "right",
+                    color: "222222",
+                    spacingAfter: 60
+                )
+            }
         }
         return xml
+    }
+
+    private static func rtlBulletParagraph(text: String) -> String {
+        """
+        <w:p>
+          <w:pPr>
+            <w:pStyle w:val="InspectorDescriptionBullet"/>
+            <w:numPr>
+              <w:ilvl w:val="0"/>
+              <w:numId w:val="1"/>
+            </w:numPr>
+            <w:bidi/>
+            <w:spacing w:after="60" w:line="240" w:lineRule="auto"/>
+            <w:ind w:start="540" w:hanging="360"/>
+            <w:jc w:val="start"/>
+          </w:pPr>
+          <w:r>
+            <w:rPr>
+              <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
+              <w:color w:val="222222"/>
+              <w:sz w:val="22"/>
+              <w:szCs w:val="22"/>
+              <w:rtl/>
+              <w:lang w:val="he-IL" w:bidi="he-IL"/>
+            </w:rPr>
+            <w:t xml:space="preserve">\(escapeXML(text))</w:t>
+          </w:r>
+        </w:p>
+        """
     }
 
     private static func emptyCellParagraph() -> String {

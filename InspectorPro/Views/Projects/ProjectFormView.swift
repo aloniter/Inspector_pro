@@ -21,6 +21,7 @@ struct ProjectFormView: View {
     @State private var showsNumberedImagesInReport = false
     @State private var notes = ""
     @State private var isEditingNotes = false
+    @State private var errorMessage: String?
 
     private var textAlignment: TextAlignment {
         AppTextDirection.textAlignment(for: layoutDirection)
@@ -84,6 +85,13 @@ struct ProjectFormView: View {
                 }
             }
         }
+        .alert(AppStrings.text("שמירה נכשלה"), isPresented: errorAlertPresented) {
+            Button(AppStrings.text("אישור"), role: .cancel) {
+                errorMessage = nil
+            }
+        } message: {
+            Text(errorMessage ?? AppStrings.text("אירעה שגיאה בשמירה"))
+        }
         .onAppear {
             if let project = project {
                 name = project.name
@@ -96,36 +104,83 @@ struct ProjectFormView: View {
         }
     }
 
+    private var errorAlertPresented: Binding<Bool> {
+        Binding(
+            get: { errorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    errorMessage = nil
+                }
+            }
+        )
+    }
+
     private func save() {
-        if let project = project {
-            project.name = name
-            project.address = normalizedOptional(address)
-            project.date = date
-            project.attendees = normalizedOptional(attendees)
-            project.showsNumberedImagesInReport = showsNumberedImagesInReport
-            project.notes = normalizedOptional(notes)
-            try? modelContext.save()
-            onProjectSaved?(project)
-        } else {
-            let defaultBrandingProfile = try? BrandingBootstrapper.fetchDefaultBrandingProfile(in: modelContext)
-            let newProject = Project(
-                name: name,
-                address: normalizedOptional(address),
-                date: date,
-                attendees: normalizedOptional(attendees),
-                notes: normalizedOptional(notes),
-                showsNumberedImagesInReport: showsNumberedImagesInReport,
-                brandingProfile: defaultBrandingProfile
-            )
-            modelContext.insert(newProject)
-            try? modelContext.save()
-            onProjectSaved?(newProject)
+        do {
+            if let project = project {
+                let originalName = project.name
+                let originalAddress = project.address
+                let originalDate = project.date
+                let originalAttendees = project.attendees
+                let originalShowsNumberedImagesInReport = project.showsNumberedImagesInReport
+                let originalNotes = project.notes
+
+                project.name = name
+                project.address = normalizedOptional(address)
+                project.date = date
+                project.attendees = normalizedOptional(attendees)
+                project.showsNumberedImagesInReport = showsNumberedImagesInReport
+                project.notes = normalizedOptional(notes)
+
+                do {
+                    try modelContext.save()
+                } catch {
+                    project.name = originalName
+                    project.address = originalAddress
+                    project.date = originalDate
+                    project.attendees = originalAttendees
+                    project.showsNumberedImagesInReport = originalShowsNumberedImagesInReport
+                    project.notes = originalNotes
+                    throw error
+                }
+
+                onProjectSaved?(project)
+            } else {
+                let defaultBrandingProfile = try BrandingBootstrapper.fetchDefaultBrandingProfile(in: modelContext)
+                let newProject = Project(
+                    name: name,
+                    address: normalizedOptional(address),
+                    date: date,
+                    attendees: normalizedOptional(attendees),
+                    notes: normalizedOptional(notes),
+                    showsNumberedImagesInReport: showsNumberedImagesInReport,
+                    brandingProfile: defaultBrandingProfile
+                )
+                modelContext.insert(newProject)
+
+                do {
+                    try modelContext.save()
+                } catch {
+                    modelContext.delete(newProject)
+                    throw error
+                }
+
+                onProjectSaved?(newProject)
+            }
+
+            dismiss()
+        } catch {
+            errorMessage = userFacingErrorMessage(for: error)
         }
-        dismiss()
     }
 
     private func normalizedOptional(_ value: String) -> String? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func userFacingErrorMessage(for error: Error) -> String {
+        let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        return description.isEmpty ? AppStrings.text("אירעה שגיאה בשמירה") : description
     }
 }

@@ -1,5 +1,43 @@
 # TODO
 
+- [x] Confirm the remaining DOCX problem: visually good literal bullets do not align with manually added real Word bullets
+- [x] Inspect the latest clipped-bullet DOCX and confirm `w:start="360"` with `w:hanging="360"` places the marker on the table-cell edge
+- [x] Increase the logical RTL bullet start indent so the marker has visible room inside the cell
+- [x] Verify the generated package/list XML and run the Swift test suite
+
+## Review
+
+- Kept the real editable Word list semantics and logical RTL layout, but changed the list indent to `w:ind w:start="540" w:hanging="360"` so the bullet marker sits inside the table cell instead of being clipped by the right border.
+- Temporary Quick Look renders of the supplied DOCX showed `start=480`, `540`, `600`, and `720` all make the marker visible; `540` is the smallest safe-looking value without stealing too much text width.
+- Validation: `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' test` passed with 47 Swift Testing tests. The existing CoreData checksum warning still appears during test-host startup.
+
+- [x] Inspect the latest user-supplied DOCX and confirm physical `w:left` indentation still leaves editable bullets on the wrong visual side in Word
+- [x] Reintroduce editable DOCX bullets with logical RTL list geometry so Word anchors Hebrew bullets from the paragraph start edge
+- [x] Verify the generated package/list XML and run the Swift test suite
+
+## Review
+
+- DOCX bullets are real Word list paragraphs again, but the RTL geometry now uses logical paragraph-start layout with visible marker room: `w:ind w:start="540" w:hanging="360"` with `w:jc w:val="start"` and `w:suff w:val="space"`.
+- Removed physical `w:left` and `w:right` indentation from the list shape because Word still rendered those on the wrong visual side for Hebrew RTL editing inside the report table cell.
+- Bullet body runs contain only the Hebrew body text; the bullet glyph comes from `word/numbering.xml`, so pressing Enter in Word should continue the same list instead of creating a differently styled manual bullet.
+- Validation:
+- Rendered a temporary logical-start variant of the supplied DOCX and confirmed the generated XML uses logical RTL indentation instead of physical left/right indentation.
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' test` passed with 47 Swift Testing tests.
+- The existing CoreData checksum warning still appears during the test-host launch path and was not changed by this DOCX bullet fix.
+
+- [x] Inspect the user-supplied DOCX package to confirm which bullet/list XML produced the bad Word layout
+- [x] Revert only the DOCX real-list/RTL bullet changes from this session while preserving unrelated exporter work
+- [x] Verify the reverted DOCX export path with the Swift test suite and document the result
+
+## Review
+
+- The supplied DOCX used the session's real-list path: `InspectorDescriptionBullet`, `w:numPr`, `w:bidi`, `w:start` hanging indent, and `word/numbering.xml` inside the photo description table cell.
+- Reverted that DOCX bullet/list implementation for now: no generated `word/numbering.xml`, no numbering relationship/content type, no `InspectorDescriptionBullet` style, and no dedicated list paragraph helper.
+- Description bullets are back on the existing shared DOCX paragraph path that writes the formatter output, matching the pre-list behavior while preserving unrelated exporter changes in the dirty worktree.
+- Validation:
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' test` passed with 45 Swift Testing tests.
+- The existing CoreData checksum warning still appears during the test-host launch path and was not changed by this revert.
+
 - [x] Inspect the current branding schema, settings UI, and export builders for the smallest safe hooks for logo/footer visibility and optional secondary contact
 - [x] Add persisted branding visibility defaults that keep existing users on logo ON / footer ON without making branding required for export
 - [x] Update the branding settings UI with logo/footer toggles plus collapsible secondary contact fields that auto-expand when data already exists
@@ -269,3 +307,18 @@
 - `xcodegen generate`
 - `xcodebuild -project /Users/aloniter/Projects/InspectorPro/InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' test` passed with 48 Swift Testing tests.
 - The existing CoreData checksum warning still appears in the test-host launch path and was not changed by this export fit work.
+
+- [x] Revert only the Smart Fit image fitting change so report images fill the PDF/DOCX image column again
+- [x] Remove the Smart Fit helper/tests and restore the previous center-crop fill math in both exporters
+- [x] Verify the restored fill behavior compiles and passes the export test suite
+
+## Review
+
+- PDF export now uses the previous center-crop cover draw path again, clipping the image to the full target area inside the image cell.
+- DOCX export now emits full target image extents again with center-crop `srcRect` percentages, restoring full-cell fill behavior.
+- Export image padding values are back to the previous `4pt` / `80 twips` / `50800 EMU` values.
+- Footer, branding, bidi/text formatting, report row/page geometry, and in-app image display were not changed.
+- Validation:
+- `xcodegen generate`
+- `xcodebuild -project /Users/aloniter/Projects/InspectorPro/InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' test` passed with 45 Swift Testing tests.
+- The existing CoreData checksum warning still appears in the test-host launch path and was not changed by this image-fitting revert.

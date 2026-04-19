@@ -1,5 +1,13 @@
 # Lessons Learned
 
+## DOCX RTL list fixes need Word visual confirmation
+- OpenXML-valid list semantics can still render badly in Microsoft Word for Hebrew RTL inside table cells.
+- Preferred approach: compare generated DOCX against a user-approved Word-authored sample or screenshot before preserving list/indentation changes.
+- Verification rule: for Hebrew DOCX list layout changes, inspect the actual `document.xml` and `numbering.xml`, then perform a Word visual/editing check that includes pressing Enter and typing another list item instead of relying only on XML parse or OpenXML SDK validation.
+- Do not assume `w:right` indentation means visual-right for Word RTL lists; in the report table cell it moved bullets to the visual left, while the rendered test variant with `w:left` kept the bullet on the Hebrew right side.
+- Physical `w:left`/`w:right` indents are still the wrong abstraction for Word RTL lists. Prefer logical `w:start` indentation and `w:jc w:val="start"` with paragraph `w:bidi`, because start resolves to the right edge for RTL paragraphs.
+- For RTL list paragraphs inside narrow report table cells, `w:start` must be greater than `w:hanging`; `start=360` with `hanging=360` puts the bullet on the cell edge and can clip it. Use extra start room such as `start=540`, `hanging=360`.
+
 ## DOCX XML edits must preserve namespace prefixes and compatibility metadata
 - Do not rewrite OpenXML parts with `xml.etree.ElementTree` when the part includes `mc:Ignorable` and many namespace-prefixed attributes.
 - Reason: serializer can rename/drop prefixes, leaving `mc:Ignorable` tokens unresolved and causing Word "unreadable content" recovery dialogs.

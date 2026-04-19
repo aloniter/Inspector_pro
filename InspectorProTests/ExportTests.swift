@@ -16,16 +16,8 @@ private func docxXMLEntries(from archiveURL: URL) throws -> [String: Data] {
     return xmlEntries
 }
 
-private func firstRegexMatch(in text: String, pattern: String) -> [String]? {
-    guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
-    let range = NSRange(text.startIndex..., in: text)
-    guard let match = regex.firstMatch(in: text, range: range) else { return nil }
-
-    return (0..<match.numberOfRanges).compactMap { index in
-        let matchRange = match.range(at: index)
-        guard let range = Range(matchRange, in: text) else { return nil }
-        return String(text[range])
-    }
+private func occurrenceCount(of needle: String, in haystack: String) -> Int {
+    haystack.components(separatedBy: needle).count - 1
 }
 
 @Test func imageQualityPresets() {
@@ -107,11 +99,51 @@ private func firstRegexMatch(in text: String, pattern: String) -> [String]? {
     #expect(table.contains("תמונה"))
     #expect(table.contains("תיאור"))
     #expect(table.contains("rId10"))
-    #expect(table.contains("<w:jc w:val=\"right\"/>"))
-    #expect(table.contains(ExportTextFormatter.bulletedDescriptionText(from: "בדיקה")))
+    #expect(table.contains("<w:jc w:val=\"start\"/>"))
+    #expect(table.contains("<w:pStyle w:val=\"InspectorDescriptionBullet\"/>"))
+    #expect(table.contains("<w:numPr>"))
+    #expect(table.contains("<w:ilvl w:val=\"0\"/>"))
+    #expect(table.contains("<w:numId w:val=\"1\"/>"))
+    #expect(table.contains("<w:bidi/>"))
+    #expect(table.contains("<w:rtl/>"))
+    #expect(table.contains("<w:ind w:start=\"540\" w:hanging=\"360\"/>"))
+    #expect(table.contains("<w:jc w:val=\"start\"/>"))
+    #expect(!table.contains("<w:ind w:left="))
+    #expect(!table.contains("<w:ind w:right="))
+    #expect(!table.contains("<w:tab w:val=\"num\""))
+    #expect(table.contains(">בדיקה</w:t>"))
+    #expect(!table.contains(ExportTextFormatter.bulletedDescriptionText(from: "בדיקה")))
     #expect(!table.contains("<w:t xml:space=\"preserve\">1.</w:t>"))
-    #expect(!table.contains("<w:bidi/>"))
-    #expect(!table.contains("<w:rtl/>"))
+    #expect(!table.contains("<w:t xml:space=\"preserve\">•"))
+}
+
+@Test func openXMLBuilderExportsDescriptionBulletsAsRTLWordListParagraphs() {
+    let row = OpenXMLBuilder.buildPhotoRow(
+        freeText: "בדיקה\n• הערה נוספת",
+        imageRelId: "rId10",
+        imageWidthEMU: 1_500_000,
+        imageHeightEMU: 1_000_000,
+        imageId: 1,
+        rowHeightTwips: 7200,
+        imageColumnWidthTwips: 5000,
+        textColumnWidthTwips: 3300
+    )
+
+    #expect(occurrenceCount(of: "<w:pStyle w:val=\"InspectorDescriptionBullet\"/>", in: row) == 2)
+    #expect(occurrenceCount(of: "<w:numPr>", in: row) == 2)
+    #expect(occurrenceCount(of: "<w:ilvl w:val=\"0\"/>", in: row) == 2)
+    #expect(occurrenceCount(of: "<w:numId w:val=\"1\"/>", in: row) == 2)
+    #expect(occurrenceCount(of: "<w:bidi/>", in: row) == 2)
+    #expect(occurrenceCount(of: "<w:rtl/>", in: row) == 2)
+    #expect(occurrenceCount(of: "<w:ind w:start=\"540\" w:hanging=\"360\"/>", in: row) == 2)
+    #expect(occurrenceCount(of: "<w:jc w:val=\"start\"/>", in: row) == 2)
+    #expect(!row.contains("<w:ind w:left="))
+    #expect(!row.contains("<w:ind w:right="))
+    #expect(!row.contains("<w:tab w:val=\"num\""))
+    #expect(row.contains(">בדיקה</w:t>"))
+    #expect(row.contains(">הערה נוספת</w:t>"))
+    #expect(!row.contains("<w:t xml:space=\"preserve\">•"))
+    #expect(!row.contains(OpenXMLBuilder.escapeXML("\u{202B}•\u{00A0}בדיקה\u{202C}")))
 }
 
 @Test func exportFormatterPlacesRTLBulletAtLogicalStartOfEachLine() {
@@ -205,6 +237,9 @@ private func firstRegexMatch(in text: String, pattern: String) -> [String]? {
     #expect(row.contains("<w:b/><w:bCs/>"))
     #expect(row.contains(OpenXMLBuilder.escapeXML("\u{202B}1 כיסאות:\u{202C}")))
     #expect(!row.contains("1. כיסאות:"))
+    #expect(occurrenceCount(of: "<w:numPr>", in: row) == 1)
+    #expect(row.contains(">שחור תקול</w:t>"))
+    #expect(!row.contains(OpenXMLBuilder.escapeXML("\u{202B}•\u{00A0}שחור תקול\u{202C}")))
 }
 
 @Test func openXMLRowWithEmptyDescriptionStillContainsParagraphInTextCell() {
@@ -226,6 +261,37 @@ private func firstRegexMatch(in text: String, pattern: String) -> [String]? {
 @Test func docxTemplateContainsTablePlaceholder() {
     let xml = DocxTemplateBuilder.documentXML()
     #expect(xml.contains("{{PHOTOS_TABLE}}"))
+}
+
+@Test func docxTemplateDefinesRTLNumberingPartRelationshipAndBulletStyle() {
+    let contentTypes = DocxTemplateBuilder.contentTypesXML()
+    let relationships = DocxTemplateBuilder.documentRelsXML(imageRelationships: [])
+    let numbering = DocxTemplateBuilder.numberingXML()
+    let styles = DocxTemplateBuilder.stylesXML()
+
+    #expect(contentTypes.contains("PartName=\"/word/numbering.xml\""))
+    #expect(contentTypes.contains("wordprocessingml.numbering+xml"))
+    #expect(relationships.contains("Id=\"rId7\""))
+    #expect(relationships.contains("relationships/numbering"))
+    #expect(relationships.contains("Target=\"numbering.xml\""))
+    #expect(numbering.contains("<w:abstractNum w:abstractNumId=\"1\">"))
+    #expect(numbering.contains("<w:numFmt w:val=\"bullet\"/>"))
+    #expect(numbering.contains("<w:suff w:val=\"space\"/>"))
+    #expect(numbering.contains("<w:lvlText w:val=\"•\"/>"))
+    #expect(numbering.contains("<w:lvlJc w:val=\"right\"/>"))
+    #expect(numbering.contains("<w:ind w:start=\"540\" w:hanging=\"360\"/>"))
+    #expect(numbering.contains("<w:jc w:val=\"start\"/>"))
+    #expect(!numbering.contains("<w:ind w:left="))
+    #expect(!numbering.contains("<w:ind w:right="))
+    #expect(!numbering.contains("<w:tab w:val=\"num\""))
+    #expect(numbering.contains("<w:num w:numId=\"1\">"))
+    #expect(styles.contains("w:styleId=\"InspectorDescriptionBullet\""))
+    #expect(styles.contains("<w:numId w:val=\"1\"/>"))
+    #expect(styles.contains("<w:bidi/>"))
+    #expect(styles.contains("<w:ind w:start=\"540\" w:hanging=\"360\"/>"))
+    #expect(styles.contains("<w:jc w:val=\"start\"/>"))
+    #expect(!styles.contains("<w:ind w:left="))
+    #expect(!styles.contains("<w:ind w:right="))
 }
 
 @Test func docxCoverDetailsAvoidsDirectionalIsolatesAndUsesSeparateLabelValueParagraphs() {
@@ -284,7 +350,10 @@ private func firstRegexMatch(in text: String, pattern: String) -> [String]? {
     #expect(row.contains("w:color w:val=\"1F4E79\"") == false)
     #expect(row.contains("<w:t xml:space=\"preserve\">1</w:t>") == false)
     #expect(row.contains(OpenXMLBuilder.escapeXML("\u{202B}1. כללי:\u{202C}")))
-    #expect(row.contains(OpenXMLBuilder.escapeXML("\u{202B}•\u{00A0}בסלון נראים ברגים לבנים\u{202C}")))
+    #expect(row.contains("<w:pStyle w:val=\"InspectorDescriptionBullet\"/>"))
+    #expect(row.contains("<w:numPr>"))
+    #expect(row.contains(">בסלון נראים ברגים לבנים</w:t>"))
+    #expect(!row.contains(OpenXMLBuilder.escapeXML("\u{202B}•\u{00A0}בסלון נראים ברגים לבנים\u{202C}")))
 }
 
 @Test func docxFooterUsesSeparateRunsForPrimaryLine() {
@@ -642,73 +711,6 @@ private func firstRegexMatch(in text: String, pattern: String) -> [String]? {
     #expect(options.exportImageMaxBytes == ImageQuality.economical.targetExportBytesPerImage)
 }
 
-@Test func smartImageFitUsesAspectFitForAnnotatedLandscapeImage() {
-    let result = SmartImageFit.resolve(
-        sourceSize: CGSize(width: 1600, height: 900),
-        targetSize: CGSize(width: 300, height: 400),
-        hasAnnotations: true
-    )
-
-    #expect(result.mode == .fit)
-    #expect(result.crop == .none)
-    #expect(abs(result.displaySize.width - 300) < 0.001)
-    #expect(abs(result.displaySize.height - 168.75) < 0.001)
-}
-
-@Test func smartImageFitUsesAspectFitForAnnotatedPortraitImage() {
-    let result = SmartImageFit.resolve(
-        sourceSize: CGSize(width: 900, height: 1600),
-        targetSize: CGSize(width: 400, height: 300),
-        hasAnnotations: true
-    )
-
-    #expect(result.mode == .fit)
-    #expect(result.crop == .none)
-    #expect(abs(result.displaySize.width - 168.75) < 0.001)
-    #expect(abs(result.displaySize.height - 300) < 0.001)
-}
-
-@Test func smartImageFitAllowsTinyCropForUnannotatedImage() {
-    let result = SmartImageFit.resolve(
-        sourceSize: CGSize(width: 1000, height: 1010),
-        targetSize: CGSize(width: 300, height: 300),
-        hasAnnotations: false
-    )
-
-    #expect(result.mode == .limitedCover)
-    #expect(result.displaySize == CGSize(width: 300, height: 300))
-    #expect(result.crop.left == 0)
-    #expect(result.crop.right == 0)
-    #expect(result.crop.top > 0)
-    #expect(result.crop.bottom > 0)
-    #expect(result.crop.maxSide <= SmartImageFit.defaultMaxCropPerSide)
-}
-
-@Test func smartImageFitFallsBackToAspectFitWhenCropWouldBeLarge() {
-    let result = SmartImageFit.resolve(
-        sourceSize: CGSize(width: 1600, height: 900),
-        targetSize: CGSize(width: 300, height: 400),
-        hasAnnotations: false
-    )
-
-    #expect(result.mode == .fit)
-    #expect(result.crop == .none)
-    #expect(abs(result.displaySize.width - 300) < 0.001)
-    #expect(abs(result.displaySize.height - 168.75) < 0.001)
-}
-
-@Test func smartImageFitLeavesSquareImageFullyFilledWithoutCrop() {
-    let result = SmartImageFit.resolve(
-        sourceSize: CGSize(width: 1200, height: 1200),
-        targetSize: CGSize(width: 300, height: 300),
-        hasAnnotations: false
-    )
-
-    #expect(result.mode == .fit)
-    #expect(result.crop == .none)
-    #expect(result.displaySize == CGSize(width: 300, height: 300))
-}
-
 @Test func docxExporterProducesWellFormedXMLParts() async throws {
     FileManagerService.shared.ensureDirectoriesExist()
 
@@ -784,16 +786,36 @@ private func firstRegexMatch(in text: String, pattern: String) -> [String]? {
 
     #expect(xmlEntries["word/document.xml"] != nil)
     #expect(xmlEntries["word/_rels/document.xml.rels"] != nil)
+    #expect(xmlEntries["word/numbering.xml"] != nil)
     #expect(xmlEntries["word/header1.xml"] != nil)
     #expect(xmlEntries["word/footer1.xml"] != nil)
     #expect(xmlEntries["word/_rels/header1.xml.rels"] != nil)
 
+    let contentTypesText = xmlEntries["[Content_Types].xml"]
+        .flatMap { String(data: $0, encoding: .utf8) } ?? ""
+    #expect(contentTypesText.contains("PartName=\"/word/numbering.xml\""))
+
     let documentRelsText = xmlEntries["word/_rels/document.xml.rels"]
         .flatMap { String(data: $0, encoding: .utf8) } ?? ""
+    #expect(documentRelsText.contains("relationships/numbering"))
+    #expect(documentRelsText.contains("Target=\"numbering.xml\""))
     #expect(documentRelsText.contains("relationships/header"))
     #expect(documentRelsText.contains("relationships/footer"))
     #expect(documentRelsText.contains("relationships/image"))
     #expect(documentRelsText.contains("Target=\"media/image10.jpg\""))
+
+    let numberingText = xmlEntries["word/numbering.xml"]
+        .flatMap { String(data: $0, encoding: .utf8) } ?? ""
+    #expect(numberingText.contains("<w:abstractNum w:abstractNumId=\"1\">"))
+    #expect(numberingText.contains("<w:numFmt w:val=\"bullet\"/>"))
+    #expect(numberingText.contains("<w:suff w:val=\"space\"/>"))
+    #expect(numberingText.contains("<w:lvlText w:val=\"•\"/>"))
+    #expect(numberingText.contains("<w:ind w:start=\"540\" w:hanging=\"360\"/>"))
+    #expect(numberingText.contains("<w:jc w:val=\"start\"/>"))
+    #expect(!numberingText.contains("<w:ind w:left="))
+    #expect(!numberingText.contains("<w:ind w:right="))
+    #expect(!numberingText.contains("<w:tab w:val=\"num\""))
+    #expect(numberingText.contains("<w:num w:numId=\"1\">"))
 
     let headerRelsText = xmlEntries["word/_rels/header1.xml.rels"]
         .flatMap { String(data: $0, encoding: .utf8) } ?? ""
@@ -811,12 +833,24 @@ private func firstRegexMatch(in text: String, pattern: String) -> [String]? {
     #expect(!documentText.contains("\u{2066}"))
     #expect(!documentText.contains("\u{2067}"))
     #expect(!documentText.contains("\u{2069}"))
+    #expect(documentText.contains("<w:pStyle w:val=\"InspectorDescriptionBullet\"/>"))
+    #expect(documentText.contains("<w:numPr>"))
+    #expect(documentText.contains("<w:numId w:val=\"1\"/>"))
+    #expect(documentText.contains("<w:bidi/>"))
+    #expect(documentText.contains("<w:rtl/>"))
+    #expect(documentText.contains("<w:ind w:start=\"540\" w:hanging=\"360\"/>"))
+    #expect(documentText.contains("<w:jc w:val=\"start\"/>"))
+    #expect(!documentText.contains("<w:ind w:left="))
+    #expect(!documentText.contains("<w:ind w:right="))
+    #expect(!documentText.contains("<w:tab w:val=\"num\""))
     #expect(documentText.contains(">כתובת<"))
     #expect(documentText.contains(">כפר ויתקין<"))
     #expect(documentText.contains(">\(ExportTextFormatter.reportCoverDateString(from: project.date))<"))
     #expect(!documentText.contains(">נוכחים:<"))
     #expect(documentText.contains(">הערות<"))
     #expect(documentText.contains(">תקין<"))
+    #expect(documentText.contains(">שורת בדיקה</w:t>"))
+    #expect(!documentText.contains("<w:t xml:space=\"preserve\">•"))
 }
 
 @Test func docxExporterProducesWellFormedXMLPartsWithoutLogo() async throws {
@@ -896,155 +930,6 @@ private func firstRegexMatch(in text: String, pattern: String) -> [String]? {
     let headerRelsText = xmlEntries["word/_rels/header1.xml.rels"]
         .flatMap { String(data: $0, encoding: .utf8) } ?? ""
     #expect(!headerRelsText.contains("Target=\"media/image1.jpeg\""))
-}
-
-@Test func docxExporterUsesNoCropForAnnotatedPhotos() async throws {
-    FileManagerService.shared.ensureDirectoriesExist()
-
-    let image = UIGraphicsImageRenderer(size: CGSize(width: 1200, height: 900)).image { context in
-        UIColor.systemTeal.setFill()
-        context.fill(CGRect(x: 0, y: 0, width: 1200, height: 900))
-    }
-    guard let jpeg = image.jpegData(compressionQuality: 0.8) else {
-        Issue.record("Failed creating annotated fixture image")
-        return
-    }
-
-    let originalPath = "tests/annotated-original.jpg"
-    let annotatedPath = "tests/annotated-export.jpg"
-    let originalURL = AppConstants.imagesBaseURL.appendingPathComponent(originalPath)
-    let annotatedURL = AppConstants.imagesBaseURL.appendingPathComponent(annotatedPath)
-    try FileManager.default.createDirectory(
-        at: originalURL.deletingLastPathComponent(),
-        withIntermediateDirectories: true
-    )
-    try jpeg.write(to: originalURL)
-    try jpeg.write(to: annotatedURL)
-    defer {
-        try? FileManager.default.removeItem(at: originalURL)
-        try? FileManager.default.removeItem(at: annotatedURL)
-    }
-
-    let project = Project(
-        name: "בדיקת יצוא",
-        address: "כפר ויתקין",
-        date: Date(timeIntervalSince1970: 1_700_000_000),
-        notes: "תקין"
-    )
-    let photo = PhotoRecord(
-        imagePath: originalPath,
-        annotatedImagePath: annotatedPath,
-        freeText: "שורת בדיקה",
-        position: 0
-    )
-    photo.project = project
-    project.photos = [photo]
-
-    let options = ExportOptions(format: .docx, quality: .balanced, photoCount: 1)
-    let outputURL = try await DocxExporter.export(
-        project: project,
-        photos: [photo],
-        options: options,
-        onProgress: { _ in }
-    )
-    defer { try? FileManager.default.removeItem(at: outputURL) }
-
-    let xmlEntries = try docxXMLEntries(from: outputURL)
-    let documentText = xmlEntries["word/document.xml"]
-        .flatMap { String(data: $0, encoding: .utf8) } ?? ""
-    #expect(!documentText.contains("<a:srcRect"))
-}
-
-@Test func docxExporterUsesLimitedCropOnlyForTinyUnannotatedMismatch() async throws {
-    FileManagerService.shared.ensureDirectoriesExist()
-
-    let image = UIGraphicsImageRenderer(size: CGSize(width: 1000, height: 1010)).image { context in
-        UIColor.systemGreen.setFill()
-        context.fill(CGRect(x: 0, y: 0, width: 1000, height: 1010))
-    }
-    guard let jpeg = image.jpegData(compressionQuality: 0.8) else {
-        Issue.record("Failed creating small-crop fixture image")
-        return
-    }
-
-    let imagePath = "tests/small-crop-export.jpg"
-    let imageURL = AppConstants.imagesBaseURL.appendingPathComponent(imagePath)
-    try FileManager.default.createDirectory(
-        at: imageURL.deletingLastPathComponent(),
-        withIntermediateDirectories: true
-    )
-    try jpeg.write(to: imageURL)
-    defer { try? FileManager.default.removeItem(at: imageURL) }
-
-    let project = Project(name: "בדיקת יצוא", address: "כפר ויתקין", date: .now, notes: "תקין")
-    let photo = PhotoRecord(imagePath: imagePath, freeText: "שורת בדיקה", position: 0)
-    photo.project = project
-    project.photos = [photo]
-
-    let options = ExportOptions(format: .docx, quality: .balanced, photoCount: 1)
-    let outputURL = try await DocxExporter.export(
-        project: project,
-        photos: [photo],
-        options: options,
-        onProgress: { _ in }
-    )
-    defer { try? FileManager.default.removeItem(at: outputURL) }
-
-    let xmlEntries = try docxXMLEntries(from: outputURL)
-    let documentText = xmlEntries["word/document.xml"]
-        .flatMap { String(data: $0, encoding: .utf8) } ?? ""
-    let srcRectMatch = firstRegexMatch(
-        in: documentText,
-        pattern: #"<a:srcRect l="(\d+)" t="(\d+)" r="(\d+)" b="(\d+)"/>"#
-    )
-
-    #expect(srcRectMatch != nil)
-    let cropValues = srcRectMatch?.dropFirst().compactMap(Int.init) ?? []
-    #expect(cropValues.count == 4)
-    #expect(cropValues.contains(where: { $0 > 0 }))
-    #expect((cropValues.max() ?? .max) <= SmartImageFit.defaultMaxCropPerSide)
-    #expect(documentText.contains("wp:extent cx=\"\(options.imageContentWidthEMU)\" cy=\"\(options.targetPhotoImageHeightEMU)\""))
-}
-
-@Test func docxExporterFallsBackToNoCropWhenUnannotatedImageWouldNeedLargeCrop() async throws {
-    FileManagerService.shared.ensureDirectoriesExist()
-
-    let image = UIGraphicsImageRenderer(size: CGSize(width: 1600, height: 900)).image { context in
-        UIColor.systemOrange.setFill()
-        context.fill(CGRect(x: 0, y: 0, width: 1600, height: 900))
-    }
-    guard let jpeg = image.jpegData(compressionQuality: 0.8) else {
-        Issue.record("Failed creating large-crop fixture image")
-        return
-    }
-
-    let imagePath = "tests/large-crop-export.jpg"
-    let imageURL = AppConstants.imagesBaseURL.appendingPathComponent(imagePath)
-    try FileManager.default.createDirectory(
-        at: imageURL.deletingLastPathComponent(),
-        withIntermediateDirectories: true
-    )
-    try jpeg.write(to: imageURL)
-    defer { try? FileManager.default.removeItem(at: imageURL) }
-
-    let project = Project(name: "בדיקת יצוא", address: "כפר ויתקין", date: .now, notes: "תקין")
-    let photo = PhotoRecord(imagePath: imagePath, freeText: "שורת בדיקה", position: 0)
-    photo.project = project
-    project.photos = [photo]
-
-    let options = ExportOptions(format: .docx, quality: .balanced, photoCount: 1)
-    let outputURL = try await DocxExporter.export(
-        project: project,
-        photos: [photo],
-        options: options,
-        onProgress: { _ in }
-    )
-    defer { try? FileManager.default.removeItem(at: outputURL) }
-
-    let xmlEntries = try docxXMLEntries(from: outputURL)
-    let documentText = xmlEntries["word/document.xml"]
-        .flatMap { String(data: $0, encoding: .utf8) } ?? ""
-    #expect(!documentText.contains("<a:srcRect"))
 }
 
 @Test func docxExporterRemovesStaleWordLockFile() async throws {

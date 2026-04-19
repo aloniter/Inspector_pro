@@ -10,6 +10,7 @@ struct ProjectListView: View {
     @State private var path = NavigationPath()
     @State private var showingNewProject = false
     @State private var showingSettings = false
+    @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -67,18 +68,53 @@ struct ProjectListView: View {
                     )
                 }
             }
+            .alert(AppStrings.text("מחיקה נכשלה"), isPresented: errorAlertPresented) {
+                Button(AppStrings.text("אישור"), role: .cancel) {
+                    errorMessage = nil
+                }
+            } message: {
+                Text(errorMessage ?? AppStrings.text("אירעה שגיאה בשמירה"))
+            }
         }
     }
 
     private func deleteProjects(at offsets: IndexSet) {
-        for index in offsets {
-            let project = projects[index]
-            // Clean up images from disk
-            Task {
-                await ImageStorageService.shared.deleteProjectDirectory(projectID: project.id.uuidString)
-            }
+        let deletedProjects = offsets.map { projects[$0] }
+
+        for project in deletedProjects {
             modelContext.delete(project)
         }
+
+        do {
+            try modelContext.save()
+
+            Task {
+                for project in deletedProjects {
+                    await ImageStorageService.shared.deleteProjectDirectory(projectID: project.id.uuidString)
+                }
+            }
+        } catch {
+            for project in deletedProjects {
+                modelContext.insert(project)
+            }
+            errorMessage = userFacingErrorMessage(for: error)
+        }
+    }
+
+    private var errorAlertPresented: Binding<Bool> {
+        Binding(
+            get: { errorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    errorMessage = nil
+                }
+            }
+        )
+    }
+
+    private func userFacingErrorMessage(for error: Error) -> String {
+        let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        return description.isEmpty ? AppStrings.text("אירעה שגיאה בשמירה") : description
     }
 }
 

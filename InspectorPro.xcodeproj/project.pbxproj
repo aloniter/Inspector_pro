@@ -49,7 +49,6 @@
 		D24867DE2C284DB62B2878BE /* PdfExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24FCA22A35747A0FCBDDF333 /* PdfExporter.swift */; };
 		D2CE9DC8881DFCBD650B2EE8 /* ProjectDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D02C5F70710C772005A3623B /* ProjectDetailView.swift */; };
 		D7731BF143093F0604E4563F /* BrandingFooterFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B025AA83129A5B9CB75B1A1 /* BrandingFooterFormatter.swift */; };
-		EE50DC4245BCDE8A0A2D2662 /* SmartImageFit.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA677C4D9FCC351A6CFEF9D9 /* SmartImageFit.swift */; };
 		EEC8B450C2C6AC77EF82B739 /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = A07E143472BCA8DF142C9D71 /* Project.swift */; };
 		F40450115E9D6A67FA2C51AF /* PhotoRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E949DD5078F59B2E114E1CD /* PhotoRecord.swift */; };
 		F7249ED7054BF1AD43F97B76 /* ExportFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33126AA9A585846D86C2F773 /* ExportFormat.swift */; };
@@ -112,7 +111,6 @@
 		E2B16FCBBC0E9A90EF640892 /* ExportTextFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportTextFormatter.swift; sourceTree = "<group>"; };
 		E5F34B531BA4399726E6098A /* ExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportTests.swift; sourceTree = "<group>"; };
 		EA3CE7031A5AD7898BDA4673 /* ExportOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportOptions.swift; sourceTree = "<group>"; };
-		EA677C4D9FCC351A6CFEF9D9 /* SmartImageFit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartImageFit.swift; sourceTree = "<group>"; };
 		ED2F7B37D39457139734FA1B /* DirectionalTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectionalTextField.swift; sourceTree = "<group>"; };
 		F56D2A245B0D2323F87A406A /* TemplateExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateExtractor.swift; sourceTree = "<group>"; };
 		F7D74ED2E469D3997EE4DF95 /* InspectorPro.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = InspectorPro.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -191,7 +189,6 @@
 				1FC319518367A6CBC1A0CF01 /* ImageCompressor.swift */,
 				CD05CAC2A3B21654F38500B6 /* OpenXMLBuilder.swift */,
 				24FCA22A35747A0FCBDDF333 /* PdfExporter.swift */,
-				EA677C4D9FCC351A6CFEF9D9 /* SmartImageFit.swift */,
 				F56D2A245B0D2323F87A406A /* TemplateExtractor.swift */,
 			);
 			path = Export;
@@ -442,7 +439,6 @@
 				1D406F25A505DC3F2D8F5C1E /* ProjectFormView.swift in Sources */,
 				54EAE12B3C397705F3806A78 /* ProjectListView.swift in Sources */,
 				68693B4FBEEE92D23268315A /* ResolvedExportBranding.swift in Sources */,
-				EE50DC4245BCDE8A0A2D2662 /* SmartImageFit.swift in Sources */,
 				833B5BBD4A9C3909914AEB18 /* TemplateExtractor.swift in Sources */,
 				B6EE190BFDC33B49DC62115B /* ThumbnailService.swift in Sources */,
 				AB094D41D2F7C2815BE1C34B /* ThumbnailView.swift in Sources */,

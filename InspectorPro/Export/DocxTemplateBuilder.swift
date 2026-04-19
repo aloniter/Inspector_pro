@@ -17,6 +17,7 @@ final class DocxTemplateBuilder {
   <Default Extension="png" ContentType="image/png"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
   <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
   <Override PartName="/word/webSettings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml"/>
   <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
@@ -215,6 +216,7 @@ final class DocxTemplateBuilder {
   <Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
   <Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="endnotes.xml"/>
   <Relationship Id="rId6" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fontTable.xml"/>
+  <Relationship Id="rId7" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
   <Relationship Id="rId8" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
   <Relationship Id="rId9" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
   \(imageRels)
@@ -384,7 +386,64 @@ final class DocxTemplateBuilder {
     <w:pPr/>
     <w:rPr/>
   </w:style>
+  <w:style w:type="paragraph" w:styleId="InspectorDescriptionBullet">
+    <w:name w:val="Inspector Description Bullet"/>
+    <w:basedOn w:val="Normal"/>
+    <w:pPr>
+      <w:numPr>
+        <w:ilvl w:val="0"/>
+        <w:numId w:val="1"/>
+      </w:numPr>
+      <w:bidi/>
+      <w:spacing w:after="60" w:line="240" w:lineRule="auto"/>
+      <w:ind w:start="540" w:hanging="360"/>
+      <w:jc w:val="start"/>
+    </w:pPr>
+    <w:rPr>
+      <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
+      <w:color w:val="222222"/>
+      <w:sz w:val="22"/>
+      <w:szCs w:val="22"/>
+      <w:rtl/>
+      <w:lang w:val="he-IL" w:bidi="he-IL"/>
+    </w:rPr>
+  </w:style>
 </w:styles>
+"""
+    }
+
+    static func numberingXML() -> String {
+        return """
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="1">
+    <w:multiLevelType w:val="singleLevel"/>
+    <w:lvl w:ilvl="0">
+      <w:start w:val="1"/>
+      <w:numFmt w:val="bullet"/>
+      <w:suff w:val="space"/>
+      <w:lvlText w:val="•"/>
+      <w:lvlJc w:val="right"/>
+      <w:pPr>
+        <w:bidi/>
+        <w:spacing w:after="60" w:line="240" w:lineRule="auto"/>
+        <w:ind w:start="540" w:hanging="360"/>
+        <w:jc w:val="start"/>
+      </w:pPr>
+      <w:rPr>
+        <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
+        <w:color w:val="222222"/>
+        <w:sz w:val="22"/>
+        <w:szCs w:val="22"/>
+        <w:rtl/>
+        <w:lang w:val="he-IL" w:bidi="he-IL"/>
+      </w:rPr>
+    </w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="1">
+    <w:abstractNumId w:val="1"/>
+  </w:num>
+</w:numbering>
 """
     }
 
