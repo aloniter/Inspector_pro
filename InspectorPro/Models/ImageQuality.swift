@@ -9,26 +9,26 @@ enum ImageQuality: String, CaseIterable, Identifiable, Codable {
 
     var maxWidth: CGFloat {
         switch self {
-        case .economical: return 900
-        case .balanced: return 1400
-        case .high: return 2000
+        case .economical: return 1200
+        case .balanced: return 1600
+        case .high: return 2200
         }
     }
 
     var jpegQuality: CGFloat {
         switch self {
-        case .economical: return 0.45
-        case .balanced: return 0.60
-        case .high: return 0.75
+        case .economical: return 0.65
+        case .balanced: return 0.78
+        case .high: return 0.85
         }
     }
 
     /// Hard cap per exported image to keep DOCX/PDF lightweight.
     var targetExportBytesPerImage: Int {
         switch self {
-        case .economical: return 170_000
-        case .balanced: return 280_000
-        case .high: return 420_000
+        case .economical: return 100_000
+        case .balanced: return 200_000
+        case .high: return 350_000
         }
     }
 
@@ -44,9 +44,9 @@ enum ImageQuality: String, CaseIterable, Identifiable, Codable {
     /// Target total export payload budget (images + container overhead).
     var targetTotalExportBytes: Int {
         switch self {
-        case .economical: return 20_000_000
-        case .balanced: return 40_000_000
-        case .high: return 65_000_000
+        case .economical: return 9_000_000
+        case .balanced: return 18_000_000
+        case .high: return 30_000_000
         }
     }
 

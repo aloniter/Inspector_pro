@@ -42,8 +42,16 @@ final class DocxExporter {
             try fm.createDirectory(at: dir, withIntermediateDirectories: true)
         }
 
+        #if DEBUG
+        print("[DocxExport] mode=\(options.quality.rawValue) photos=\(photos.count) perImageBudget=\(options.exportImageMaxBytes)B maxRenderWidth=\(Int(options.exportImageMaxRenderWidth))px")
+        #endif
+
         if let logoImageData = branding.logoImageData {
-            try logoImageData.write(to: mediaDir.appendingPathComponent("image1.jpeg"))
+            let compressedLogo = compressLogo(logoImageData)
+            try compressedLogo.write(to: mediaDir.appendingPathComponent("image1.jpeg"))
+            #if DEBUG
+            print("[DocxExport] logo raw=\(logoImageData.count)B → compressed=\(compressedLogo.count)B")
+            #endif
         }
 
         let includesLogo = branding.logoImageData != nil
@@ -65,6 +73,9 @@ final class DocxExporter {
         var imageId = 1
         var imageRelationships: [String] = []
         var photoRowsXML = ""
+        #if DEBUG
+        var totalImagePayloadBytes = 0
+        #endif
 
         for (index, photo) in photos.enumerated() {
             let itemNumber = project.showsNumberedImagesInReport ? index + 1 : nil
@@ -79,6 +90,12 @@ final class DocxExporter {
                 maxRenderWidth: options.exportImageMaxRenderWidth,
                 maxBytes: options.exportImageMaxBytes
             )
+            #if DEBUG
+            totalImagePayloadBytes += result.compressedBytes
+            if index < 3 || index == totalPhotos - 1 {
+                print("[DocxExport] photo[\(index)] compressed=\(result.compressedBytes)B out=\(result.widthEMU / 9144)×\(result.heightEMU / 9144)pt")
+            }
+            #endif
 
             imageRelationships.append(
                 """
@@ -151,9 +168,18 @@ final class DocxExporter {
             fileManager: fm
         )
 
+        #if DEBUG
+        print("[DocxExport] totalImagePayload=\(totalImagePayloadBytes / 1024)KB estimatedDocxSize≈\((totalImagePayloadBytes + 200_000) / 1024)KB")
+        #endif
+
         try? fm.removeItem(at: outputURL)
         try fm.zipItem(at: tempDir, to: outputURL, shouldKeepParent: false)
         try? fm.setAttributes([.posixPermissions: 0o644], ofItemAtPath: outputURL.path)
+
+        #if DEBUG
+        let finalBytes = (try? fm.attributesOfItem(atPath: outputURL.path)[.size] as? Int) ?? 0
+        print("[DocxExport] finalDocxSize=\(finalBytes / 1024)KB (\(String(format: "%.1f", Double(finalBytes) / 1_000_000))MB)")
+        #endif
 
         return outputURL
     }
@@ -165,6 +191,14 @@ final class DocxExporter {
         let widthEMU: Int
         let heightEMU: Int
         let crop: OpenXMLBuilder.ImageCrop
+        let compressedBytes: Int
+    }
+
+    private static func compressLogo(_ data: Data) -> Data {
+        guard let image = UIImage(data: data) else { return data }
+        let maxLogoWidth: CGFloat = 500
+        let resized = image.resized(maxWidth: maxLogoWidth)
+        return resized.jpegDataStripped(quality: 0.75) ?? data
     }
 
     private static func processImage(
@@ -222,7 +256,7 @@ final class DocxExporter {
         let imageURL = mediaDir.appendingPathComponent(filename)
         try imageData.write(to: imageURL)
 
-        return ImageResult(filename: filename, widthEMU: displayWidthEMU, heightEMU: displayHeightEMU, crop: crop)
+        return ImageResult(filename: filename, widthEMU: displayWidthEMU, heightEMU: displayHeightEMU, crop: crop, compressedBytes: imageData.count)
     }
 
     private static func normalizedText(_ value: String?) -> String {

@@ -3,20 +3,14 @@ import UniformTypeIdentifiers
 
 struct ExportOptionsSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.layoutDirection) private var layoutDirection
     let project: Project
 
     @State private var selectedFormat: ExportFormat = .docx
-    @State private var selectedQuality: ImageQuality = .economical
     @State private var isExporting = false
     @State private var exportProgress: Double = 0
     @State private var exportedURL: URL?
     @State private var errorMessage: String?
     @State private var showingShareSheet = false
-
-    private var qualityTextAlignment: HorizontalAlignment {
-        AppTextDirection.horizontalAlignment(for: layoutDirection)
-    }
 
     var body: some View {
         NavigationStack {
@@ -28,30 +22,6 @@ struct ExportOptionsSheet: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                }
-
-                Section(AppStrings.text("איכות תמונות")) {
-                    ForEach(ImageQuality.allCases) { quality in
-                        Button {
-                            selectedQuality = quality
-                        } label: {
-                            HStack {
-                                VStack(alignment: qualityTextAlignment) {
-                                    Text(quality.hebrewLabel)
-                                        .font(.body)
-                                    Text(quality.hebrewDescription)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                if selectedQuality == quality {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(.blue)
-                                }
-                            }
-                        }
-                        .foregroundStyle(.primary)
-                    }
                 }
 
                 Section {
@@ -117,7 +87,7 @@ struct ExportOptionsSheet: View {
             do {
                 let options = ExportOptions(
                     format: selectedFormat,
-                    quality: selectedQuality,
+                    quality: .economical,
                     photoCount: project.sortedPhotos.count
                 )
 
