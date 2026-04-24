@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum FormMode {
     case create
@@ -16,11 +17,6 @@ struct ProjectFormView: View {
 
     @State private var name = ""
     @State private var address = ""
-    @State private var date = Date()
-    @State private var attendees = ""
-    @State private var showsNumberedImagesInReport = false
-    @State private var notes = ""
-    @State private var isEditingNotes = false
     @State private var errorMessage: String?
 
     private var textAlignment: TextAlignment {
@@ -29,41 +25,16 @@ struct ProjectFormView: View {
 
     var body: some View {
         Form {
-            Section(AppStrings.text("פרטי פרויקט")) {
+            Section {
                 TextField(AppStrings.text("שם הפרויקט"), text: $name)
                     .multilineTextAlignment(textAlignment)
-                TextField(AppStrings.text("כתובת"), text: $address)
-                    .multilineTextAlignment(textAlignment)
-                DatePicker(AppStrings.text("תאריך"), selection: $date, displayedComponents: .date)
-                    .environment(\.locale, AppLanguage.current.locale)
-            }
-
-            Section {
-                TextField(AppStrings.text("נוכחים"), text: $attendees, axis: .vertical)
-                    .multilineTextAlignment(textAlignment)
-                    .lineLimit(1...3)
-            } header: {
-                HStack {
-                    Spacer(minLength: 0)
-                    Text(ExportTextFormatter.rtlHeadingText("\(AppStrings.text("נוכחים")):"))
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.trailing)
-                }
-                .frame(maxWidth: .infinity)
-                .environment(\.layoutDirection, .leftToRight)
-            }
-
-            Section {
-                Toggle(AppStrings.text("מספור תמונות בדוח"), isOn: $showsNumberedImagesInReport)
-            }
-
-            Section(AppStrings.text("הערות")) {
-                DirectionalTextEditor(
-                    text: $notes,
-                    isFocused: $isEditingNotes,
-                    layoutDirection: layoutDirection
+                RTLLabeledTextField(
+                    label: AppStrings.text("כתובת"),
+                    text: $address,
+                    placeholder: AppStrings.text("כתובת")
                 )
-                    .frame(minHeight: 80)
+            } header: {
+                RTLSectionHeader(title: AppStrings.text("פרטי פרויקט"))
             }
         }
         .navigationTitle(
@@ -93,13 +64,9 @@ struct ProjectFormView: View {
             Text(errorMessage ?? AppStrings.text("אירעה שגיאה בשמירה"))
         }
         .onAppear {
-            if let project = project {
+            if let project {
                 name = project.name
                 address = project.address ?? ""
-                date = project.date
-                attendees = project.attendees ?? ""
-                showsNumberedImagesInReport = project.showsNumberedImagesInReport
-                notes = project.notes ?? ""
             }
         }
     }
@@ -117,44 +84,26 @@ struct ProjectFormView: View {
 
     private func save() {
         do {
-            if let project = project {
+            if let project {
                 let originalName = project.name
                 let originalAddress = project.address
-                let originalDate = project.date
-                let originalAttendees = project.attendees
-                let originalShowsNumberedImagesInReport = project.showsNumberedImagesInReport
-                let originalNotes = project.notes
 
                 project.name = name
                 project.address = normalizedOptional(address)
-                project.date = date
-                project.attendees = normalizedOptional(attendees)
-                project.showsNumberedImagesInReport = showsNumberedImagesInReport
-                project.notes = normalizedOptional(notes)
 
                 do {
                     try modelContext.save()
                 } catch {
                     project.name = originalName
                     project.address = originalAddress
-                    project.date = originalDate
-                    project.attendees = originalAttendees
-                    project.showsNumberedImagesInReport = originalShowsNumberedImagesInReport
-                    project.notes = originalNotes
                     throw error
                 }
 
                 onProjectSaved?(project)
             } else {
-                let defaultBrandingProfile = try BrandingBootstrapper.fetchDefaultBrandingProfile(in: modelContext)
                 let newProject = Project(
                     name: name,
-                    address: normalizedOptional(address),
-                    date: date,
-                    attendees: normalizedOptional(attendees),
-                    notes: normalizedOptional(notes),
-                    showsNumberedImagesInReport: showsNumberedImagesInReport,
-                    brandingProfile: defaultBrandingProfile
+                    address: normalizedOptional(address)
                 )
                 modelContext.insert(newProject)
 
@@ -182,5 +131,322 @@ struct ProjectFormView: View {
     private func userFacingErrorMessage(for error: Error) -> String {
         let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
         return description.isEmpty ? AppStrings.text("אירעה שגיאה בשמירה") : description
+    }
+}
+
+struct ReportFormView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.layoutDirection) private var layoutDirection
+
+    let mode: FormMode
+    let project: Project
+    var report: Report?
+    var onReportSaved: ((Report) -> Void)?
+
+    @State private var name = ""
+    @State private var address = ""
+    @State private var date = Date()
+    @State private var attendees = ""
+    @State private var showsNumberedImagesInReport = false
+    @State private var notes = ""
+    @State private var isEditingNotes = false
+    @State private var errorMessage: String?
+
+    private var textAlignment: TextAlignment {
+        AppTextDirection.textAlignment(for: layoutDirection)
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                TextField(AppStrings.text("שם הדוח"), text: $name)
+                    .multilineTextAlignment(textAlignment)
+                RTLDateField(label: AppStrings.text("תאריך"), date: $date)
+                RTLLabeledTextField(
+                    label: AppStrings.text("כתובת"),
+                    text: $address,
+                    placeholder: AppStrings.text("כתובת")
+                )
+            } header: {
+                RTLSectionHeader(title: AppStrings.text("פרטי דוח"))
+            }
+
+            Section {
+                TextField(AppStrings.text("נוכחים"), text: $attendees, axis: .vertical)
+                    .multilineTextAlignment(textAlignment)
+                    .lineLimit(1...3)
+            } header: {
+                RTLSectionHeader(title: ExportTextFormatter.rtlHeadingText("\(AppStrings.text("נוכחים")):"))
+            }
+
+            Section {
+                RTLToggleRow(
+                    title: AppStrings.text("מספור תמונות בדוח"),
+                    isOn: $showsNumberedImagesInReport
+                )
+            }
+
+            Section {
+                DirectionalTextEditor(
+                    text: $notes,
+                    isFocused: $isEditingNotes,
+                    layoutDirection: layoutDirection
+                )
+                    .frame(minHeight: 80)
+            } header: {
+                RTLSectionHeader(title: AppStrings.text("הערות"))
+            }
+        }
+        .navigationTitle(
+            mode == .create
+                ? AppStrings.text("דוח חדש")
+                : AppStrings.text("עריכת דוח")
+        )
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button(AppStrings.text("שמור")) {
+                    save()
+                }
+                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            ToolbarItem(placement: .cancellationAction) {
+                Button(AppStrings.text("ביטול")) {
+                    dismiss()
+                }
+            }
+        }
+        .alert(AppStrings.text("שמירה נכשלה"), isPresented: errorAlertPresented) {
+            Button(AppStrings.text("אישור"), role: .cancel) {
+                errorMessage = nil
+            }
+        } message: {
+            Text(errorMessage ?? AppStrings.text("אירעה שגיאה בשמירה"))
+        }
+        .onAppear {
+            if let report {
+                name = report.name
+                address = report.address ?? report.project?.address ?? ""
+                date = report.date
+                attendees = report.attendees ?? ""
+                showsNumberedImagesInReport = report.showsNumberedImagesInReport
+                notes = report.notes ?? ""
+            } else {
+                address = project.address ?? ""
+            }
+        }
+    }
+
+    private var errorAlertPresented: Binding<Bool> {
+        Binding(
+            get: { errorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    errorMessage = nil
+                }
+            }
+        )
+    }
+
+    private func save() {
+        do {
+            if let report {
+                let originalName = report.name
+                let originalAddress = report.address
+                let originalDate = report.date
+                let originalAttendees = report.attendees
+                let originalShowsNumberedImagesInReport = report.showsNumberedImagesInReport
+                let originalNotes = report.notes
+
+                report.name = name
+                report.address = normalizedOptional(address)
+                report.date = date
+                report.attendees = normalizedOptional(attendees)
+                report.showsNumberedImagesInReport = showsNumberedImagesInReport
+                report.notes = normalizedOptional(notes)
+
+                do {
+                    try modelContext.save()
+                } catch {
+                    report.name = originalName
+                    report.address = originalAddress
+                    report.date = originalDate
+                    report.attendees = originalAttendees
+                    report.showsNumberedImagesInReport = originalShowsNumberedImagesInReport
+                    report.notes = originalNotes
+                    throw error
+                }
+
+                onReportSaved?(report)
+            } else {
+                let defaultBrandingProfile = try BrandingBootstrapper.fetchDefaultBrandingProfile(in: modelContext)
+                let newReport = Report(
+                    name: name,
+                    address: normalizedOptional(address),
+                    date: date,
+                    attendees: normalizedOptional(attendees),
+                    notes: normalizedOptional(notes),
+                    showsNumberedImagesInReport: showsNumberedImagesInReport,
+                    project: project,
+                    brandingProfile: defaultBrandingProfile
+                )
+                modelContext.insert(newReport)
+
+                do {
+                    try modelContext.save()
+                } catch {
+                    modelContext.delete(newReport)
+                    throw error
+                }
+
+                onReportSaved?(newReport)
+            }
+
+            dismiss()
+        } catch {
+            errorMessage = userFacingErrorMessage(for: error)
+        }
+    }
+
+    private func normalizedOptional(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func userFacingErrorMessage(for error: Error) -> String {
+        let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        return description.isEmpty ? AppStrings.text("אירעה שגיאה בשמירה") : description
+    }
+}
+
+private struct RTLSectionHeader: View {
+    let title: String
+
+    var body: some View {
+        HStack {
+            Spacer(minLength: 0)
+            Text(title)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.trailing)
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .environment(\.layoutDirection, .leftToRight)
+    }
+}
+
+private struct RTLLabeledTextField: UIViewRepresentable {
+    let label: String
+    @Binding var text: String
+    let placeholder: String
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+
+    func makeUIView(context: Context) -> UITextField {
+        let textField = UITextField(frame: .zero)
+        textField.borderStyle = .none
+        textField.clearButtonMode = .whileEditing
+        textField.adjustsFontForContentSizeCategory = true
+        textField.font = UIFont.preferredFont(forTextStyle: .body)
+        textField.delegate = context.coordinator
+        textField.addTarget(context.coordinator, action: #selector(Coordinator.textDidChange(_:)), for: .editingChanged)
+        applyConfiguration(to: textField)
+        textField.text = text
+        return textField
+    }
+
+    func updateUIView(_ textField: UITextField, context: Context) {
+        applyConfiguration(to: textField)
+        if textField.text != text {
+            textField.text = text
+        }
+    }
+
+    private func applyConfiguration(to textField: UITextField) {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .right
+        paragraphStyle.baseWritingDirection = .rightToLeft
+
+        let font = textField.font ?? UIFont.preferredFont(forTextStyle: .body)
+        textField.defaultTextAttributes = [
+            .font: font,
+            .foregroundColor: UIColor.label,
+            .paragraphStyle: paragraphStyle,
+        ]
+        textField.placeholder = placeholder
+        textField.textAlignment = .right
+        textField.semanticContentAttribute = .forceLeftToRight
+        textField.rightView = labelView(font: font)
+        textField.rightViewMode = .always
+    }
+
+    private func labelView(font: UIFont) -> UIView {
+        let labelView = UILabel()
+        labelView.text = "\(label): "
+        labelView.font = font
+        labelView.textColor = .label
+        labelView.textAlignment = .right
+        labelView.semanticContentAttribute = .forceRightToLeft
+        labelView.sizeToFit()
+        return labelView
+    }
+
+    final class Coordinator: NSObject, UITextFieldDelegate {
+        @Binding var text: String
+
+        init(text: Binding<String>) {
+            _text = text
+        }
+
+        @objc func textDidChange(_ sender: UITextField) {
+            text = sender.text ?? ""
+        }
+    }
+}
+
+private struct RTLDateField: View {
+    let label: String
+    @Binding var date: Date
+
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack(alignment: .center, spacing: 12) {
+                DatePicker("", selection: $date, displayedComponents: .date)
+                    .labelsHidden()
+                    .environment(\.locale, AppLanguage.current.locale)
+
+                Spacer(minLength: 0)
+
+                Text(label)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+
+            Divider()
+                .frame(maxWidth: .infinity)
+        }
+        .environment(\.layoutDirection, .leftToRight)
+    }
+}
+
+private struct RTLToggleRow: View {
+    let title: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+
+            Spacer(minLength: 0)
+
+            Text(title)
+                .multilineTextAlignment(.trailing)
+        }
+        .frame(maxWidth: .infinity)
+        .environment(\.layoutDirection, .leftToRight)
+        .accessibilityElement(children: .combine)
     }
 }

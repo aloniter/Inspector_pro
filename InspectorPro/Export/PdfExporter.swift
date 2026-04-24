@@ -2,13 +2,13 @@ import UIKit
 
 final class PdfExporter {
     static func export(
-        project: Project,
+        report: Report,
         photos: [PhotoRecord],
         options: ExportOptions,
         onProgress: @escaping @Sendable (Double) -> Void
     ) async throws -> URL {
-        let outputURL = outputFileURL(projectName: project.name, date: project.date, fileExtension: "pdf")
-        let branding = ResolvedExportBranding.resolve(for: project)
+        let outputURL = outputFileURL(projectName: report.name, date: report.date, fileExtension: "pdf")
+        let branding = ResolvedExportBranding.resolve(for: report)
 
         let logoImage = branding.logoImageData.flatMap(UIImage.init(data:))
 
@@ -21,7 +21,7 @@ final class PdfExporter {
         let data = renderer.pdfData { context in
             context.beginPage()
             drawBranding(logoImage: logoImage, branding: branding, options: options)
-            drawCoverPage(project: project, branding: branding, options: options)
+            drawCoverPage(report: report, branding: branding, options: options)
 
             context.beginPage()
             drawBranding(logoImage: logoImage, branding: branding, options: options)
@@ -32,11 +32,11 @@ final class PdfExporter {
 
             for (index, photo) in photos.enumerated() {
                 let image = loadCompressedImage(photo: photo, options: options)
-                let itemNumber = project.showsNumberedImagesInReport ? index + 1 : nil
+                let itemNumber = report.showsNumberedImagesInReport ? index + 1 : nil
                 let descriptionLines = descriptionLines(
                     photo: photo,
                     itemNumber: itemNumber,
-                    showsNumberedImagesInReport: project.showsNumberedImagesInReport
+                    showsNumberedImagesInReport: report.showsNumberedImagesInReport
                 )
                 let rowHeight = options.targetPhotoRowHeight
 
@@ -73,14 +73,14 @@ final class PdfExporter {
     // MARK: - Cover Page
 
     private static func drawCoverPage(
-        project: Project,
+        report: Report,
         branding: ResolvedExportBranding,
         options: ExportOptions
     ) {
         var y: CGFloat = options.pageHeight * 0.28
 
         drawRTLText(
-            project.name,
+            report.name,
             in: CGRect(x: options.marginLeft, y: y, width: options.contentWidth, height: 46),
             fontSize: 28,
             bold: true,
@@ -88,7 +88,7 @@ final class PdfExporter {
         )
         y += 56
 
-        if let address = project.address, !address.isEmpty {
+        if let address = report.reportAddress, !address.isEmpty {
             y += drawCoverFieldSection(
                 label: AppStrings.text("כתובת"),
                 value: address,
@@ -104,7 +104,7 @@ final class PdfExporter {
 
         y += drawCoverFieldSection(
             label: AppStrings.text("תאריך"),
-            value: ExportTextFormatter.reportCoverDateString(from: project.date),
+            value: ExportTextFormatter.reportCoverDateString(from: report.date),
             originY: y,
             width: options.contentWidth,
             x: options.marginLeft,
@@ -114,7 +114,7 @@ final class PdfExporter {
             labelColor: branding.coverMutedLabelColor
         )
 
-        if let attendees = numberedAttendeeLines(project.attendees) {
+        if let attendees = numberedAttendeeLines(report.attendees) {
             y += drawAttendeesCoverFieldSection(
                 label: ExportTextFormatter.rtlHeadingText("\(AppStrings.text("נוכחים")):"),
                 attendees: attendees,
@@ -126,7 +126,7 @@ final class PdfExporter {
             )
         }
 
-        if let notes = project.notes, !notes.isEmpty {
+        if let notes = report.notes, !notes.isEmpty {
             drawRTLText(
                 ExportTextFormatter.coverPageFieldText(
                     label: AppStrings.text("הערות"),

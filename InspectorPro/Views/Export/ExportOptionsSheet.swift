@@ -3,20 +3,15 @@ import UniformTypeIdentifiers
 
 struct ExportOptionsSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.layoutDirection) private var layoutDirection
-    let project: Project
+    let report: Report
 
     @State private var selectedFormat: ExportFormat = .docx
-    @State private var selectedQuality: ImageQuality = .economical
     @State private var isExporting = false
     @State private var exportProgress: Double = 0
     @State private var exportedURL: URL?
     @State private var errorMessage: String?
     @State private var showingShareSheet = false
-
-    private var qualityTextAlignment: HorizontalAlignment {
-        AppTextDirection.horizontalAlignment(for: layoutDirection)
-    }
+    @State private var exportBlockedMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -30,35 +25,11 @@ struct ExportOptionsSheet: View {
                     .pickerStyle(.segmented)
                 }
 
-                Section(AppStrings.text("איכות תמונות")) {
-                    ForEach(ImageQuality.allCases) { quality in
-                        Button {
-                            selectedQuality = quality
-                        } label: {
-                            HStack {
-                                VStack(alignment: qualityTextAlignment) {
-                                    Text(quality.hebrewLabel)
-                                        .font(.body)
-                                    Text(quality.hebrewDescription)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                if selectedQuality == quality {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(.blue)
-                                }
-                            }
-                        }
-                        .foregroundStyle(.primary)
-                    }
-                }
-
                 Section {
                     HStack {
                         Text(AppStrings.text("תמונות"))
                         Spacer()
-                        Text("\(project.photos.count)")
+                        Text("\(report.photos.count)")
                     }
                 } header: {
                     Text(AppStrings.text("סיכום"))
@@ -91,7 +62,7 @@ struct ExportOptionsSheet: View {
                     Button(AppStrings.text("ייצא")) {
                         startExport()
                     }
-                    .disabled(isExporting || project.photos.isEmpty)
+                    .disabled(isExporting || report.photos.isEmpty)
                 }
                 ToolbarItem(placement: .cancellationAction) {
                     Button(AppStrings.text("ביטול")) {
@@ -105,7 +76,21 @@ struct ExportOptionsSheet: View {
                     ShareSheet(fileURL: url)
                 }
             }
+            .alert(AppStrings.text("ייצוא אינו זמין"), isPresented: exportBlockedAlertPresented) {
+                Button(AppStrings.text("אישור"), role: .cancel) {
+                    exportBlockedMessage = nil
+                }
+            } message: {
+                Text(exportBlockedMessage ?? "")
+            }
         }
+    }
+
+    private var exportBlockedAlertPresented: Binding<Bool> {
+        Binding(
+            get: { exportBlockedMessage != nil },
+            set: { if !$0 { exportBlockedMessage = nil } }
+        )
     }
 
     private func startExport() {
@@ -114,16 +99,26 @@ struct ExportOptionsSheet: View {
         exportProgress = 0
 
         Task {
+            // Permission gate — must pass before any export work begins
+            let permission = await ExportPermissionService.shared.checkExportAllowed()
+            if !permission.isAllowed {
+                await MainActor.run {
+                    isExporting = false
+                    exportBlockedMessage = permission.hebrewDenialMessage
+                }
+                return
+            }
+
             do {
                 let options = ExportOptions(
                     format: selectedFormat,
-                    quality: selectedQuality,
-                    photoCount: project.sortedPhotos.count
+                    quality: .economical,
+                    photoCount: report.sortedPhotos.count
                 )
 
                 let url = try await ExportEngine.exportReport(
-                    project: project,
-                    photos: project.sortedPhotos,
+                    report: report,
+                    photos: report.sortedPhotos,
                     options: options,
                     onProgress: { progress in
                         Task { @MainActor in

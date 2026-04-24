@@ -1,5 +1,10 @@
 # Lessons Learned
 
+## SwiftData versioned schemas are immutable once used
+- Do not add or remove fields inside an existing versioned schema after it has been used to create a store, even during the same feature branch.
+- Reason: SwiftData/CoreData identifies model versions by checksum, so changing `InspectorProSchemaV8` after it exists can make staged migration report an unknown model version.
+- Preferred approach: restore the prior schema shape exactly, add the model change in the next schema version, and connect it with a lightweight or custom migration stage.
+
 ## DOCX RTL list fixes need Word visual confirmation
 - OpenXML-valid list semantics can still render badly in Microsoft Word for Hebrew RTL inside table cells.
 - Preferred approach: compare generated DOCX against a user-approved Word-authored sample or screenshot before preserving list/indentation changes.

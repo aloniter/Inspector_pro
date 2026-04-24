@@ -21,15 +21,15 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
 }
 
 @Test func imageQualityPresets() {
-    #expect(ImageQuality.economical.maxWidth == 900)
-    #expect(ImageQuality.economical.jpegQuality == 0.45)
-    #expect(ImageQuality.economical.targetExportBytesPerImage == 170_000)
-    #expect(ImageQuality.balanced.maxWidth == 1400)
-    #expect(ImageQuality.balanced.jpegQuality == 0.60)
-    #expect(ImageQuality.balanced.targetExportBytesPerImage == 280_000)
-    #expect(ImageQuality.high.maxWidth == 2000)
-    #expect(ImageQuality.high.jpegQuality == 0.75)
-    #expect(ImageQuality.high.targetExportBytesPerImage == 420_000)
+    #expect(ImageQuality.economical.maxWidth == 1200)
+    #expect(ImageQuality.economical.jpegQuality == 0.65)
+    #expect(ImageQuality.economical.targetExportBytesPerImage == 100_000)
+    #expect(ImageQuality.balanced.maxWidth == 1600)
+    #expect(ImageQuality.balanced.jpegQuality == 0.78)
+    #expect(ImageQuality.balanced.targetExportBytesPerImage == 200_000)
+    #expect(ImageQuality.high.maxWidth == 2200)
+    #expect(ImageQuality.high.jpegQuality == 0.85)
+    #expect(ImageQuality.high.targetExportBytesPerImage == 350_000)
 }
 
 @Test func photoRecordDisplayPath() {
@@ -43,26 +43,47 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(photo.displayImagePath == "base/annotated.png")
 }
 
-@Test func projectSortedPhotosUsesManualPosition() {
+@Test func reportSortedPhotosUsesManualPosition() {
     let earlyDate = Date(timeIntervalSince1970: 1_000)
     let lateDate = Date(timeIntervalSince1970: 2_000)
 
-    let project = Project(name: "Project")
+    let report = Report(name: "Report")
     let first = PhotoRecord(imagePath: "a.jpg", position: 1, createdAt: earlyDate)
     let second = PhotoRecord(imagePath: "b.jpg", position: 0, createdAt: lateDate)
     let tieBreaker = PhotoRecord(imagePath: "c.jpg", position: 0, createdAt: earlyDate)
 
-    first.project = project
-    second.project = project
-    tieBreaker.project = project
-    project.photos = [first, second, tieBreaker]
+    first.report = report
+    second.report = report
+    tieBreaker.report = report
+    report.photos = [first, second, tieBreaker]
 
-    #expect(project.sortedPhotos.map(\.imagePath) == ["c.jpg", "b.jpg", "a.jpg"])
+    #expect(report.sortedPhotos.map(\.imagePath) == ["c.jpg", "b.jpg", "a.jpg"])
 }
 
-@Test func projectDefaultsToDisabledNumberedImageExport() {
+@Test func reportDefaultsToDisabledNumberedImageExport() {
+    let report = Report(name: "Report")
+    #expect(report.showsNumberedImagesInReport == false)
+}
+
+@Test func projectSortsReportsNewestFirst() {
     let project = Project(name: "Project")
-    #expect(project.showsNumberedImagesInReport == false)
+    let older = Report(name: "Older", date: Date(timeIntervalSince1970: 1_000))
+    let newer = Report(name: "Newer", date: Date(timeIntervalSince1970: 2_000))
+    older.project = project
+    newer.project = project
+    project.reports = [older, newer]
+
+    #expect(project.sortedReports.map(\.name) == ["Newer", "Older"])
+}
+
+@Test func reportAddressOverridesProjectAddressWhenPresent() {
+    let project = Project(name: "Project", address: "Project address")
+    let report = Report(name: "Report", address: "Report address", project: project)
+
+    #expect(report.reportAddress == "Report address")
+
+    report.address = nil
+    #expect(report.reportAddress == "Project address")
 }
 
 @Test func xmlEscaping() {
@@ -502,9 +523,9 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
 }
 
 @Test func resolvedExportBrandingFallsBackToLegacyDefaultsWithoutProfile() {
-    let project = Project(name: "Fallback")
+    let report = Report(name: "Fallback")
 
-    let branding = ResolvedExportBranding.resolve(for: project)
+    let branding = ResolvedExportBranding.resolve(for: report)
 
     #expect(branding.footerAddressLine == "כפר ויתקין, ת\"ד ‎635‎ מיקוד ‎4020000‎")
     #expect(branding.primaryFooterLinePDF == "אבישי ‎054-6222577‎ דוא\"ל ‎iter@iter.co.il‎")
@@ -523,9 +544,9 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
         primaryFooterLineDOCX: "Custom docx line",
         secondaryFooterLine: "Custom secondary line"
     )
-    let project = Project(name: "Branded", brandingProfile: brandingProfile)
+    let report = Report(name: "Branded", brandingProfile: brandingProfile)
 
-    let branding = ResolvedExportBranding.resolve(for: project)
+    let branding = ResolvedExportBranding.resolve(for: report)
 
     #expect(branding.footerAddressLine == "Custom address")
     #expect(branding.primaryFooterLinePDF == "Custom pdf line")
@@ -559,9 +580,9 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
         primaryFooterLineDOCX: "Primary",
         secondaryFooterLine: "Secondary"
     )
-    let project = Project(name: "Branded", brandingProfile: brandingProfile)
+    let report = Report(name: "Branded", brandingProfile: brandingProfile)
 
-    let branding = ResolvedExportBranding.resolve(for: project)
+    let branding = ResolvedExportBranding.resolve(for: report)
 
     #expect(branding.logoImageData == nil)
     #expect(branding.footerAddressLine.isEmpty)
@@ -584,9 +605,9 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
         secondaryFooterLine: "Secondary"
     )
     BrandingAssetStorage.deleteCustomLogo(for: brandingProfile)
-    let project = Project(name: "Branded", brandingProfile: brandingProfile)
+    let report = Report(name: "Branded", brandingProfile: brandingProfile)
 
-    let branding = ResolvedExportBranding.resolve(for: project)
+    let branding = ResolvedExportBranding.resolve(for: report)
 
     #expect(branding.logoImageData == ResolvedExportBranding.legacyDefault.logoImageData)
 }
@@ -610,8 +631,8 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     try BrandingAssetStorage.saveCustomLogo(customImage, for: brandingProfile)
     defer { BrandingAssetStorage.deleteCustomLogo(for: brandingProfile) }
 
-    let project = Project(name: "Branded", brandingProfile: brandingProfile)
-    let branding = ResolvedExportBranding.resolve(for: project)
+    let report = Report(name: "Branded", brandingProfile: brandingProfile)
+    let branding = ResolvedExportBranding.resolve(for: report)
 
     #expect(branding.logoImageData != nil)
     #expect(branding.logoImageData != ResolvedExportBranding.legacyDefault.logoImageData)
@@ -693,7 +714,7 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
         photoCount: 126
     )
 
-    #expect(options.exportImageMaxBytes == 150_793)
+    #expect(options.exportImageMaxBytes == 63_492)
     #expect(options.exportImageMaxBytes < ImageQuality.economical.targetExportBytesPerImage)
 
     let baseRenderWidth = min(ImageQuality.economical.maxWidth, options.imageContentWidth * 2.2)
@@ -734,17 +755,21 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
 
     let project = Project(
         name: "בדיקת יצוא",
-        address: "כפר ויתקין",
+        address: "כפר ויתקין"
+    )
+    let report = Report(
+        name: "בדיקת יצוא",
         date: Date(timeIntervalSince1970: 1_700_000_000),
-        notes: "תקין"
+        notes: "תקין",
+        project: project
     )
     let photo = PhotoRecord(
         imagePath: imagePath,
         freeText: "שורת בדיקה",
         position: 0
     )
-    photo.project = project
-    project.photos = [photo]
+    photo.report = report
+    report.photos = [photo]
 
     let options = ExportOptions(
         format: .docx,
@@ -753,7 +778,7 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     )
 
     let outputURL = try await DocxExporter.export(
-        project: project,
+        report: report,
         photos: [photo],
         options: options,
         onProgress: { _ in }
@@ -845,7 +870,7 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(!documentText.contains("<w:tab w:val=\"num\""))
     #expect(documentText.contains(">כתובת<"))
     #expect(documentText.contains(">כפר ויתקין<"))
-    #expect(documentText.contains(">\(ExportTextFormatter.reportCoverDateString(from: project.date))<"))
+    #expect(documentText.contains(">\(ExportTextFormatter.reportCoverDateString(from: report.date))<"))
     #expect(!documentText.contains(">נוכחים:<"))
     #expect(documentText.contains(">הערות<"))
     #expect(documentText.contains(">תקין<"))
@@ -876,17 +901,21 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
 
     let project = Project(
         name: "בדיקת יצוא ללא לוגו",
-        address: "כפר ויתקין",
+        address: "כפר ויתקין"
+    )
+    let report = Report(
+        name: "בדיקת יצוא ללא לוגו",
         date: Date(timeIntervalSince1970: 1_700_000_000),
-        notes: "תקין"
+        notes: "תקין",
+        project: project
     )
     let photo = PhotoRecord(
         imagePath: imagePath,
         freeText: "שורת בדיקה",
         position: 0
     )
-    photo.project = project
-    project.photos = [photo]
+    photo.report = report
+    report.photos = [photo]
 
     let branding = ResolvedExportBranding(
         logoImageData: nil,
@@ -907,7 +936,7 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     )
 
     let outputURL = try await DocxExporter.export(
-        project: project,
+        report: report,
         photos: [photo],
         options: options,
         branding: branding,
@@ -942,9 +971,13 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
 
     let project = Project(
         name: projectName,
-        address: "Address",
+        address: "Address"
+    )
+    let report = Report(
+        name: projectName,
         date: Date(timeIntervalSince1970: 1_700_000_000),
-        notes: "Notes"
+        notes: "Notes",
+        project: project
     )
     let options = ExportOptions(
         format: .docx,
@@ -964,7 +997,7 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     try "stale-lock".write(to: staleLockURL, atomically: true, encoding: .utf8)
 
     let outputURL = try await DocxExporter.export(
-        project: project,
+        report: report,
         photos: [],
         options: options,
         onProgress: { _ in }

@@ -6,7 +6,151 @@ import UniformTypeIdentifiers
 struct ProjectDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var project: Project
+    @State private var showingNewReport = false
     @State private var showingEditProject = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        let sortedReports = project.sortedReports
+
+        List {
+            if sortedReports.isEmpty {
+                EmptyStateView(
+                    icon: "doc.text",
+                    title: AppStrings.text("אין דוחות"),
+                    subtitle: AppStrings.text("לחץ + להוספת דוח חדש")
+                )
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            } else {
+                ForEach(sortedReports) { report in
+                    NavigationLink(value: report) {
+                        ProjectReportRowView(report: report)
+                    }
+                }
+                .onDelete(perform: deleteReports)
+            }
+        }
+        .navigationTitle(project.name)
+        .navigationDestination(for: Report.self) { report in
+            ReportDetailView(report: report)
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    showingNewReport = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+            }
+
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showingEditProject = true
+                } label: {
+                    Image(systemName: "pencil")
+                }
+            }
+        }
+        .sheet(isPresented: $showingNewReport) {
+            NavigationStack {
+                ReportFormView(mode: .create, project: project)
+            }
+        }
+        .sheet(isPresented: $showingEditProject) {
+            NavigationStack {
+                ProjectFormView(mode: .edit, project: project)
+            }
+        }
+        .alert(AppStrings.text("מחיקה נכשלה"), isPresented: errorAlertPresented) {
+            Button(AppStrings.text("אישור"), role: .cancel) {
+                errorMessage = nil
+            }
+        } message: {
+            Text(errorMessage ?? AppStrings.text("אירעה שגיאה בשמירה"))
+        }
+    }
+
+    private func deleteReports(at offsets: IndexSet) {
+        let sorted = project.sortedReports
+        let deletedReports = offsets.map { sorted[$0] }
+        let deletedPhotoPaths = deletedReports.flatMap { report in
+            report.photos.map { photo in
+                (originalPath: photo.imagePath, annotatedPath: photo.annotatedImagePath)
+            }
+        }
+
+        for report in deletedReports {
+            modelContext.delete(report)
+        }
+
+        do {
+            try modelContext.save()
+
+            Task {
+                for photoPath in deletedPhotoPaths {
+                    await ImageStorageService.shared.deletePhotoFiles(
+                        originalPath: photoPath.originalPath,
+                        annotatedPath: photoPath.annotatedPath
+                    )
+                }
+            }
+        } catch {
+            for report in deletedReports {
+                modelContext.insert(report)
+            }
+            errorMessage = userFacingErrorMessage(for: error)
+        }
+    }
+
+    private var errorAlertPresented: Binding<Bool> {
+        Binding(
+            get: { errorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    errorMessage = nil
+                }
+            }
+        )
+    }
+
+    private func userFacingErrorMessage(for error: Error) -> String {
+        let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        return description.isEmpty ? AppStrings.text("אירעה שגיאה בשמירה") : description
+    }
+}
+
+private struct ProjectReportRowView: View {
+    let report: Report
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(AppStrings.format("%d תמונות", report.photos.count))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(report.name.directionallyIsolated)
+                    .font(.headline)
+                    .multilineTextAlignment(.trailing)
+
+                Text(report.date, style: .date)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .padding(.vertical, 2)
+        .environment(\.layoutDirection, .leftToRight)
+    }
+}
+
+struct ReportDetailView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Bindable var report: Report
+    @State private var showingEditReport = false
     @State private var showingExportOptions = false
     @State private var activePicker: PickerSource?
     @State private var isSavingPhotos = false
@@ -17,7 +161,7 @@ struct ProjectDetailView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        let sortedPhotos = project.sortedPhotos
+        let sortedPhotos = report.sortedPhotos
 
         List {
             Section {
@@ -44,7 +188,7 @@ struct ProjectDetailView: View {
                 }
             } header: {
                 HStack {
-                    Text(AppStrings.format("תמונות (%d)", project.photos.count))
+                    Text(AppStrings.format("תמונות (%d)", report.photos.count))
                     Spacer()
                 }
             }
@@ -60,9 +204,9 @@ struct ProjectDetailView: View {
                 }
             }
         }
-        .navigationTitle(project.name)
+        .navigationTitle(report.name)
         .navigationDestination(for: PhotoRecord.self) { photo in
-            PhotoDetailView(photo: photo, project: project)
+            PhotoDetailView(photo: photo, report: report)
         }
         .environment(\.editMode, $editMode)
         .toolbar {
@@ -98,12 +242,12 @@ struct ProjectDetailView: View {
                             systemImage: isReorderingPhotos ? "checkmark.circle" : "line.3.horizontal"
                         )
                     }
-                    .disabled(project.photos.count < 2 || isSavingPhotos)
+                    .disabled(report.photos.count < 2 || isSavingPhotos)
 
                     Button {
-                        showingEditProject = true
+                        showingEditReport = true
                     } label: {
-                        Label(AppStrings.text("ערוך פרויקט"), systemImage: "pencil")
+                        Label(AppStrings.text("ערוך דוח"), systemImage: "pencil")
                     }
                     .disabled(isReorderingPhotos)
 
@@ -118,13 +262,15 @@ struct ProjectDetailView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingEditProject) {
+        .sheet(isPresented: $showingEditReport) {
             NavigationStack {
-                ProjectFormView(mode: .edit, project: project)
+                if let project = report.project {
+                    ReportFormView(mode: .edit, project: project, report: report)
+                }
             }
         }
         .sheet(isPresented: $showingExportOptions) {
-            ExportOptionsSheet(project: project)
+            ExportOptionsSheet(report: report)
         }
         .sheet(item: $activePicker) { source in
             switch source {
@@ -247,13 +393,13 @@ struct ProjectDetailView: View {
     private func savePhotoRecord(from image: UIImage) async throws -> PhotoRecord {
         let imagePath = try await ImageStorageService.shared.saveImage(
             image,
-            projectID: project.id.uuidString
+            projectID: report.project?.id.uuidString ?? report.id.uuidString
         )
         let photo = PhotoRecord(
             imagePath: imagePath,
             position: nextPhotoPosition()
         )
-        photo.project = project
+        photo.report = report
         modelContext.insert(photo)
         return photo
     }
@@ -329,7 +475,7 @@ struct ProjectDetailView: View {
     }
 
     private func deletePhotos(at offsets: IndexSet) {
-        let sorted = project.sortedPhotos
+        let sorted = report.sortedPhotos
         let deletedPhotos = offsets.map { sorted[$0] }
         let originalPositions = Dictionary(uniqueKeysWithValues: sorted.map { ($0.id, $0.position) })
 
@@ -366,7 +512,7 @@ struct ProjectDetailView: View {
     }
 
     private func movePhotos(from source: IndexSet, to destination: Int) {
-        var reorderedPhotos = project.sortedPhotos
+        var reorderedPhotos = report.sortedPhotos
         let originalPositions = Dictionary(uniqueKeysWithValues: reorderedPhotos.map { ($0.id, $0.position) })
         reorderedPhotos.move(fromOffsets: source, toOffset: destination)
         normalizePhotoPositions(using: reorderedPhotos)
@@ -374,13 +520,13 @@ struct ProjectDetailView: View {
         do {
             try saveModelContext()
         } catch {
-            restorePhotoPositions(from: originalPositions, photos: project.sortedPhotos)
+            restorePhotoPositions(from: originalPositions, photos: report.sortedPhotos)
             errorMessage = userFacingErrorMessage(for: error)
         }
     }
 
     private func nextPhotoPosition() -> Int {
-        (project.photos.map(\.position).max() ?? -1) + 1
+        (report.photos.map(\.position).max() ?? -1) + 1
     }
 
     private func normalizePhotoPositions(using orderedPhotos: [PhotoRecord]) {

@@ -1,5 +1,45 @@
 # TODO
 
+- [x] Inspect project/report settings RTL layout entry points
+- [x] Fix Hebrew form headers, address rows, date divider, and image-numbering toggle order
+- [x] Build and visually verify the project settings and report edit screens on an iPhone portrait simulator
+- [x] Record verification results for the RTL layout pass
+
+## Review
+
+- Updated `ProjectFormView` and `ReportFormView` so Hebrew section headers use explicit right-anchored containers instead of default `Section("...")` placement.
+- Reworked address rows into an inline `כתובת:` field, backed by a UIKit text field with a fixed right-side label so the label/value read as one row and remain editable in both project settings and report edit.
+- Replaced the report date and image-numbering rows with explicit RTL helpers: the date divider spans the full row, and the image-numbering toggle sits on the visual left with the Hebrew label on the right.
+- Validation:
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -configuration Debug -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' build` passed.
+- `build_run_sim` launched successfully on the booted iPhone 16 portrait simulator (`AA68CADB-2203-4CB3-A38E-1BA44EC9B389`).
+- Simulator visual check covered project creation/editing and report creation/editing. Report save and edit save both returned to the expected screens, and the report edit screen showed right-aligned `פרטי דוח` / `נוכחים:`, a complete date divider, inline `כתובת:`, and the toggle on the visual left.
+
+- [x] Implement SwiftData V8 project-folder/report hierarchy
+- [x] Migrate each legacy report-like project into one project folder with one report
+- [x] Refactor main project list, project detail report list, and report detail photo/export flow
+- [x] Update Hebrew report/project/settings labels
+- [x] Add per-report address override under the report date, defaulting from the parent project address
+- [x] Move the report edit date label to the visual right and date picker value to the visual left
+- [x] Build and test the app, then record verification results
+
+## Review
+
+- Added `InspectorProSchemaV8` with project folders, reports, and report-owned photos. The `V7 -> V8` custom migration preserves each legacy report-like project as one folder with one report, keeps the legacy project UUID as the folder ID for existing image paths, and carries branding/photos/report metadata forward.
+- Added `InspectorProSchemaV9` for report-level address overrides without mutating the already-defined V8 schema. New reports copy the parent project address into the report, existing reports fall back to the project address and are backfilled on bootstrap when possible, and exports now prefer the report address before falling back to the project address.
+- Main project creation now captures only project name/address. Opening a project lists reports; creating/editing a report uses the existing report metadata/photo/export flow under `דוח חדש` / `עריכת דוח`.
+- The report edit form now shows an editable `כתובת` field under the date. The date row was adjusted so `תאריך` is on the visual right and the date picker value is on the visual left.
+- Exports now operate on `Report` and resolve cover-page address output from the report override first, then the parent project address. Branding bootstrap/backfill now assigns default branding to reports.
+- Replaced the branding settings toggle label from `הצג פוטר בדוח` to `הצג כותרת בדוח`. A whole-code search confirms the old exact string no longer appears under `InspectorPro/`.
+- Updated export tests for the new `Report` model and current image-quality constants.
+- Validation:
+- Initial requested build without a destination failed before compilation because Xcode selected `My Mac`, whose provisioning profile is not valid for this iOS target.
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -configuration Debug -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' build` passed.
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' test` passed with 49 Swift Testing tests.
+- Simulator smoke check passed: the app built, installed, launched on iPhone 16 simulator, and displayed the Hebrew projects root screen.
+- Residual warning:
+- The existing CoreData editable-model checksum warning still appears during test startup.
+
 - [x] Confirm the remaining DOCX problem: visually good literal bullets do not align with manually added real Word bullets
 - [x] Inspect the latest clipped-bullet DOCX and confirm `w:start="360"` with `w:hanging="360"` places the marker on the table-cell edge
 - [x] Increase the logical RTL bullet start indent so the marker has visible room inside the cell

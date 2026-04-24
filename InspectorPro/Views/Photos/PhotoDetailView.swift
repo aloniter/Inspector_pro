@@ -5,7 +5,7 @@ struct PhotoDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.layoutDirection) private var layoutDirection
     @Bindable var photo: PhotoRecord
-    let project: Project
+    let report: Report
 
     @State private var displayedImage: UIImage?
     @State private var originalImage: UIImage?
@@ -123,7 +123,7 @@ struct PhotoDetailView: View {
                     image: baseImage,
                     originalImage: originalImage ?? baseImage,
                     photo: photo,
-                    project: project
+                    report: report
                 )
             }
         }

@@ -4,22 +4,22 @@ import ZIPFoundation
 
 final class DocxExporter {
     static func export(
-        project: Project,
+        report: Report,
         photos: [PhotoRecord],
         options: ExportOptions,
         onProgress: @escaping @Sendable (Double) -> Void
     ) async throws -> URL {
         try await export(
-            project: project,
+            report: report,
             photos: photos,
             options: options,
-            branding: ResolvedExportBranding.resolve(for: project),
+            branding: ResolvedExportBranding.resolve(for: report),
             onProgress: onProgress
         )
     }
 
     static func export(
-        project: Project,
+        report: Report,
         photos: [PhotoRecord],
         options: ExportOptions,
         branding: ResolvedExportBranding,
@@ -42,8 +42,16 @@ final class DocxExporter {
             try fm.createDirectory(at: dir, withIntermediateDirectories: true)
         }
 
+        #if DEBUG
+        print("[DocxExport] mode=\(options.quality.rawValue) photos=\(photos.count) perImageBudget=\(options.exportImageMaxBytes)B maxRenderWidth=\(Int(options.exportImageMaxRenderWidth))px")
+        #endif
+
         if let logoImageData = branding.logoImageData {
-            try logoImageData.write(to: mediaDir.appendingPathComponent("image1.jpeg"))
+            let compressedLogo = compressLogo(logoImageData)
+            try compressedLogo.write(to: mediaDir.appendingPathComponent("image1.jpeg"))
+            #if DEBUG
+            print("[DocxExport] logo raw=\(logoImageData.count)B → compressed=\(compressedLogo.count)B")
+            #endif
         }
 
         let includesLogo = branding.logoImageData != nil
@@ -65,9 +73,12 @@ final class DocxExporter {
         var imageId = 1
         var imageRelationships: [String] = []
         var photoRowsXML = ""
+        #if DEBUG
+        var totalImagePayloadBytes = 0
+        #endif
 
         for (index, photo) in photos.enumerated() {
-            let itemNumber = project.showsNumberedImagesInReport ? index + 1 : nil
+            let itemNumber = report.showsNumberedImagesInReport ? index + 1 : nil
 
             let result = try processImage(
                 photo: photo,
@@ -79,6 +90,12 @@ final class DocxExporter {
                 maxRenderWidth: options.exportImageMaxRenderWidth,
                 maxBytes: options.exportImageMaxBytes
             )
+            #if DEBUG
+            totalImagePayloadBytes += result.compressedBytes
+            if index < 3 || index == totalPhotos - 1 {
+                print("[DocxExport] photo[\(index)] compressed=\(result.compressedBytes)B out=\(result.widthEMU / 9144)×\(result.heightEMU / 9144)pt")
+            }
+            #endif
 
             imageRelationships.append(
                 """
@@ -94,7 +111,7 @@ final class DocxExporter {
                 imageId: imageId,
                 imageCrop: result.crop,
                 itemNumber: itemNumber,
-                showsNumberedImagesInReport: project.showsNumberedImagesInReport,
+                showsNumberedImagesInReport: report.showsNumberedImagesInReport,
                 rowHeightTwips: options.targetPhotoRowHeightTwips,
                 imageColumnWidthTwips: options.imageColumnWidthTwips,
                 textColumnWidthTwips: options.textColumnWidthTwips
@@ -113,12 +130,12 @@ final class DocxExporter {
             textColumnWidthTwips: options.textColumnWidthTwips
         )
 
-        let address = normalizedText(project.address)
-        let attendees = normalizedOptionalText(project.attendees)
-        let notes = normalizedText(project.notes)
-        let date = ExportTextFormatter.reportCoverDateString(from: project.date)
+        let address = normalizedText(report.reportAddress)
+        let attendees = normalizedOptionalText(report.attendees)
+        let notes = normalizedText(report.notes)
+        let date = ExportTextFormatter.reportCoverDateString(from: report.date)
         var documentXML = DocxTemplateBuilder.documentXML(options: options)
-        documentXML = documentXML.replacingOccurrences(of: "{{PROJECT_TITLE}}", with: OpenXMLBuilder.escapeXML(project.name))
+        documentXML = documentXML.replacingOccurrences(of: "{{PROJECT_TITLE}}", with: OpenXMLBuilder.escapeXML(report.name))
         documentXML = documentXML.replacingOccurrences(
             of: "{{COVER_DETAILS}}",
             with: DocxTemplateBuilder.coverDetailsXML(
@@ -145,15 +162,24 @@ final class DocxExporter {
         try DocxTemplateBuilder.fontTableXML().write(to: wordDir.appendingPathComponent("fontTable.xml"), atomically: true, encoding: .utf8)
 
         let outputURL = outputFileURL(
-            projectName: project.name,
-            date: project.date,
+            projectName: report.name,
+            date: report.date,
             fileExtension: "docx",
             fileManager: fm
         )
 
+        #if DEBUG
+        print("[DocxExport] totalImagePayload=\(totalImagePayloadBytes / 1024)KB estimatedDocxSize≈\((totalImagePayloadBytes + 200_000) / 1024)KB")
+        #endif
+
         try? fm.removeItem(at: outputURL)
         try fm.zipItem(at: tempDir, to: outputURL, shouldKeepParent: false)
         try? fm.setAttributes([.posixPermissions: 0o644], ofItemAtPath: outputURL.path)
+
+        #if DEBUG
+        let finalBytes = (try? fm.attributesOfItem(atPath: outputURL.path)[.size] as? Int) ?? 0
+        print("[DocxExport] finalDocxSize=\(finalBytes / 1024)KB (\(String(format: "%.1f", Double(finalBytes) / 1_000_000))MB)")
+        #endif
 
         return outputURL
     }
@@ -165,6 +191,14 @@ final class DocxExporter {
         let widthEMU: Int
         let heightEMU: Int
         let crop: OpenXMLBuilder.ImageCrop
+        let compressedBytes: Int
+    }
+
+    private static func compressLogo(_ data: Data) -> Data {
+        guard let image = UIImage(data: data) else { return data }
+        let maxLogoWidth: CGFloat = 500
+        let resized = image.resized(maxWidth: maxLogoWidth)
+        return resized.jpegDataStripped(quality: 0.75) ?? data
     }
 
     private static func processImage(
@@ -222,7 +256,7 @@ final class DocxExporter {
         let imageURL = mediaDir.appendingPathComponent(filename)
         try imageData.write(to: imageURL)
 
-        return ImageResult(filename: filename, widthEMU: displayWidthEMU, heightEMU: displayHeightEMU, crop: crop)
+        return ImageResult(filename: filename, widthEMU: displayWidthEMU, heightEMU: displayHeightEMU, crop: crop, compressedBytes: imageData.count)
     }
 
     private static func normalizedText(_ value: String?) -> String {

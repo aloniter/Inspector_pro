@@ -17,6 +17,9 @@ packages:
   ZIPFoundation:
     url: https://github.com/weichsel/ZIPFoundation.git
     from: "0.9.19"
+  Supabase:
+    url: https://github.com/supabase/supabase-swift.git
+    from: "2.0.0"
 
 targets:
   InspectorPro:
@@ -31,6 +34,7 @@ targets:
       - path: InspectorPro/Resources
     dependencies:
       - package: ZIPFoundation
+      - package: Supabase
     scheme:
       testTargets:
         - InspectorProTests

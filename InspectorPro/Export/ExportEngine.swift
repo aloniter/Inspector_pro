@@ -23,15 +23,15 @@ enum ExportError: LocalizedError {
 }
 
 final class ExportEngine {
-    /// Export a project report.
+    /// Export a report.
     /// - Parameters:
-    ///   - project: The project to export
-    ///   - photos: Sorted photos for the project
+    ///   - report: The report to export
+    ///   - photos: Sorted photos for the report
     ///   - options: Export options (format, quality)
     ///   - onProgress: Progress callback (0.0 to 1.0)
     /// - Returns: URL of the exported file
     static func exportReport(
-        project: Project,
+        report: Report,
         photos: [PhotoRecord],
         options: ExportOptions,
         onProgress: @escaping @Sendable (Double) -> Void
@@ -44,7 +44,7 @@ final class ExportEngine {
         case .pdf:
             do {
                 return try await PdfExporter.export(
-                    project: project,
+                    report: report,
                     photos: photos,
                     options: options,
                     onProgress: onProgress
@@ -57,7 +57,7 @@ final class ExportEngine {
         case .docx:
             do {
                 return try await DocxExporter.export(
-                    project: project,
+                    report: report,
                     photos: photos,
                     options: options,
                     onProgress: onProgress

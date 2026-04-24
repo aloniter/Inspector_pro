@@ -33,3 +33,6 @@ Package.resolved
 # IDE
 .idea/
 .vscode/
+
+# Supabase secrets (use SupabaseConfig.plist.example as template)
+InspectorPro/Resources/SupabaseConfig.plist

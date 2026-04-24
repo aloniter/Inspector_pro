@@ -3,7 +3,8 @@ import SwiftData
 
 struct ProjectListView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Project.date, order: .reverse) private var projects: [Project]
+    @Environment(AuthService.self) private var authService
+    @Query(sort: \Project.name) private var projects: [Project]
     @AppStorage(AppPreferenceKeys.darkModeEnabled) private var darkModeEnabled = false
     @AppStorage(AppPreferenceKeys.languageCode) private var languageCode = AppLanguage.hebrew.rawValue
 
@@ -67,6 +68,14 @@ struct ProjectListView: View {
                         languageCode: $languageCode
                     )
                 }
+                .environment(authService)
+            }
+            .alert(AppStrings.text("מחיקה נכשלה"), isPresented: errorAlertPresented) {
+                Button(AppStrings.text("אישור"), role: .cancel) {
+                    errorMessage = nil
+                }
+            } message: {
+                Text(errorMessage ?? AppStrings.text("אירעה שגיאה בשמירה"))
             }
             .alert(AppStrings.text("מחיקה נכשלה"), isPresented: errorAlertPresented) {
                 Button(AppStrings.text("אישור"), role: .cancel) {
@@ -123,7 +132,7 @@ struct ProjectRowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Text(AppStrings.format("%d תמונות", project.photos.count))
+            Text(AppStrings.format("%d דוחות", project.reports.count))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -132,11 +141,6 @@ struct ProjectRowView: View {
                 Text(project.name.directionallyIsolated)
                     .font(.headline)
                     .multilineTextAlignment(.trailing)
-
-                Text(project.date, style: .date)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
 
                 if let address = project.address, !address.isEmpty {
                     Text(address.directionallyIsolated)
@@ -154,7 +158,7 @@ struct ProjectRowView: View {
     }
 }
 
-private extension String {
+extension String {
     var directionallyIsolated: String {
         guard !isEmpty else { return self }
         if containsHebrewCharacters {
@@ -172,10 +176,19 @@ private extension String {
 
 private struct AppSettingsView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(AuthService.self) private var authService
     @Query(sort: \BrandingProfile.name) private var brandingProfiles: [BrandingProfile]
     @Environment(\.dismiss) private var dismiss
     @Binding var darkModeEnabled: Bool
     @Binding var languageCode: String
+
+    // Account status state
+    @State private var accountEmail: String?
+    @State private var accountCompany: String?
+    @State private var exportPermission: ExportPermissionResult?
+    @State private var trialEndDateString: String?
+    @State private var isRefreshing = false
+    @State private var refreshErrorMessage: String?
 
     private var defaultBrandingProfile: BrandingProfile? {
         brandingProfiles.first(where: \.isDefault) ?? brandingProfiles.first
@@ -190,6 +203,75 @@ private struct AppSettingsView: View {
 
     var body: some View {
         Form {
+            // Account info section — shown only when logged in
+            if authService.isAuthenticated {
+                Section(AppStrings.text("חשבון")) {
+                    if let email = accountEmail {
+                        HStack {
+                            Text(AppStrings.text("משתמש"))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(email)
+                                .font(.subheadline.monospacedDigit())
+                                .foregroundStyle(.primary)
+                                .environment(\.layoutDirection, .leftToRight)
+                        }
+                    }
+
+                    if let company = accountCompany {
+                        HStack {
+                            Text(AppStrings.text("חברה"))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(company)
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
+
+                    HStack {
+                        Text(AppStrings.text("סטטוס ייצוא"))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        exportStatusBadge
+                    }
+
+                    if let trialEnd = trialEndDateString {
+                        HStack {
+                            Text(AppStrings.text("תוקף ניסיון עד"))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(trialEnd)
+                                .font(.subheadline.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Section {
+                    Button {
+                        refresh()
+                    } label: {
+                        HStack {
+                            if isRefreshing {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                    .padding(.trailing, 4)
+                            }
+                            Label(AppStrings.text("רענון פרטי חברה"), systemImage: "arrow.clockwise")
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                    }
+                    .disabled(isRefreshing)
+
+                    if let error = refreshErrorMessage {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                }
+            }
+
             Section(AppStrings.text("מראה")) {
                 Toggle(isOn: $darkModeEnabled) {
                     Label(AppStrings.text("מצב לילה"), systemImage: "moon.stars.fill")
@@ -217,7 +299,7 @@ private struct AppSettingsView: View {
                         BrandingLogoThumbnail(brandingProfile: defaultBrandingProfile)
 
                         VStack(alignment: .trailing, spacing: 2) {
-                            Text(defaultBrandingProfile?.name ?? AppStrings.text("טוען..."))
+                            Text(accountCompany ?? defaultBrandingProfile?.name ?? AppStrings.text("טוען..."))
                                 .foregroundStyle(.primary)
                                 .multilineTextAlignment(.trailing)
 
@@ -241,6 +323,20 @@ private struct AppSettingsView: View {
                 }
             }
 
+            if authService.isAuthenticated {
+                Section {
+                    Button(role: .destructive) {
+                        Task {
+                            await authService.signOut()
+                            dismiss()
+                        }
+                    } label: {
+                        Label(AppStrings.text("יציאה מהחשבון"), systemImage: "rectangle.portrait.and.arrow.right")
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                }
+            }
+
             Section {
                 Text("created by Alon Iter")
                     .font(.footnote)
@@ -253,11 +349,81 @@ private struct AppSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             _ = try? BrandingBootstrapper.fetchOrCreateDefaultBrandingProfile(in: modelContext)
+            await loadAccountStatus()
         }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button(AppStrings.text("סגור")) {
                     dismiss()
+                }
+            }
+        }
+    }
+
+    // MARK: - Export status badge
+
+    @ViewBuilder
+    private var exportStatusBadge: some View {
+        switch exportPermission {
+        case .allowed:
+            Label("פעיל", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .font(.subheadline)
+        case .deniedTrialExpired, .deniedSuspended, .deniedExportDisabled:
+            Label("לא פעיל", systemImage: "xmark.circle.fill")
+                .foregroundStyle(.red)
+                .font(.subheadline)
+        case .cannotVerifyOffline:
+            Label("לא ידוע", systemImage: "wifi.slash")
+                .foregroundStyle(.orange)
+                .font(.subheadline)
+        case nil, .notLoggedIn, .backendError:
+            Text("—")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: - Data loading
+
+    private func loadAccountStatus() async {
+        // Email from current session (synchronous)
+        accountEmail = SupabaseManager.client?.auth.currentUser?.email
+
+        // Company name from branding cache
+        accountCompany = CompanyBrandingService.shared.loadCached()?.name
+
+        // Export permission from cache (instant display), then live
+        exportPermission = ExportPermissionService.shared.cachedResult()
+        trialEndDateString = ExportPermissionService.shared.cachedTrialEndDateString()
+
+        // Fetch live permission (uses network if available, cache if offline)
+        let live = await ExportPermissionService.shared.checkExportAllowed()
+        exportPermission = live
+        trialEndDateString = ExportPermissionService.shared.cachedTrialEndDateString()
+        accountCompany = CompanyBrandingService.shared.loadCached()?.name
+    }
+
+    private func refresh() {
+        isRefreshing = true
+        refreshErrorMessage = nil
+
+        Task {
+            // Force fresh branding sync
+            await CompanyBrandingService.shared.syncForced()
+
+            // Force fresh permission check (always hits network when online)
+            let result = await ExportPermissionService.shared.checkExportAllowed()
+
+            await MainActor.run {
+                exportPermission = result
+                trialEndDateString = ExportPermissionService.shared.cachedTrialEndDateString()
+                accountCompany = CompanyBrandingService.shared.loadCached()?.name
+                isRefreshing = false
+
+                if case .cannotVerifyOffline = result {
+                    refreshErrorMessage = "לא ניתן להתחבר לשרת. נסה שוב כשיש חיבור לאינטרנט."
+                } else if case .backendError = result {
+                    refreshErrorMessage = "שגיאה בעת קבלת נתוני החברה. נסה שוב מאוחר יותר."
                 }
             }
         }
