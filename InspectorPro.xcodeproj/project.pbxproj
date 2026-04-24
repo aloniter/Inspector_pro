@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -95,14 +95,14 @@
 		84A8347F124C540B2E6CD62A /* DocxExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocxExporter.swift; sourceTree = "<group>"; };
 		89D09CE2BE015C00BA34A9B3 /* ExportEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportEngine.swift; sourceTree = "<group>"; };
 		8F16CB3736D4EAD7A910794A /* UIImage+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIImage+Extensions.swift"; sourceTree = "<group>"; };
-		99BB129CC73426C31BB901D1 /* SupabaseConfig.plist.example */ = {isa = PBXFileReference; path = SupabaseConfig.plist.example; sourceTree = "<group>"; };
+		99BB129CC73426C31BB901D1 /* SupabaseConfig.plist.example */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = SupabaseConfig.plist.example; sourceTree = "<group>"; };
 		9B025AA83129A5B9CB75B1A1 /* BrandingFooterFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandingFooterFormatter.swift; sourceTree = "<group>"; };
 		9BBBE3BB0DE9EC7D13278610 /* ImageStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageStorageService.swift; sourceTree = "<group>"; };
 		9D2D566AD2B33FCDFAB0D24E /* DefaultBrandingProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultBrandingProfile.swift; sourceTree = "<group>"; };
 		9E949DD5078F59B2E114E1CD /* PhotoRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoRecord.swift; sourceTree = "<group>"; };
 		A07E143472BCA8DF142C9D71 /* Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Project.swift; sourceTree = "<group>"; };
 		A157C843E792CBCC8332C1E4 /* DirectionalTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectionalTextEditor.swift; sourceTree = "<group>"; };
-		A78CCC2D2864588E52D716C2 /* template.docx */ = {isa = PBXFileReference; path = template.docx; sourceTree = "<group>"; };
+		A78CCC2D2864588E52D716C2 /* template.docx */ = {isa = PBXFileReference; lastKnownFileType = file; path = template.docx; sourceTree = "<group>"; };
 		A8B62DD3F09EC8E24B52C6F3 /* DocxTemplateBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocxTemplateBuilder.swift; sourceTree = "<group>"; };
 		AB143F75D35501113F93AF18 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		B0801AB032F97290B669F0EB /* BrandingAssetStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandingAssetStorage.swift; sourceTree = "<group>"; };
@@ -129,7 +129,7 @@
 		ECB8093C939BF929F24FF6C7 /* ExportPermissionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportPermissionService.swift; sourceTree = "<group>"; };
 		ED2F7B37D39457139734FA1B /* DirectionalTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectionalTextField.swift; sourceTree = "<group>"; };
 		F56D2A245B0D2323F87A406A /* TemplateExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateExtractor.swift; sourceTree = "<group>"; };
-		F7D74ED2E469D3997EE4DF95 /* InspectorPro.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = InspectorPro.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F7D74ED2E469D3997EE4DF95 /* InspectorPro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = InspectorPro.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FD08C4F7B6F23023CA8B0BC1 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -418,7 +418,6 @@
 				BFDF2FBD06528DA0217EDD16 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				A263488A13732210B0504FC0 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 			);
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -556,7 +555,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = H29SVV6K2S;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Inspector Pro";
+				INFOPLIST_KEY_CFBundleDisplayName = Inspectley;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSCameraUsageDescription = "המצלמה נדרשת לצילום תמונות לפרויקט";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "גישה לגלריה נדרשת לייבוא תמונות לפרויקט";
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
@@ -567,7 +567,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aloniter.inspectorpro;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -641,7 +641,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = H29SVV6K2S;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Inspector Pro";
+				INFOPLIST_KEY_CFBundleDisplayName = Inspectley;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSCameraUsageDescription = "המצלמה נדרשת לצילום תמונות לפרויקט";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "גישה לגלריה נדרשת לייבוא תמונות לפרויקט";
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
@@ -652,7 +653,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aloniter.inspectorpro;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
