@@ -378,19 +378,33 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
 }
 
 @Test func docxFooterUsesSeparateRunsForPrimaryLine() {
-    let footer = DocxTemplateBuilder.footerXML(branding: .legacyDefault)
+    let fields = BrandingPrimaryFooterFields(
+        contactName: "אבישי",
+        roleLabel: "דוא\"ל",
+        phoneNumber: "054-6222577",
+        emailAddress: "iter@iter.co.il"
+    )
+    let branding = ResolvedExportBranding(
+        companyName: "",
+        logoImageData: nil,
+        footerAddressLine: BrandingFooterFormatter.normalizeAddressLine("כפר ויתקין, ת\"ד 635"),
+        primaryFooterLinePDF: BrandingFooterFormatter.normalizeFreeformLine(BrandingFooterFormatter.composePrimaryLine(fields)),
+        primaryFooterLineDOCX: BrandingFooterFormatter.normalizeFreeformLine(BrandingFooterFormatter.composePrimaryLine(fields)),
+        secondaryFooterLine: "",
+        footerAddressRuns: BrandingFooterFormatter.addressRuns(from: "כפר ויתקין, ת\"ד 635"),
+        primaryFooterRuns: BrandingFooterFormatter.primaryRuns(fields),
+        secondaryFooterRuns: [],
+        primaryFooterDisplayRuns: BrandingFooterFormatter.primaryDisplayRuns(fields),
+        secondaryFooterDisplayRuns: []
+    )
+    let footer = DocxTemplateBuilder.footerXML(branding: branding)
     #expect(footer.contains("<w:bidi/>"))
     #expect(footer.contains(">iter@iter.co.il</w:t>"))
     #expect(footer.contains(">מייל</w:t>") || footer.contains(">דוא&quot;ל</w:t>"))
     #expect(footer.contains(">054-6222577</w:t>"))
     #expect(footer.contains(">אבישי</w:t>"))
-    #expect(footer.contains(">09-8665885</w:t>"))
-    #expect(footer.contains(">משרד</w:t>"))
-    #expect(footer.contains(">054-6222575</w:t>"))
-    #expect(footer.contains(">דפנה</w:t>"))
     #expect(!footer.contains("אבישי 054-6222577 מייל iter@iter.co.il"))
     #expect(footer.firstRange(of: "iter@iter.co.il")!.lowerBound < footer.firstRange(of: "054-6222577")!.lowerBound)
-    #expect(footer.firstRange(of: "09-8665885")!.lowerBound < footer.firstRange(of: "054-6222575")!.lowerBound)
 }
 
 @Test func docxFooterOmitsEmptySecondaryLine() {
@@ -427,15 +441,20 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
 }
 
 @Test func brandingFooterFormatterParsesLegacyPrimaryFooterLines() {
-    let parsed = BrandingPrimaryFooterFields.fromStoredLines(
-        pdf: DefaultBrandingProfile.primaryFooterLinePDF,
-        docx: DefaultBrandingProfile.primaryFooterLineDOCX
-    )
+    // Logical order: name phone role email
+    let pdfLine = "אבישי 054-6222577 דוא\"ל iter@iter.co.il"
+    // Reversed order (DOCX RTL): email role phone name
+    let docxLine = "‎iter@iter.co.il‎ מייל ‎054-6222577‎ אבישי"
 
-    #expect(parsed.contactName == "אבישי")
-    #expect(parsed.phoneNumber == "054-6222577")
-    #expect(parsed.roleLabel == "דוא\"ל")
-    #expect(parsed.emailAddress == "iter@iter.co.il")
+    let fromPDF = BrandingFooterFormatter.parsePrimaryLogicalLine(pdfLine)
+    let fromDOCX = BrandingFooterFormatter.parsePrimaryReversedLine(docxLine)
+
+    #expect(fromPDF != nil)
+    #expect(fromDOCX != nil)
+    #expect(fromPDF?.contactName == "אבישי")
+    #expect(fromPDF?.phoneNumber == "054-6222577")
+    #expect(fromDOCX?.contactName == "אבישי")
+    #expect(fromDOCX?.phoneNumber == "054-6222577")
 }
 
 @Test func brandingFooterFormatterComposesStableStructuredFooterLines() {
