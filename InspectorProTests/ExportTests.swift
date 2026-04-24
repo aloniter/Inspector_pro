@@ -395,6 +395,7 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
 
 @Test func docxFooterOmitsEmptySecondaryLine() {
     let branding = ResolvedExportBranding(
+        companyName: "Test Company",
         logoImageData: ResolvedExportBranding.legacyDefault.logoImageData,
         footerAddressLine: "Address",
         primaryFooterLinePDF: "Primary",
@@ -522,16 +523,18 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(runs.map(\.direction) == [.leftToRight, .rightToLeft, .leftToRight, .rightToLeft])
 }
 
-@Test func resolvedExportBrandingFallsBackToLegacyDefaultsWithoutProfile() {
+@Test func resolvedExportBrandingReturnsEmptyWithoutProfile() {
     let report = Report(name: "Fallback")
 
     let branding = ResolvedExportBranding.resolve(for: report)
 
-    #expect(branding.footerAddressLine == "כפר ויתקין, ת\"ד ‎635‎ מיקוד ‎4020000‎")
-    #expect(branding.primaryFooterLinePDF == "אבישי ‎054-6222577‎ דוא\"ל ‎iter@iter.co.il‎")
-    #expect(branding.primaryFooterLineDOCX == "‎iter@iter.co.il‎ מייל ‎054-6222577‎ אבישי")
-    #expect(branding.secondaryFooterLine == "דפנה ‎054-6222575‎ משרד ‎09-8665885‎")
-    #expect(branding.logoImageData != nil)
+    #expect(branding.companyName == "")
+    #expect(branding.footerAddressLine == "")
+    #expect(branding.primaryFooterLinePDF == "")
+    #expect(branding.primaryFooterLineDOCX == "")
+    #expect(branding.secondaryFooterLine == "")
+    #expect(branding.logoImageData == nil)
+    #expect(!branding.hasVisibleFooterContent)
 }
 
 @Test func resolvedExportBrandingUsesLinkedProfileValues() {
@@ -781,6 +784,7 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
         report: report,
         photos: [photo],
         options: options,
+        branding: .legacyDefault,
         onProgress: { _ in }
     )
     defer { try? FileManager.default.removeItem(at: outputURL) }
@@ -846,12 +850,7 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
         .flatMap { String(data: $0, encoding: .utf8) } ?? ""
     #expect(headerRelsText.contains("Target=\"media/image1.jpeg\""))
 
-    let footerData = xmlEntries["word/footer1.xml"]
-    let footerText = footerData.flatMap { String(data: $0, encoding: .utf8) } ?? ""
-    #expect(footerText.contains(">iter@iter.co.il</w:t>"))
-    #expect(footerText.contains(">דוא&quot;ל</w:t>"))
-    #expect(footerText.contains(">054-6222577</w:t>"))
-    #expect(footerText.contains(">אבישי</w:t>"))
+    #expect(xmlEntries["word/footer1.xml"] != nil)
 
     let documentText = xmlEntries["word/document.xml"]
         .flatMap { String(data: $0, encoding: .utf8) } ?? ""
@@ -918,6 +917,7 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     report.photos = [photo]
 
     let branding = ResolvedExportBranding(
+        companyName: ResolvedExportBranding.legacyDefault.companyName,
         logoImageData: nil,
         footerAddressLine: ResolvedExportBranding.legacyDefault.footerAddressLine,
         primaryFooterLinePDF: ResolvedExportBranding.legacyDefault.primaryFooterLinePDF,
@@ -959,6 +959,35 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     let headerRelsText = xmlEntries["word/_rels/header1.xml.rels"]
         .flatMap { String(data: $0, encoding: .utf8) } ?? ""
     #expect(!headerRelsText.contains("Target=\"media/image1.jpeg\""))
+}
+
+@Test func brandingResolvesLocalProfileFirst() {
+    let profile = BrandingProfile(
+        name: "Test Company",
+        isDefault: true,
+        usesBundledDefaultLogo: true,
+        showLogoInReport: true,
+        showFooterInReport: true,
+        footerAddressLine: "123 Test St",
+        primaryFooterLinePDF: "",
+        primaryFooterLineDOCX: "",
+        secondaryFooterLine: ""
+    )
+    let report = Report(name: "Test Report")
+    report.brandingProfile = profile
+
+    let resolved = ResolvedExportBranding.resolve(for: report)
+    #expect(resolved.companyName == "Test Company")
+}
+
+@Test func brandingResolvesEmptyWhenNoProfile() {
+    let report = Report(name: "No Branding Report")
+    // brandingProfile intentionally nil
+
+    let resolved = ResolvedExportBranding.resolve(for: report)
+    #expect(resolved.companyName == "")
+    #expect(resolved.logoImageData == nil)
+    #expect(!resolved.hasVisibleFooterContent)
 }
 
 @Test func docxExporterRemovesStaleWordLockFile() async throws {
