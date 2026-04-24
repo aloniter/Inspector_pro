@@ -407,6 +407,17 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(footer.firstRange(of: "iter@iter.co.il")!.lowerBound < footer.firstRange(of: "054-6222577")!.lowerBound)
 }
 
+@Test func docxHeaderXMLDoesNotRenderCompanyName() {
+    let xmlWithoutLogo = DocxTemplateBuilder.headerXML(includesLogo: false)
+    let xmlWithLogo = DocxTemplateBuilder.headerXML(includesLogo: true)
+
+    #expect(!xmlWithoutLogo.contains("Acme Ltd"))
+    #expect(!xmlWithoutLogo.contains("<w:bidi/>"))
+    #expect(!xmlWithoutLogo.contains("<w:rtl/>"))
+    #expect(!xmlWithLogo.contains("<w:bidi/>"))
+    #expect(!xmlWithLogo.contains("<w:rtl/>"))
+}
+
 @Test func docxFooterOmitsEmptySecondaryLine() {
     let branding = ResolvedExportBranding(
         companyName: "Test Company",
@@ -974,6 +985,7 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
         .flatMap { String(data: $0, encoding: .utf8) } ?? ""
     #expect(!headerText.contains("<w:drawing>"))
     #expect(!headerText.contains("r:embed=\"rId1\""))
+    #expect(!headerText.contains(ResolvedExportBranding.legacyDefault.companyName))
 
     let headerRelsText = xmlEntries["word/_rels/header1.xml.rels"]
         .flatMap { String(data: $0, encoding: .utf8) } ?? ""
