@@ -119,3 +119,5 @@
 "אחת מתמונות הדוח לא נטענה" = "One of the report images could not be loaded";
 "ייצוא PDF נכשל. נסה שוב." = "PDF export failed. Please try again.";
 "ייצוא DOCX נכשל. נסה שוב." = "DOCX export failed. Please try again.";
+"יציאה מהחשבון" = "Sign Out";
+"ייצוא אינו זמין" = "Export Unavailable";

@@ -24,6 +24,12 @@ struct ResolvedExportBranding {
     }
 
     static func resolve(for report: Report) -> ResolvedExportBranding {
+        // Remote company branding is the source of truth when available.
+        if let remote = CompanyBrandingService.shared.loadCached() {
+            return resolved(from: remote)
+        }
+
+        // Fall back to the locally stored BrandingProfile if no remote data.
         if let brandingProfile = report.brandingProfile {
             return resolved(from: brandingProfile)
         }
@@ -80,6 +86,32 @@ struct ResolvedExportBranding {
     )
 
     private static let footerTextColorHexValue = "002060"
+
+    private static func resolved(from remote: CompanyBranding) -> ResolvedExportBranding {
+        let logoData: Data? = remote.showLogoInReport
+            ? (CompanyBrandingService.shared.cachedLogoImageData() ?? BrandingAssetStorage.bundledLogoImageData)
+            : nil
+        let addressSource   = remote.showFooterInReport ? remote.footerAddressLine   : ""
+        let primaryPDF      = remote.showFooterInReport ? remote.primaryFooterLinePDF  : ""
+        let primaryDOCX     = remote.showFooterInReport ? remote.primaryFooterLineDOCX : ""
+        let secondarySource = remote.showFooterInReport ? remote.secondaryFooterLine  : ""
+
+        let primaryFields  = BrandingPrimaryFooterFields.fromStoredLines(pdf: primaryPDF, docx: primaryDOCX)
+        let secondaryFields = BrandingSecondaryFooterFields.fromStoredLine(secondarySource)
+
+        return ResolvedExportBranding(
+            logoImageData: logoData,
+            footerAddressLine: BrandingFooterFormatter.normalizeAddressLine(addressSource),
+            primaryFooterLinePDF: BrandingFooterFormatter.normalizeFreeformLine(primaryPDF),
+            primaryFooterLineDOCX: BrandingFooterFormatter.normalizeFreeformLine(primaryDOCX),
+            secondaryFooterLine: BrandingFooterFormatter.normalizeFreeformLine(secondarySource),
+            footerAddressRuns: BrandingFooterFormatter.addressRuns(from: addressSource),
+            primaryFooterRuns: BrandingFooterFormatter.primaryRuns(primaryFields),
+            secondaryFooterRuns: BrandingFooterFormatter.secondaryRuns(secondaryFields),
+            primaryFooterDisplayRuns: BrandingFooterFormatter.primaryDisplayRuns(primaryFields),
+            secondaryFooterDisplayRuns: BrandingFooterFormatter.secondaryDisplayRuns(secondaryFields)
+        )
+    }
 
     private static func resolved(from brandingProfile: BrandingProfile) -> ResolvedExportBranding {
         let logoImageData = brandingProfile.showLogoInReport

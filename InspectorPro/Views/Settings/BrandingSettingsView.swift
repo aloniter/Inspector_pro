@@ -11,27 +11,34 @@ struct BrandingSettingsContainerView: View {
     }
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(AuthService.self) private var authService
     @State private var loadState: LoadState = .loading
 
     var body: some View {
         Group {
-            switch loadState {
-            case .loaded(let brandingProfile):
-                BrandingSettingsView(brandingProfile: brandingProfile)
-            case .loading:
-                ProgressView(AppStrings.text("טוען..."))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case .failed:
-                EmptyStateView(
-                    icon: "exclamationmark.triangle",
-                    title: AppStrings.text("לא ניתן לטעון את הגדרות המיתוג"),
-                    subtitle: AppStrings.text("נסה שוב מאוחר יותר")
-                )
-                .padding()
+            if authService.isAuthenticated {
+                RemoteBrandingReadOnlyView()
+            } else {
+                switch loadState {
+                case .loaded(let brandingProfile):
+                    BrandingSettingsView(brandingProfile: brandingProfile)
+                case .loading:
+                    ProgressView(AppStrings.text("טוען..."))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                case .failed:
+                    EmptyStateView(
+                        icon: "exclamationmark.triangle",
+                        title: AppStrings.text("לא ניתן לטעון את הגדרות המיתוג"),
+                        subtitle: AppStrings.text("נסה שוב מאוחר יותר")
+                    )
+                    .padding()
+                }
             }
         }
         .task {
-            await loadBrandingProfileIfNeeded()
+            if !authService.isAuthenticated {
+                await loadBrandingProfileIfNeeded()
+            }
         }
         .navigationTitle(AppStrings.text("מיתוג חברה"))
         .navigationBarTitleDisplayMode(.inline)
@@ -46,6 +53,86 @@ struct BrandingSettingsContainerView: View {
             loadState = .loaded(brandingProfile)
         } catch {
             loadState = .failed
+        }
+    }
+}
+
+// MARK: - Remote branding read-only view
+
+private struct RemoteBrandingReadOnlyView: View {
+    private var branding: CompanyBranding? {
+        CompanyBrandingService.shared.loadCached()
+    }
+    private var logoImage: UIImage? {
+        CompanyBrandingService.shared.cachedLogoImageData().flatMap(UIImage.init(data:))
+            ?? BrandingAssetStorage.displayLogoImage(for: nil)
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                Label("המיתוג מנוהל על ידי החברה", systemImage: "building.2")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+
+            if let branding {
+                Section(AppStrings.text("פרטי חברה")) {
+                    HStack {
+                        Text(AppStrings.text("שם החברה"))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(branding.name)
+                    }
+                }
+
+                Section(AppStrings.text("לוגו")) {
+                    HStack {
+                        Spacer()
+                        BrandingLogoPreview(image: logoImage)
+                        Spacer()
+                    }
+                    .listRowBackground(Color.clear)
+                }
+
+                Section(AppStrings.text("כותרת תחתונה")) {
+                    if !branding.footerAddressLine.isEmpty {
+                        HStack {
+                            Text(AppStrings.text("כתובת"))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(BrandingFooterFormatter.strippingDirectionalMarks(from: branding.footerAddressLine))
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
+                    if !branding.primaryFooterLinePDF.isEmpty {
+                        HStack {
+                            Text(AppStrings.text("קשר ראשי"))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(BrandingFooterFormatter.strippingDirectionalMarks(from: branding.primaryFooterLinePDF))
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
+                    if !branding.secondaryFooterLine.isEmpty {
+                        HStack {
+                            Text(AppStrings.text("קשר משני"))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(BrandingFooterFormatter.strippingDirectionalMarks(from: branding.secondaryFooterLine))
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
+                }
+            } else {
+                Section {
+                    Text("המיתוג יסונכרן בעת חיבור לאינטרנט")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+            }
         }
     }
 }

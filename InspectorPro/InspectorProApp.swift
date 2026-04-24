@@ -5,9 +5,11 @@ import SwiftData
 struct InspectorProApp: App {
     @AppStorage(AppPreferenceKeys.darkModeEnabled) private var darkModeEnabled = false
     @AppStorage(AppPreferenceKeys.languageCode) private var languageCode = AppLanguage.hebrew.rawValue
+    @Environment(\.scenePhase) private var scenePhase
 
     private let modelContainer: ModelContainer
     private let didFailToLaunch: Bool
+    private let authService = AuthService()
 
     init() {
         FileManagerService.shared.ensureDirectoriesExist()
@@ -27,6 +29,9 @@ struct InspectorProApp: App {
             modelContainer = container
             didFailToLaunch = false
             BrandingBootstrapper.scheduleBootstrap(modelContainer: container)
+            #if DEBUG
+            _ = SupabaseManager.client
+            #endif
         } catch {
             let fallbackConfig = ModelConfiguration(
                 schema: schema,
@@ -58,11 +63,28 @@ struct InspectorProApp: App {
                 Group {
                     if didFailToLaunch {
                         AppLaunchFailureView()
-                    } else {
+                    } else if authService.isCheckingSession {
+                        ProgressView()
+                    } else if authService.isAuthenticated {
                         ProjectListView()
+                    } else {
+                        LoginView()
                     }
                 }
             )
+            .environment(authService)
+            .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
+                if isAuthenticated {
+                    Task { await CompanyBrandingService.shared.syncForced() }
+                } else {
+                    Task { await CompanyBrandingService.shared.clearCache() }
+                }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active, authService.isAuthenticated {
+                    Task { await CompanyBrandingService.shared.syncIfNeeded() }
+                }
+            }
         }
         .modelContainer(modelContainer)
     }

@@ -11,6 +11,7 @@ struct ExportOptionsSheet: View {
     @State private var exportedURL: URL?
     @State private var errorMessage: String?
     @State private var showingShareSheet = false
+    @State private var exportBlockedMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -75,7 +76,21 @@ struct ExportOptionsSheet: View {
                     ShareSheet(fileURL: url)
                 }
             }
+            .alert(AppStrings.text("ייצוא אינו זמין"), isPresented: exportBlockedAlertPresented) {
+                Button(AppStrings.text("אישור"), role: .cancel) {
+                    exportBlockedMessage = nil
+                }
+            } message: {
+                Text(exportBlockedMessage ?? "")
+            }
         }
+    }
+
+    private var exportBlockedAlertPresented: Binding<Bool> {
+        Binding(
+            get: { exportBlockedMessage != nil },
+            set: { if !$0 { exportBlockedMessage = nil } }
+        )
     }
 
     private func startExport() {
@@ -84,6 +99,16 @@ struct ExportOptionsSheet: View {
         exportProgress = 0
 
         Task {
+            // Permission gate — must pass before any export work begins
+            let permission = await ExportPermissionService.shared.checkExportAllowed()
+            if !permission.isAllowed {
+                await MainActor.run {
+                    isExporting = false
+                    exportBlockedMessage = permission.hebrewDenialMessage
+                }
+                return
+            }
+
             do {
                 let options = ExportOptions(
                     format: selectedFormat,
