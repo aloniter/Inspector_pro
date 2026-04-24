@@ -1,3 +1,3 @@
 import Foundation
 
-typealias BrandingProfile = InspectorProSchemaV7.BrandingProfile
+typealias BrandingProfile = InspectorProSchemaV9.BrandingProfile

@@ -36,12 +36,19 @@ enum BrandingBootstrapper {
     private static func bootstrap(modelContainer: ModelContainer) throws {
         let modelContext = ModelContext(modelContainer)
         let defaultBrandingProfile = try fetchOrCreateDefaultBrandingProfile(in: modelContext)
-        let projects = try modelContext.fetch(FetchDescriptor<Project>())
+        let reports = try modelContext.fetch(FetchDescriptor<Report>())
 
         var didChange = false
-        for project in projects where project.brandingProfile == nil {
-            project.brandingProfile = defaultBrandingProfile
-            didChange = true
+        for report in reports {
+            if report.brandingProfile == nil {
+                report.brandingProfile = defaultBrandingProfile
+                didChange = true
+            }
+
+            if report.address == nil, let projectAddress = report.project?.address {
+                report.address = projectAddress
+                didChange = true
+            }
         }
 
         if didChange {

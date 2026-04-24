@@ -151,7 +151,7 @@ private struct BrandingSettingsView: View {
             }
 
             Section(AppStrings.text("כותרת תחתונה")) {
-                Toggle(AppStrings.text("הצג פוטר בדוח"), isOn: $showFooterInReport)
+                Toggle(AppStrings.text("הצג כותרת בדוח"), isOn: $showFooterInReport)
 
                 VStack(alignment: .trailing, spacing: 8) {
                     Text(AppStrings.text("שורת כתובת תחתונה"))

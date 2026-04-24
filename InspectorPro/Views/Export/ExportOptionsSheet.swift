@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 struct ExportOptionsSheet: View {
     @Environment(\.dismiss) private var dismiss
-    let project: Project
+    let report: Report
 
     @State private var selectedFormat: ExportFormat = .docx
     @State private var isExporting = false
@@ -28,7 +28,7 @@ struct ExportOptionsSheet: View {
                     HStack {
                         Text(AppStrings.text("תמונות"))
                         Spacer()
-                        Text("\(project.photos.count)")
+                        Text("\(report.photos.count)")
                     }
                 } header: {
                     Text(AppStrings.text("סיכום"))
@@ -61,7 +61,7 @@ struct ExportOptionsSheet: View {
                     Button(AppStrings.text("ייצא")) {
                         startExport()
                     }
-                    .disabled(isExporting || project.photos.isEmpty)
+                    .disabled(isExporting || report.photos.isEmpty)
                 }
                 ToolbarItem(placement: .cancellationAction) {
                     Button(AppStrings.text("ביטול")) {
@@ -88,12 +88,12 @@ struct ExportOptionsSheet: View {
                 let options = ExportOptions(
                     format: selectedFormat,
                     quality: .economical,
-                    photoCount: project.sortedPhotos.count
+                    photoCount: report.sortedPhotos.count
                 )
 
                 let url = try await ExportEngine.exportReport(
-                    project: project,
-                    photos: project.sortedPhotos,
+                    report: report,
+                    photos: report.sortedPhotos,
                     options: options,
                     onProgress: { progress in
                         Task { @MainActor in

@@ -4,22 +4,22 @@ import ZIPFoundation
 
 final class DocxExporter {
     static func export(
-        project: Project,
+        report: Report,
         photos: [PhotoRecord],
         options: ExportOptions,
         onProgress: @escaping @Sendable (Double) -> Void
     ) async throws -> URL {
         try await export(
-            project: project,
+            report: report,
             photos: photos,
             options: options,
-            branding: ResolvedExportBranding.resolve(for: project),
+            branding: ResolvedExportBranding.resolve(for: report),
             onProgress: onProgress
         )
     }
 
     static func export(
-        project: Project,
+        report: Report,
         photos: [PhotoRecord],
         options: ExportOptions,
         branding: ResolvedExportBranding,
@@ -78,7 +78,7 @@ final class DocxExporter {
         #endif
 
         for (index, photo) in photos.enumerated() {
-            let itemNumber = project.showsNumberedImagesInReport ? index + 1 : nil
+            let itemNumber = report.showsNumberedImagesInReport ? index + 1 : nil
 
             let result = try processImage(
                 photo: photo,
@@ -111,7 +111,7 @@ final class DocxExporter {
                 imageId: imageId,
                 imageCrop: result.crop,
                 itemNumber: itemNumber,
-                showsNumberedImagesInReport: project.showsNumberedImagesInReport,
+                showsNumberedImagesInReport: report.showsNumberedImagesInReport,
                 rowHeightTwips: options.targetPhotoRowHeightTwips,
                 imageColumnWidthTwips: options.imageColumnWidthTwips,
                 textColumnWidthTwips: options.textColumnWidthTwips
@@ -130,12 +130,12 @@ final class DocxExporter {
             textColumnWidthTwips: options.textColumnWidthTwips
         )
 
-        let address = normalizedText(project.address)
-        let attendees = normalizedOptionalText(project.attendees)
-        let notes = normalizedText(project.notes)
-        let date = ExportTextFormatter.reportCoverDateString(from: project.date)
+        let address = normalizedText(report.reportAddress)
+        let attendees = normalizedOptionalText(report.attendees)
+        let notes = normalizedText(report.notes)
+        let date = ExportTextFormatter.reportCoverDateString(from: report.date)
         var documentXML = DocxTemplateBuilder.documentXML(options: options)
-        documentXML = documentXML.replacingOccurrences(of: "{{PROJECT_TITLE}}", with: OpenXMLBuilder.escapeXML(project.name))
+        documentXML = documentXML.replacingOccurrences(of: "{{PROJECT_TITLE}}", with: OpenXMLBuilder.escapeXML(report.name))
         documentXML = documentXML.replacingOccurrences(
             of: "{{COVER_DETAILS}}",
             with: DocxTemplateBuilder.coverDetailsXML(
@@ -162,8 +162,8 @@ final class DocxExporter {
         try DocxTemplateBuilder.fontTableXML().write(to: wordDir.appendingPathComponent("fontTable.xml"), atomically: true, encoding: .utf8)
 
         let outputURL = outputFileURL(
-            projectName: project.name,
-            date: project.date,
+            projectName: report.name,
+            date: report.date,
             fileExtension: "docx",
             fileManager: fm
         )

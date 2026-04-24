@@ -3,7 +3,7 @@ import SwiftData
 
 struct ProjectListView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Project.date, order: .reverse) private var projects: [Project]
+    @Query(sort: \Project.name) private var projects: [Project]
     @AppStorage(AppPreferenceKeys.darkModeEnabled) private var darkModeEnabled = false
     @AppStorage(AppPreferenceKeys.languageCode) private var languageCode = AppLanguage.hebrew.rawValue
 
@@ -123,7 +123,7 @@ struct ProjectRowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Text(AppStrings.format("%d תמונות", project.photos.count))
+            Text(AppStrings.format("%d דוחות", project.reports.count))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -132,11 +132,6 @@ struct ProjectRowView: View {
                 Text(project.name.directionallyIsolated)
                     .font(.headline)
                     .multilineTextAlignment(.trailing)
-
-                Text(project.date, style: .date)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
 
                 if let address = project.address, !address.isEmpty {
                     Text(address.directionallyIsolated)
@@ -154,7 +149,7 @@ struct ProjectRowView: View {
     }
 }
 
-private extension String {
+extension String {
     var directionallyIsolated: String {
         guard !isEmpty else { return self }
         if containsHebrewCharacters {

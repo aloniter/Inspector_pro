@@ -6,7 +6,7 @@ struct AnnotationView: View {
 
     let originalImage: UIImage
     let photo: PhotoRecord
-    let project: Project
+    let report: Report
 
     @State private var baseImage: UIImage
     @State private var selectedTool: AnnotationTool = .freehand
@@ -35,11 +35,11 @@ struct AnnotationView: View {
         image: UIImage,
         originalImage: UIImage,
         photo: PhotoRecord,
-        project: Project
+        report: Report
     ) {
         self.originalImage = originalImage
         self.photo = photo
-        self.project = project
+        self.report = report
         _baseImage = State(initialValue: image)
     }
 
@@ -174,7 +174,7 @@ struct AnnotationView: View {
             }
 
             let compositeImage = renderComposite()
-            let projectID = project.id.uuidString
+            let projectID = report.project?.id.uuidString ?? report.id.uuidString
             let uuid = URL(fileURLWithPath: photo.imagePath)
                 .deletingPathExtension()
                 .lastPathComponent

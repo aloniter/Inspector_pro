@@ -2,8 +2,11 @@
 "לחץ + להוספת פרויקט חדש" = "Tap + to add a new project";
 "פרויקטים" = "Projects";
 "%d תמונות" = "%d photos";
+"%d דוחות" = "%d reports";
 "פרטי פרויקט" = "Project details";
 "שם הפרויקט" = "Project name";
+"פרטי דוח" = "Report details";
+"שם הדוח" = "Report name";
 "כתובת" = "Address";
 "תאריך" = "Date";
 "נוכחים" = "Attendees";
@@ -11,8 +14,12 @@
 "הערות" = "Notes";
 "פרויקט חדש" = "New project";
 "עריכת פרויקט" = "Edit project";
+"דוח חדש" = "New report";
+"עריכת דוח" = "Edit report";
 "שמור" = "Save";
 "ביטול" = "Cancel";
+"אין דוחות" = "No reports";
+"לחץ + להוספת דוח חדש" = "Tap + to add a new report";
 "אין תמונות" = "No photos";
 "לחץ + כדי להוסיף תמונות" = "Tap + to add photos";
 "תמונות (%d)" = "Photos (%d)";
@@ -21,6 +28,7 @@
 "סידור תמונות" = "Reorder photos";
 "סיום סידור תמונות" = "Done reordering";
 "ערוך פרויקט" = "Edit project";
+"ערוך דוח" = "Edit report";
 "ייצוא דוח" = "Export report";
 "ייבוא תמונות" = "Photo import";
 "אישור" = "OK";
@@ -85,7 +93,7 @@
 "בחר לוגו מהספריה" = "Choose logo from library";
 "השתמש בלוגו ברירת מחדל" = "Use default logo";
 "כותרת תחתונה" = "Footer";
-"הצג פוטר בדוח" = "Show footer in report";
+"הצג כותרת בדוח" = "Show header in report";
 "שורת כתובת תחתונה" = "Footer address line";
 "שורת קשר ראשית" = "Primary footer line";
 "שורת קשר משנית" = "Secondary footer line";

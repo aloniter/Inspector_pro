@@ -23,8 +23,8 @@ struct ResolvedExportBranding {
         !secondaryFooterDisplayRuns.isEmpty
     }
 
-    static func resolve(for project: Project) -> ResolvedExportBranding {
-        if let brandingProfile = project.brandingProfile {
+    static func resolve(for report: Report) -> ResolvedExportBranding {
+        if let brandingProfile = report.brandingProfile {
             return resolved(from: brandingProfile)
         }
 
