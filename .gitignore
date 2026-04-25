@@ -2,6 +2,9 @@
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/
 *.xcodeproj/project.xcworkspace/xcshareddata/
+!InspectorPro.xcodeproj/project.xcworkspace/xcshareddata/
+!InspectorPro.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+!InspectorPro.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 xcuserdata/
 DerivedData/
 build/
@@ -24,6 +27,7 @@ build/
 .swiftpm/
 Packages/
 Package.resolved
+!InspectorPro.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
 # macOS
 .DS_Store
@@ -34,5 +38,5 @@ Package.resolved
 .idea/
 .vscode/
 
-# Supabase secrets (use SupabaseConfig.plist.example as template)
+# Supabase secrets (copy the root SupabaseConfig.plist.example into Resources locally)
 InspectorPro/Resources/SupabaseConfig.plist

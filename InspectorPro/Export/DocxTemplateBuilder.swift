@@ -62,9 +62,9 @@ final class DocxTemplateBuilder {
             xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
   <w:body>
     <w:p>
-      <w:pPr><w:spacing w:before="1520" w:after="180"/><w:jc w:val="center"/></w:pPr>
+      <w:pPr><w:spacing w:before="1520" w:after="180"/><w:jc w:val="center"/>\(AppLanguage.current == .hebrew ? "<w:bidi/>" : "")</w:pPr>
       <w:r>
-        <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:bCs/><w:color w:val="0F172A"/><w:sz w:val="52"/><w:szCs w:val="52"/></w:rPr>
+        <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:bCs/>\(AppLanguage.current == .hebrew ? "<w:rtl/>" : "")<w:color w:val="0F172A"/><w:sz w:val="52"/><w:szCs w:val="52"/></w:rPr>
         <w:t>{{PROJECT_TITLE}}</w:t>
       </w:r>
     </w:p>
@@ -192,13 +192,15 @@ final class DocxTemplateBuilder {
         alignment: String = "center"
     ) -> String {
         let boldTag = bold ? "<w:b/><w:bCs/>" : ""
+        let bidiTag = AppLanguage.current == .hebrew ? "<w:bidi/>" : ""
+        let rtlTag = AppLanguage.current == .hebrew ? "<w:rtl/>" : ""
         let escapedText = OpenXMLBuilder.escapeXML(text)
 
         return """
     <w:p>
-      <w:pPr><w:spacing w:before="\(spacingBefore)" w:after="\(spacingAfter)"/><w:jc w:val="\(alignment)"/></w:pPr>
+      <w:pPr><w:spacing w:before="\(spacingBefore)" w:after="\(spacingAfter)"/><w:jc w:val="\(alignment)"/>\(bidiTag)</w:pPr>
       <w:r>
-        <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>\(boldTag)<w:color w:val="\(color)"/><w:sz w:val="\(fontSize)"/><w:szCs w:val="\(fontSize)"/></w:rPr>
+        <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>\(boldTag)\(rtlTag)<w:color w:val="\(color)"/><w:sz w:val="\(fontSize)"/><w:szCs w:val="\(fontSize)"/></w:rPr>
         <w:t xml:space="preserve">\(escapedText)</w:t>
       </w:r>
     </w:p>
@@ -226,7 +228,11 @@ final class DocxTemplateBuilder {
 
     // MARK: - Header / Footer
 
-    static func headerXML(includesLogo: Bool = true) -> String {
+    static func headerXML(
+        includesLogo: Bool = true,
+        logoWidthEMU: Int = 952500,
+        logoHeightEMU: Int = 952500
+    ) -> String {
         guard includesLogo else {
             return """
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -238,7 +244,6 @@ final class DocxTemplateBuilder {
 """
         }
 
-        let logoSizeEMU = 952500 // 75pt
         return """
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -251,7 +256,7 @@ final class DocxTemplateBuilder {
     <w:r>
       <w:drawing>
         <wp:inline distT="0" distB="0" distL="0" distR="0">
-          <wp:extent cx="\(logoSizeEMU)" cy="\(logoSizeEMU)"/>
+          <wp:extent cx="\(logoWidthEMU)" cy="\(logoHeightEMU)"/>
           <wp:effectExtent l="0" t="0" r="0" b="0"/>
           <wp:docPr id="1" name="Logo"/>
           <a:graphic>
@@ -268,7 +273,7 @@ final class DocxTemplateBuilder {
                 <pic:spPr>
                   <a:xfrm>
                     <a:off x="0" y="0"/>
-                    <a:ext cx="\(logoSizeEMU)" cy="\(logoSizeEMU)"/>
+                    <a:ext cx="\(logoWidthEMU)" cy="\(logoHeightEMU)"/>
                   </a:xfrm>
                   <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
                 </pic:spPr>

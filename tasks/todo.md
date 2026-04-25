@@ -1,5 +1,55 @@
 # TODO
 
+- [x] Add App Store export-compliance encryption flag to generated Info.plist settings
+- [x] Regenerate/sync the Xcode project from `project.yml`
+- [x] Verify the built app Info.plist contains `ITSAppUsesNonExemptEncryption = false`
+
+## Review
+
+- Added `INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO` to the main app target in `project.yml`. This maps to `ITSAppUsesNonExemptEncryption = false` in the generated app Info.plist.
+- Regenerated `InspectorPro.xcodeproj` with `xcodegen generate`, which added `INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;` to both generated build configurations for the app target.
+- While syncing the generated project, preserved the app's existing `Inspectley` display name, `1.2.0` marketing version, and utilities category in `project.yml` so future XcodeGen runs do not regress those current build settings.
+- Validation:
+- `rg -n "ITSAppUsesNonExemptEncryption|INFOPLIST_KEY_ITSAppUsesNonExemptEncryption" project.yml InspectorPro.xcodeproj/project.pbxproj` shows the key in both source-of-truth and generated project files.
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -configuration Debug -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' build` passed.
+- `plutil -p .../InspectorPro.app/Info.plist | rg "ITSAppUsesNonExemptEncryption|CFBundleDisplayName|CFBundleShortVersionString|LSApplicationCategoryType"` returned `"ITSAppUsesNonExemptEncryption" => false` and preserved `Inspectley`, `1.2.0`, and `public.app-category.utilities`.
+
+- [x] Locate every PDF/DOCX export path that renders the branding company name
+- [x] Remove company-name rendering from export headers while preserving logo/footer branding and stored company data
+- [x] Update focused export tests so company names stay internal-only
+- [x] Run the export test suite and record verification results
+
+## Review
+
+- Removed company-name rendering from the PDF header path. Stored branding data still resolves normally, and logo/footer rendering still uses the same branding object.
+- Removed the DOCX header `companyName` parameter and stopped passing `branding.companyName` from `DocxExporter`, so `word/header1.xml` now contains only the optional logo paragraph.
+- Updated focused tests so the DOCX header is expected not to include company-name RTL paragraphs, and the generated no-logo DOCX package asserts the legacy company name is absent from `header1.xml`.
+- Validation:
+- `rg -n "headerXML\\(|drawHeader\\(|branding\\.companyName|companyName:" InspectorPro/Export InspectorProTests/ExportTests.swift` confirms export header writing no longer references `branding.companyName`.
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' test` passed with 52 Swift Testing tests.
+- Residual warning:
+- The existing CoreData editable-model checksum warning still appears during test-host startup.
+
+- [x] Audit `docs/superpowers/plans/2026-04-25-branding-local-first.md` against current code
+- [x] Complete missing local-first branding export changes for PDF and DOCX headers
+- [x] Remove authenticated read-only branding gate and seed cached remote branding only once when local branding is blank
+- [x] Add async save confirmation feedback in branding settings
+- [x] Add/adjust focused export tests for local-first branding and DOCX header company name
+- [x] Run build/tests and record verification results
+
+## Review
+
+- Completed the remaining local-first branding plan gaps: PDF headers now render `branding.companyName`, DOCX headers accept and emit a right-aligned RTL company-name paragraph, and `DocxExporter` passes the resolved local company name into the generated header.
+- Authenticated users now load the same editable `BrandingSettingsView` as unauthenticated users. If their local profile is blank, the cached remote branding is copied once as an editable starting point.
+- Branding save now runs through an async `performSave()` path, shows green `נשמר!` feedback for roughly 1.5 seconds, then dismisses.
+- Added focused tests for DOCX header company-name XML and strengthened the local-profile branding assertion to include `companyName`.
+- Validation:
+- The default no-destination build still fails before compilation because Xcode selects `My Mac`, whose provisioning profile does not match this iOS-only app.
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -configuration Debug -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' build` passed.
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' test` passed with 53 Swift Testing tests.
+- Residual warning:
+- The existing CoreData editable-model checksum warning still appears during test-host startup.
+
 - [x] Inspect project/report settings RTL layout entry points
 - [x] Fix Hebrew form headers, address rows, date divider, and image-numbering toggle order
 - [x] Build and visually verify the project settings and report edit screens on an iPhone portrait simulator
@@ -362,3 +412,18 @@
 - `xcodegen generate`
 - `xcodebuild -project /Users/aloniter/Projects/InspectorPro/InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' test` passed with 45 Swift Testing tests.
 - The existing CoreData checksum warning still appears in the test-host launch path and was not changed by this image-fitting revert.
+
+- [x] Review Inspectley end-to-end for App Store/TestFlight readiness, including auth, export, branding, resources, localization, and metadata
+- [x] Fix stability/export/auth/resource issues found during the readiness pass
+- [x] Create `APP_STORE_READINESS.md` with current status, fixes, remaining risks, and upload checklist
+
+## Review
+
+- Fixed auth/session handling, logout cache clearing, export permission fallback behavior, missing-image export failures, branding fallback safety, DOCX RTL/logo metadata issues, launch screen/app icon/privacy/config resources, and localized user-facing auth/status text.
+- Validation:
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -configuration Debug -sdk iphonesimulator build CODE_SIGNING_ALLOWED=NO` succeeded.
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro test -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' CODE_SIGNING_ALLOWED=NO` passed with 56 Swift Testing tests.
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -configuration Release -sdk iphonesimulator build CODE_SIGNING_ALLOWED=NO` succeeded.
+- Simulator unauthenticated launch shows the login screen. The provided test account was rejected as invalid after logout, so real-account export/branding sync remains a manual blocker with a valid review account.
+- Built Release simulator app contains `PrivacyInfo.xcprivacy`, localized `InfoPlist.strings`, `SupabaseConfig.plist`, and no bundled Supabase example config; `ITSAppUsesNonExemptEncryption` is false.
+- The existing SwiftData/CoreData editable-model checksum warning still appears during test-host startup and should be watched in archive/real-device QA.

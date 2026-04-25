@@ -20,9 +20,8 @@ enum BrandingAssetStorage {
     }
 
     static func displayLogoImageData(for brandingProfile: BrandingProfile) -> Data? {
-        if !brandingProfile.usesBundledDefaultLogo,
-           let customLogoData = try? Data(contentsOf: customLogoURL(forProfileID: brandingProfile.id)) {
-            return customLogoData
+        if !brandingProfile.usesBundledDefaultLogo {
+            return try? Data(contentsOf: customLogoURL(forProfileID: brandingProfile.id))
         }
 
         return bundledLogoImageData

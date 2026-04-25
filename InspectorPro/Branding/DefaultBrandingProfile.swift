@@ -11,9 +11,9 @@ enum DefaultBrandingProfile {
         BrandingProfile(
             name: name,
             isDefault: true,
-            usesBundledDefaultLogo: true,
-            showLogoInReport: true,
-            showFooterInReport: true,
+            usesBundledDefaultLogo: false,
+            showLogoInReport: false,
+            showFooterInReport: false,
             footerAddressLine: footerAddressLine,
             primaryFooterLinePDF: primaryFooterLinePDF,
             primaryFooterLineDOCX: primaryFooterLineDOCX,

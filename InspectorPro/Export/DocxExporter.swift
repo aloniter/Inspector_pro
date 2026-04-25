@@ -46,16 +46,28 @@ final class DocxExporter {
         print("[DocxExport] mode=\(options.quality.rawValue) photos=\(photos.count) perImageBudget=\(options.exportImageMaxBytes)B maxRenderWidth=\(Int(options.exportImageMaxRenderWidth))px")
         #endif
 
+        var logoWidthEMU = 952500
+        var logoHeightEMU = 952500
+
         if let logoImageData = branding.logoImageData {
             let compressedLogo = compressLogo(logoImageData)
             try compressedLogo.write(to: mediaDir.appendingPathComponent("image1.jpeg"))
+            if let logoImage = UIImage(data: compressedLogo) {
+                let size = logoExtentEMU(for: logoImage)
+                logoWidthEMU = size.width
+                logoHeightEMU = size.height
+            }
             #if DEBUG
             print("[DocxExport] logo raw=\(logoImageData.count)B → compressed=\(compressedLogo.count)B")
             #endif
         }
 
         let includesLogo = branding.logoImageData != nil
-        try DocxTemplateBuilder.headerXML(includesLogo: includesLogo).write(
+        try DocxTemplateBuilder.headerXML(
+            includesLogo: includesLogo,
+            logoWidthEMU: logoWidthEMU,
+            logoHeightEMU: logoHeightEMU
+        ).write(
             to: wordDir.appendingPathComponent("header1.xml"),
             atomically: true,
             encoding: .utf8
@@ -199,6 +211,14 @@ final class DocxExporter {
         let maxLogoWidth: CGFloat = 500
         let resized = image.resized(maxWidth: maxLogoWidth)
         return resized.jpegDataStripped(quality: 0.75) ?? data
+    }
+
+    private static func logoExtentEMU(for image: UIImage) -> (width: Int, height: Int) {
+        let maxDimensionEMU = 952500.0 // 75pt
+        let width = max(Double(image.size.width), 1)
+        let height = max(Double(image.size.height), 1)
+        let scale = min(maxDimensionEMU / width, maxDimensionEMU / height)
+        return (Int(width * scale), Int(height * scale))
     }
 
     private static func processImage(

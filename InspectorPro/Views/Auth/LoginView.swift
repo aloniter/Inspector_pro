@@ -45,7 +45,7 @@ struct LoginView: View {
                         .shadow(color: Color(red: 12/255, green: 24/255, blue: 52/255).opacity(0.10),
                                 radius: 5, x: 0, y: 4)
 
-                    Text("מערכת לניהול דוחות")
+                    Text(AppStrings.text("מערכת לניהול דוחות"))
                         .font(.system(size: 15.5))
                         .foregroundStyle(Color(red: 107/255, green: 114/255, blue: 128/255))
                 }
@@ -56,7 +56,7 @@ struct LoginView: View {
 
                     // Email
                     fieldContainer(
-                        label: "אימייל",
+                        label: AppStrings.text("אימייל"),
                         isFocused: focusedField == .email,
                         hasError: false
                     ) {
@@ -81,7 +81,7 @@ struct LoginView: View {
 
                     // Password
                     fieldContainer(
-                        label: "סיסמה",
+                        label: AppStrings.text("סיסמה"),
                         isFocused: focusedField == .password,
                         hasError: errorMessage != nil
                     ) {
@@ -142,7 +142,7 @@ struct LoginView: View {
                                     .tint(.white)
                                     .scaleEffect(0.9)
                             } else {
-                                Text("התחברות")
+                                Text(AppStrings.text("התחברות"))
                                     .font(.system(size: 17, weight: .semibold))
                                     .foregroundStyle(.white)
                             }
@@ -160,9 +160,9 @@ struct LoginView: View {
                     // Contact admin link
                     Link(destination: URL(string: "mailto:iteralon@gmail.com")!) {
                         HStack(spacing: 4) {
-                            Text("נתקלת בבעיה?")
+                            Text(AppStrings.text("נתקלת בבעיה?"))
                                 .foregroundStyle(Color(red: 138/255, green: 148/255, blue: 166/255))
-                            Text("פנה למנהל המערכת")
+                            Text(AppStrings.text("פנה למנהל המערכת"))
                                 .foregroundStyle(accent)
                                 .fontWeight(.medium)
                         }
@@ -176,7 +176,7 @@ struct LoginView: View {
                 Spacer()
 
                 // Version footer
-                Text("v\(appVersion) · Secure sign-in")
+                Text(AppStrings.format("v%@ · Secure sign-in", appVersion))
                     .font(.system(size: 11))
                     .tracking(0.4)
                     .foregroundStyle(Color(red: 184/255, green: 190/255, blue: 201/255))
@@ -185,6 +185,11 @@ struct LoginView: View {
             }
         }
         .environment(\.layoutDirection, .rightToLeft)
+        .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
+            if isAuthenticated {
+                isLoading = false
+            }
+        }
     }
 
     // MARK: - Field container builder
@@ -238,6 +243,9 @@ struct LoginView: View {
         Task {
             do {
                 try await authService.signIn(email: email, password: password)
+                await MainActor.run {
+                    isLoading = false
+                }
                 // Auth state observer handles navigation
             } catch {
                 await MainActor.run {
@@ -251,21 +259,21 @@ struct LoginView: View {
     private func hebrewErrorMessage(for error: Error) -> String {
         let message = error.localizedDescription.lowercased()
         if message.contains("invalid login credentials") || message.contains("invalid_credentials") {
-            return "אימייל או סיסמה שגויים. אנא נסה שוב."
+            return AppStrings.text("אימייל או סיסמה שגויים. אנא נסה שוב.")
         }
         if message.contains("email not confirmed") {
-            return "חשבון זה טרם אומת. יש לפנות לתמיכה."
+            return AppStrings.text("חשבון זה טרם אומת. יש לפנות לתמיכה.")
         }
         if message.contains("too many requests") || message.contains("rate limit") {
-            return "יותר מדי ניסיונות כניסה. יש להמתין מספר דקות."
+            return AppStrings.text("יותר מדי ניסיונות כניסה. יש להמתין מספר דקות.")
         }
         if message.contains("network") || message.contains("internet") || message.contains("offline") {
-            return "אין חיבור לאינטרנט. יש לבדוק את החיבור ולנסות שוב."
+            return AppStrings.text("אין חיבור לאינטרנט. יש לבדוק את החיבור ולנסות שוב.")
         }
         if error is AuthServiceError {
             return error.localizedDescription
         }
-        return "שגיאת כניסה. יש לבדוק את הפרטים ולנסות שוב."
+        return AppStrings.text("שגיאת כניסה. יש לבדוק את הפרטים ולנסות שוב.")
     }
 
     // MARK: - Helpers

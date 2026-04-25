@@ -77,13 +77,6 @@ struct ProjectListView: View {
             } message: {
                 Text(errorMessage ?? AppStrings.text("אירעה שגיאה בשמירה"))
             }
-            .alert(AppStrings.text("מחיקה נכשלה"), isPresented: errorAlertPresented) {
-                Button(AppStrings.text("אישור"), role: .cancel) {
-                    errorMessage = nil
-                }
-            } message: {
-                Text(errorMessage ?? AppStrings.text("אירעה שגיאה בשמירה"))
-            }
         }
     }
 
@@ -337,13 +330,6 @@ private struct AppSettingsView: View {
                 }
             }
 
-            Section {
-                Text("created by Alon Iter")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 6)
-            }
         }
         .navigationTitle(AppStrings.text("הגדרות"))
         .navigationBarTitleDisplayMode(.inline)
@@ -366,18 +352,26 @@ private struct AppSettingsView: View {
     private var exportStatusBadge: some View {
         switch exportPermission {
         case .allowed:
-            Label("פעיל", systemImage: "checkmark.circle.fill")
+            Label(AppStrings.text("פעיל"), systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
                 .font(.subheadline)
         case .deniedTrialExpired, .deniedSuspended, .deniedExportDisabled:
-            Label("לא פעיל", systemImage: "xmark.circle.fill")
+            Label(AppStrings.text("לא פעיל"), systemImage: "xmark.circle.fill")
                 .foregroundStyle(.red)
                 .font(.subheadline)
         case .cannotVerifyOffline:
-            Label("לא ידוע", systemImage: "wifi.slash")
+            Label(AppStrings.text("לא ידוע"), systemImage: "wifi.slash")
                 .foregroundStyle(.orange)
                 .font(.subheadline)
-        case nil, .notLoggedIn, .backendError:
+        case .notLoggedIn:
+            Label(AppStrings.text("לא מחובר"), systemImage: "person.crop.circle.badge.exclamationmark")
+                .foregroundStyle(.orange)
+                .font(.subheadline)
+        case .backendError:
+            Label(AppStrings.text("שגיאה"), systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .font(.subheadline)
+        case nil:
             Text("—")
                 .foregroundStyle(.secondary)
         }
@@ -386,14 +380,16 @@ private struct AppSettingsView: View {
     // MARK: - Data loading
 
     private func loadAccountStatus() async {
-        // Email from current session (synchronous)
-        accountEmail = SupabaseManager.client?.auth.currentUser?.email
+        let userID = authService.currentUserID
+        accountEmail = authService.currentUserEmail
 
         // Company name from branding cache
         accountCompany = CompanyBrandingService.shared.loadCached()?.name
 
         // Export permission from cache (instant display), then live
-        exportPermission = ExportPermissionService.shared.cachedResult()
+        exportPermission = ExportPermissionService.shared.cachedResult(
+            forUserID: userID
+        )
         trialEndDateString = ExportPermissionService.shared.cachedTrialEndDateString()
 
         // Fetch live permission (uses network if available, cache if offline)
@@ -421,9 +417,9 @@ private struct AppSettingsView: View {
                 isRefreshing = false
 
                 if case .cannotVerifyOffline = result {
-                    refreshErrorMessage = "לא ניתן להתחבר לשרת. נסה שוב כשיש חיבור לאינטרנט."
+                    refreshErrorMessage = AppStrings.text("לא ניתן להתחבר לשרת. נסה שוב כשיש חיבור לאינטרנט.")
                 } else if case .backendError = result {
-                    refreshErrorMessage = "שגיאה בעת קבלת נתוני החברה. נסה שוב מאוחר יותר."
+                    refreshErrorMessage = AppStrings.text("שגיאה בעת קבלת נתוני החברה. נסה שוב מאוחר יותר.")
                 }
             }
         }

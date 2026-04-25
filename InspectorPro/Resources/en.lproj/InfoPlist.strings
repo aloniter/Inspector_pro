@@ -1,0 +1,2 @@
+"NSCameraUsageDescription" = "Camera access is needed to capture project photos.";
+"NSPhotoLibraryUsageDescription" = "Photo library access is needed to import project photos.";

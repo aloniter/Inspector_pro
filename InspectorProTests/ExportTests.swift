@@ -43,6 +43,29 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(photo.displayImagePath == "base/annotated.png")
 }
 
+@Test func photoRecordDisplayPathFallsBackWhenAnnotatedFileIsMissing() throws {
+    let relativeDirectory = "tests/\(UUID().uuidString)"
+    let originalRelativePath = "\(relativeDirectory)/image.jpg"
+    let annotatedRelativePath = "\(relativeDirectory)/annotated.jpg"
+    let directoryURL = AppConstants.imagesBaseURL.appendingPathComponent(relativeDirectory)
+    try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+    let imageURL = AppConstants.imagesBaseURL.appendingPathComponent(originalRelativePath)
+    let image = UIGraphicsImageRenderer(size: CGSize(width: 20, height: 20)).image { context in
+        UIColor.systemBlue.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: 20, height: 20))
+    }
+    try #require(image.jpegData(compressionQuality: 0.8)).write(to: imageURL)
+
+    let photo = PhotoRecord(
+        imagePath: originalRelativePath,
+        annotatedImagePath: annotatedRelativePath
+    )
+
+    #expect(photo.displayImagePath == originalRelativePath)
+}
+
 @Test func reportSortedPhotosUsesManualPosition() {
     let earlyDate = Date(timeIntervalSince1970: 1_000)
     let lateDate = Date(timeIntervalSince1970: 2_000)
@@ -326,6 +349,8 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(!xml.contains("\u{2066}"))
     #expect(!xml.contains("\u{2067}"))
     #expect(!xml.contains("\u{2069}"))
+    #expect(xml.contains("<w:bidi/>"))
+    #expect(xml.contains("<w:rtl/>"))
     #expect(xml.contains(">כתובת<"))
     #expect(xml.contains(">כפר ויתקין<"))
     #expect(xml.contains(">תאריך<"))
@@ -416,6 +441,17 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(!xmlWithoutLogo.contains("<w:rtl/>"))
     #expect(!xmlWithLogo.contains("<w:bidi/>"))
     #expect(!xmlWithLogo.contains("<w:rtl/>"))
+}
+
+@Test func docxHeaderXMLPreservesLogoAspectRatio() {
+    let xml = DocxTemplateBuilder.headerXML(
+        includesLogo: true,
+        logoWidthEMU: 952500,
+        logoHeightEMU: 476250
+    )
+
+    #expect(xml.contains("<wp:extent cx=\"952500\" cy=\"476250\"/>"))
+    #expect(xml.contains("<a:ext cx=\"952500\" cy=\"476250\"/>"))
 }
 
 @Test func docxFooterOmitsEmptySecondaryLine() {
@@ -581,11 +617,26 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
 
     let branding = ResolvedExportBranding.resolve(for: report)
 
+    #expect(branding.companyName == "Client")
     #expect(branding.footerAddressLine == "Custom address")
     #expect(branding.primaryFooterLinePDF == "Custom pdf line")
     #expect(branding.primaryFooterLineDOCX == "Custom docx line")
     #expect(branding.secondaryFooterLine == "Custom secondary line")
     #expect(branding.logoImageData != nil)
+}
+
+@Test func resolvedExportBrandingTreatsEmptyDefaultProfileAsUnbranded() {
+    let brandingProfile = DefaultBrandingProfile.makeBrandingProfile()
+    let report = Report(name: "Default", brandingProfile: brandingProfile)
+
+    let branding = ResolvedExportBranding.resolve(for: report)
+
+    #expect(branding.logoImageData == nil)
+    #expect(branding.footerAddressLine.isEmpty)
+    #expect(branding.primaryFooterLinePDF.isEmpty)
+    #expect(branding.primaryFooterLineDOCX.isEmpty)
+    #expect(branding.secondaryFooterLine.isEmpty)
+    #expect(branding.hasVisibleFooterContent == false)
 }
 
 @Test func brandingProfileDefaultsToVisibleLogoAndFooter() {
@@ -627,7 +678,7 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(branding.hasVisibleFooterContent == false)
 }
 
-@Test func resolvedExportBrandingFallsBackToBundledLogoWhenCustomLogoIsMissing() {
+@Test func resolvedExportBrandingOmitsLogoWhenCustomLogoIsMissing() {
     let brandingProfile = BrandingProfile(
         name: "Client",
         isDefault: false,
@@ -642,7 +693,7 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
 
     let branding = ResolvedExportBranding.resolve(for: report)
 
-    #expect(branding.logoImageData == ResolvedExportBranding.legacyDefault.logoImageData)
+    #expect(branding.logoImageData == nil)
 }
 
 @Test func resolvedExportBrandingUsesStoredCustomLogoWhenAvailable() throws {
@@ -677,6 +728,29 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(ExportError.pdfGenerationFailed.errorDescription == AppStrings.text("ייצוא PDF נכשל. נסה שוב."))
     #expect(ExportError.docxGenerationFailed("missing template part").errorDescription == AppStrings.text("ייצוא DOCX נכשל. נסה שוב."))
     #expect(ExportError.templateMissing.errorDescription == AppStrings.text("ייצוא DOCX נכשל. נסה שוב."))
+}
+
+@Test func pdfExporterFailsWhenPhotoImageIsMissing() async throws {
+    let report = Report(name: "Missing image")
+    let photo = PhotoRecord(imagePath: "tests/missing-\(UUID().uuidString).jpg")
+    photo.report = report
+    report.photos = [photo]
+
+    do {
+        _ = try await PdfExporter.export(
+            report: report,
+            photos: [photo],
+            options: ExportOptions(format: .pdf, quality: .economical, photoCount: 1),
+            onProgress: { _ in }
+        )
+        Issue.record("Expected missing PDF image export to fail")
+    } catch let error as ExportError {
+        if case .imageLoadFailed(let path) = error {
+            #expect(path == photo.imagePath)
+        } else {
+            Issue.record("Expected imageLoadFailed, got \(error)")
+        }
+    }
 }
 
 @Test func docxTemplateReservesHeaderAndFooterSpace() {

@@ -13,10 +13,11 @@ enum Configuration {
     static var supabaseURL: String {
         guard let value = config["SUPABASE_URL"] as? String,
               !value.isEmpty,
-              !value.contains("your-project") else {
+              !value.contains("your-project"),
+              let normalizedURL = normalizedSupabaseURLString(from: value) else {
             return ""
         }
-        return value
+        return normalizedURL
     }
 
     static var supabaseAnonKey: String {
@@ -30,5 +31,20 @@ enum Configuration {
 
     static var isSupabaseConfigured: Bool {
         !supabaseURL.isEmpty && !supabaseAnonKey.isEmpty
+    }
+
+    private static func normalizedSupabaseURLString(from value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let components = URLComponents(string: trimmed),
+              components.scheme == "https",
+              let host = components.host,
+              host.hasSuffix(".supabase.co") else {
+            return nil
+        }
+
+        let path = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard path.isEmpty else { return nil }
+
+        return "https://\(host)"
     }
 }

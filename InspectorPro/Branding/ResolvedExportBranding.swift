@@ -49,7 +49,7 @@ struct ResolvedExportBranding {
     )
 
     static let legacyDefault = ResolvedExportBranding(
-        companyName: "Iter Engineering",
+        companyName: DefaultBrandingProfile.name,
         logoImageData: BrandingAssetStorage.bundledLogoImageData,
         footerAddressLine: BrandingFooterFormatter.normalizeAddressLine(DefaultBrandingProfile.footerAddressLine),
         primaryFooterLinePDF: BrandingFooterFormatter.normalizeFreeformLine(DefaultBrandingProfile.primaryFooterLinePDF),
@@ -100,6 +100,15 @@ struct ResolvedExportBranding {
     private static let footerTextColorHexValue = "002060"
 
     private static func resolved(from brandingProfile: BrandingProfile) -> ResolvedExportBranding {
+        if brandingProfile.isDefault,
+           brandingProfile.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           brandingProfile.footerAddressLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           brandingProfile.primaryFooterLinePDF.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           brandingProfile.primaryFooterLineDOCX.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           brandingProfile.secondaryFooterLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return empty
+        }
+
         let logoImageData = brandingProfile.showLogoInReport
             ? BrandingAssetStorage.displayLogoImageData(for: brandingProfile)
             : nil

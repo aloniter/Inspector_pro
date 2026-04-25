@@ -20,15 +20,15 @@ enum ExportPermissionResult {
         case .allowed:
             return nil
         case .deniedTrialExpired:
-            return "תקופת הניסיון הסתיימה. צור קשר עם הנהלת המערכת להפעלת החשבון."
+            return AppStrings.text("תקופת הניסיון הסתיימה. צור קשר עם הנהלת המערכת להפעלת החשבון.")
         case .deniedSuspended, .deniedExportDisabled:
-            return "אפשרות הייצוא אינה פעילה בחשבון זה. יש לפנות לתמיכה להפעלה מחדש."
+            return AppStrings.text("אפשרות הייצוא אינה פעילה בחשבון זה. יש לפנות לתמיכה להפעלה מחדש.")
         case .cannotVerifyOffline:
-            return "לא ניתן לאמת הרשאות ייצוא. נסה שוב כשיש חיבור לאינטרנט."
+            return AppStrings.text("לא ניתן לאמת הרשאות ייצוא. נסה שוב כשיש חיבור לאינטרנט.")
         case .notLoggedIn:
-            return "יש להתחבר לחשבון כדי לייצא דוחות."
+            return AppStrings.text("יש להתחבר לחשבון כדי לייצא דוחות.")
         case .backendError:
-            return "שגיאה באימות הרשאות ייצוא. נסה שוב מאוחר יותר."
+            return AppStrings.text("שגיאה באימות הרשאות ייצוא. נסה שוב מאוחר יותר.")
         }
     }
 }
@@ -85,19 +85,19 @@ actor ExportPermissionService {
             clearCache()
         }
 
-        // Try to fetch fresh from network
-        if let fresh = await fetchFromNetwork(client: client, userID: userID) {
+        // Try to fetch fresh from network.
+        switch await fetchFromNetwork(client: client, userID: userID) {
+        case .success(let fresh):
             cacheResult(fresh, userID: userID.uuidString)
             return evaluate(fresh)
+        case .offline:
+            if let cached = loadCachedData(), isCacheValid() {
+                return evaluate(cached)
+            }
+            return .cannotVerifyOffline
+        case .backendError(let message):
+            return .backendError(message)
         }
-
-        // Network failed — use cache if still valid
-        if let cached = loadCachedData(), isCacheValid() {
-            return evaluate(cached)
-        }
-
-        // No valid cache and no network
-        return .cannotVerifyOffline
     }
 
     /// Call this on logout to wipe the permission cache.
@@ -128,10 +128,22 @@ actor ExportPermissionService {
         let trialEndDate: Date?
     }
 
+    private enum PermissionFetchResult {
+        case success(PermissionData)
+        case offline
+        case backendError(String)
+    }
+
     /// Returns a synchronous snapshot of the cached permission result, or nil if no cache exists.
-    nonisolated func cachedResult() -> ExportPermissionResult? {
+    nonisolated func cachedResult(forUserID userID: String?) -> ExportPermissionResult? {
+        guard let userID,
+              UserDefaults.standard.string(forKey: keyUserID) == userID else { return nil }
         guard let data = loadCachedDataSync() else { return nil }
         return evaluateSync(data)
+    }
+
+    nonisolated func cachedResult() -> ExportPermissionResult? {
+        cachedResult(forUserID: UserDefaults.standard.string(forKey: keyUserID))
     }
 
     /// Cached trial end date as a display string (yyyy-MM-dd), or nil.
@@ -145,7 +157,7 @@ actor ExportPermissionService {
         return formatter.string(from: date)
     }
 
-    private func fetchFromNetwork(client: SupabaseClient, userID: UUID) async -> PermissionData? {
+    private func fetchFromNetwork(client: SupabaseClient, userID: UUID) async -> PermissionFetchResult {
         do {
             // 1. Fetch profile to get company_id
             let profiles: [ProfileRow] = try await client
@@ -155,7 +167,9 @@ actor ExportPermissionService {
                 .execute()
                 .value
 
-            guard let profile = profiles.first else { return nil }
+            guard let profile = profiles.first else {
+                return .backendError("Missing profile for current user")
+            }
 
             #if DEBUG
             print("[ExportPermission] user_id=\(userID.uuidString) company_id=\(profile.company_id.uuidString)")
@@ -169,7 +183,9 @@ actor ExportPermissionService {
                 .execute()
                 .value
 
-            guard let company = companies.first else { return nil }
+            guard let company = companies.first else {
+                return .backendError("Missing company for current user")
+            }
 
             let trialEndDate = company.trial_end_date.flatMap { parseDateString($0) }
             let data = PermissionData(
@@ -183,12 +199,12 @@ actor ExportPermissionService {
             print("[ExportPermission] result=\(result) export_allowed=\(company.export_allowed) status=\(company.payment_status) trial_end=\(company.trial_end_date ?? "nil")")
             #endif
 
-            return data
+            return .success(data)
         } catch {
             #if DEBUG
             print("[ExportPermission] Network fetch failed: \(error)")
             #endif
-            return nil
+            return isOfflineError(error) ? .offline : .backendError(error.localizedDescription)
         }
     }
 
@@ -273,8 +289,41 @@ actor ExportPermissionService {
     // MARK: - Helpers
 
     private func currentUserID(client: SupabaseClient) async -> UUID? {
-        guard let session = try? await client.auth.session else { return nil }
-        return session.user.id
+        if let session = try? await client.auth.session {
+            return session.user.id
+        }
+        return client.auth.currentUser?.id
+    }
+
+    private func isOfflineError(_ error: Error) -> Bool {
+        if let urlError = error as? URLError {
+            return isOfflineURLError(urlError)
+        }
+
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain {
+            let code = URLError.Code(rawValue: nsError.code)
+            return isOfflineURLError(URLError(code))
+        }
+
+        if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? Error {
+            return isOfflineError(underlying)
+        }
+
+        return false
+    }
+
+    private func isOfflineURLError(_ error: URLError) -> Bool {
+        [
+            .notConnectedToInternet,
+            .networkConnectionLost,
+            .timedOut,
+            .cannotFindHost,
+            .cannotConnectToHost,
+            .dnsLookupFailed,
+            .internationalRoamingOff,
+            .dataNotAllowed,
+        ].contains(error.code)
     }
 
     private func parseDateString(_ string: String) -> Date? {

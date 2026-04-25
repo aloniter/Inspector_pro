@@ -50,8 +50,10 @@ targets:
         INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen
         INFOPLIST_KEY_NSCameraUsageDescription: "המצלמה נדרשת לצילום תמונות לפרויקט"
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "גישה לגלריה נדרשת לייבוא תמונות לפרויקט"
-        INFOPLIST_KEY_CFBundleDisplayName: "Inspector Pro"
-        MARKETING_VERSION: "1.0.0"
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        INFOPLIST_KEY_CFBundleDisplayName: Inspectley
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+        MARKETING_VERSION: "1.2.0"
         CURRENT_PROJECT_VERSION: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 

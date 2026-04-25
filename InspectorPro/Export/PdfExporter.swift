@@ -11,6 +11,9 @@ final class PdfExporter {
         let branding = ResolvedExportBranding.resolve(for: report)
 
         let logoImage = branding.logoImageData.flatMap(UIImage.init(data:))
+        let photoImages = try photos.map { photo in
+            try loadCompressedImage(photo: photo, options: options)
+        }
 
         let pageRect = CGRect(x: 0, y: 0, width: options.pageWidth, height: options.pageHeight)
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
@@ -31,7 +34,7 @@ final class PdfExporter {
             currentY += drawTableHeader(options: options, y: currentY)
 
             for (index, photo) in photos.enumerated() {
-                let image = loadCompressedImage(photo: photo, options: options)
+                let image = photoImages[index]
                 let itemNumber = report.showsNumberedImagesInReport ? index + 1 : nil
                 let descriptionLines = descriptionLines(
                     photo: photo,
@@ -296,7 +299,7 @@ final class PdfExporter {
     }
 
     private static func drawPhotoRow(
-        image: UIImage?,
+        image: UIImage,
         descriptionLines: [ExportTextFormatter.DescriptionLine],
         options: ExportOptions,
         y: CGFloat,
@@ -335,42 +338,32 @@ final class PdfExporter {
         divider.lineWidth = 1
         divider.stroke()
 
-        if let image {
-            let pad = ExportImageConstants.imageCellPaddingPoints
-            let maxW = options.imageColumnWidth - pad * 2
-            let maxH = min(max(rowHeight - pad * 2, 40), options.targetPhotoImageHeight)
+        let pad = ExportImageConstants.imageCellPaddingPoints
+        let maxW = options.imageColumnWidth - pad * 2
+        let maxH = min(max(rowHeight - pad * 2, 40), options.targetPhotoImageHeight)
 
-            // Cover scaling: fill the target area, cropping overflow from center.
-            let widthScale = maxW / image.size.width
-            let heightScale = maxH / image.size.height
-            let coverScale = max(widthScale, heightScale)
-            let drawW = image.size.width * coverScale
-            let drawH = image.size.height * coverScale
+        // Cover scaling: fill the target area, cropping overflow from center.
+        let widthScale = maxW / image.size.width
+        let heightScale = maxH / image.size.height
+        let coverScale = max(widthScale, heightScale)
+        let drawW = image.size.width * coverScale
+        let drawH = image.size.height * coverScale
 
-            // Center the (possibly oversized) image in the clip rect.
-            let clipRect = CGRect(
-                x: imageCellRect.minX + (imageCellRect.width - maxW) / 2,
-                y: imageCellRect.minY + (imageCellRect.height - maxH) / 2,
-                width: maxW,
-                height: maxH
-            )
-            let drawX = clipRect.midX - drawW / 2
-            let drawY = clipRect.midY - drawH / 2
+        // Center the (possibly oversized) image in the clip rect.
+        let clipRect = CGRect(
+            x: imageCellRect.minX + (imageCellRect.width - maxW) / 2,
+            y: imageCellRect.minY + (imageCellRect.height - maxH) / 2,
+            width: maxW,
+            height: maxH
+        )
+        let drawX = clipRect.midX - drawW / 2
+        let drawY = clipRect.midY - drawH / 2
 
-            if let ctx = UIGraphicsGetCurrentContext() {
-                ctx.saveGState()
-                ctx.clip(to: clipRect)
-                image.draw(in: CGRect(x: drawX, y: drawY, width: drawW, height: drawH))
-                ctx.restoreGState()
-            }
-        } else {
-            drawRTLText(
-                AppStrings.text("לא ניתן לטעון תמונה"),
-                in: imageCellRect.insetBy(dx: options.tableCellPadding, dy: options.tableCellPadding),
-                fontSize: 12,
-                alignment: .center,
-                color: .systemRed
-            )
+        if let ctx = UIGraphicsGetCurrentContext() {
+            ctx.saveGState()
+            ctx.clip(to: clipRect)
+            image.draw(in: CGRect(x: drawX, y: drawY, width: drawW, height: drawH))
+            ctx.restoreGState()
         }
 
         drawDescriptionText(
@@ -599,7 +592,7 @@ final class PdfExporter {
         )
     }
 
-    private static func loadCompressedImage(photo: PhotoRecord, options: ExportOptions) -> UIImage? {
+    private static func loadCompressedImage(photo: PhotoRecord, options: ExportOptions) throws -> UIImage {
         let imagePath = photo.displayImagePath
         let fullURL = AppConstants.imagesBaseURL.appendingPathComponent(imagePath)
 
@@ -611,7 +604,7 @@ final class PdfExporter {
                   maxBytes: options.exportImageMaxBytes
               ),
               let image = UIImage(data: compressed) else {
-            return nil
+            throw ExportError.imageLoadFailed(imagePath)
         }
 
         return image

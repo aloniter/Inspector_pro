@@ -5,16 +5,28 @@ import Supabase
 final class AuthService {
     var isAuthenticated = false
     var isCheckingSession = true   // true until initial session check completes
+    var currentUserID: String?
+    var currentUserEmail: String?
 
     private var stateListenerTask: Task<Void, Never>?
+    private var sessionTimeoutTask: Task<Void, Never>?
 
     init() {
+        sessionTimeoutTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(8))
+            await MainActor.run { [weak self] in
+                guard let self, self.isCheckingSession else { return }
+                self.isAuthenticated = false
+                self.isCheckingSession = false
+            }
+        }
         stateListenerTask = Task { [weak self] in
             await self?.observeAuthState()
         }
     }
 
     deinit {
+        sessionTimeoutTask?.cancel()
         stateListenerTask?.cancel()
     }
 
@@ -28,6 +40,8 @@ final class AuthService {
     }
 
     func signOut() async {
+        await clearLocalSessionState()
+
         guard let client = SupabaseManager.client else { return }
         do {
             try await client.auth.signOut()
@@ -39,13 +53,16 @@ final class AuthService {
             print("❌ signOut failed: \(error)")
             #endif
         }
+    }
+
+    private func clearLocalSessionState() async {
         await ExportPermissionService.shared.clearCache()
         await CompanyBrandingService.shared.clearCache()
-        // Explicit state update — safety net in case authStateChanges stream
-        // doesn't fire immediately (e.g. offline or stream lag on device).
         await MainActor.run {
             isAuthenticated = false
             isCheckingSession = false
+            currentUserID = nil
+            currentUserEmail = nil
         }
     }
 
@@ -60,10 +77,13 @@ final class AuthService {
             return
         }
 
-        for await (event, _) in await client.auth.authStateChanges {
+        for await (event, session) in client.auth.authStateChanges {
             let authenticated: Bool
             switch event {
-            case .initialSession, .signedIn, .tokenRefreshed, .userUpdated:
+            case .initialSession:
+                // On clean install there is no session; treat nil session as unauthenticated.
+                authenticated = session != nil
+            case .signedIn, .tokenRefreshed, .userUpdated:
                 authenticated = true
             case .signedOut, .userDeleted:
                 authenticated = false
@@ -72,8 +92,11 @@ final class AuthService {
             }
 
             await MainActor.run {
+                sessionTimeoutTask?.cancel()
                 isAuthenticated = authenticated
                 isCheckingSession = false
+                currentUserID = authenticated ? session?.user.id.uuidString : nil
+                currentUserEmail = authenticated ? session?.user.email : nil
             }
         }
     }
@@ -83,6 +106,6 @@ enum AuthServiceError: LocalizedError {
     case notConfigured
 
     var errorDescription: String? {
-        "מערכת האימות אינה מוגדרת. יש לפנות לתמיכה."
+        AppStrings.text("מערכת האימות אינה מוגדרת. יש לפנות לתמיכה.")
     }
 }

@@ -16,29 +16,23 @@ struct BrandingSettingsContainerView: View {
 
     var body: some View {
         Group {
-            if authService.isAuthenticated {
-                RemoteBrandingReadOnlyView()
-            } else {
-                switch loadState {
-                case .loaded(let brandingProfile):
-                    BrandingSettingsView(brandingProfile: brandingProfile)
-                case .loading:
-                    ProgressView(AppStrings.text("טוען..."))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                case .failed:
-                    EmptyStateView(
-                        icon: "exclamationmark.triangle",
-                        title: AppStrings.text("לא ניתן לטעון את הגדרות המיתוג"),
-                        subtitle: AppStrings.text("נסה שוב מאוחר יותר")
-                    )
-                    .padding()
-                }
+            switch loadState {
+            case .loaded(let brandingProfile):
+                BrandingSettingsView(brandingProfile: brandingProfile)
+            case .loading:
+                ProgressView(AppStrings.text("טוען..."))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .failed:
+                EmptyStateView(
+                    icon: "exclamationmark.triangle",
+                    title: AppStrings.text("לא ניתן לטעון את הגדרות המיתוג"),
+                    subtitle: AppStrings.text("נסה שוב מאוחר יותר")
+                )
+                .padding()
             }
         }
         .task {
-            if !authService.isAuthenticated {
-                await loadBrandingProfileIfNeeded()
-            }
+            await loadBrandingProfileIfNeeded()
         }
         .navigationTitle(AppStrings.text("מיתוג חברה"))
         .navigationBarTitleDisplayMode(.inline)
@@ -50,89 +44,28 @@ struct BrandingSettingsContainerView: View {
 
         do {
             let brandingProfile = try BrandingBootstrapper.fetchOrCreateDefaultBrandingProfile(in: modelContext)
+
+            if authService.isAuthenticated,
+               brandingProfile.name.isEmpty,
+               let remote = CompanyBrandingService.shared.loadCached() {
+                brandingProfile.name = remote.name
+                brandingProfile.footerAddressLine = remote.footerAddressLine
+                brandingProfile.primaryFooterLinePDF = remote.primaryFooterLinePDF
+                brandingProfile.primaryFooterLineDOCX = remote.primaryFooterLineDOCX
+                brandingProfile.secondaryFooterLine = remote.secondaryFooterLine
+                brandingProfile.showLogoInReport = remote.showLogoInReport
+                brandingProfile.showFooterInReport = remote.showFooterInReport
+                if let logoData = CompanyBrandingService.shared.cachedLogoImageData(),
+                   let image = UIImage(data: logoData) {
+                    try? BrandingAssetStorage.saveCustomLogo(image, for: brandingProfile)
+                    brandingProfile.usesBundledDefaultLogo = false
+                }
+                try? modelContext.save()
+            }
+
             loadState = .loaded(brandingProfile)
         } catch {
             loadState = .failed
-        }
-    }
-}
-
-// MARK: - Remote branding read-only view
-
-private struct RemoteBrandingReadOnlyView: View {
-    private var branding: CompanyBranding? {
-        CompanyBrandingService.shared.loadCached()
-    }
-    private var logoImage: UIImage? {
-        CompanyBrandingService.shared.cachedLogoImageData().flatMap(UIImage.init(data:))
-            ?? BrandingAssetStorage.displayLogoImage(for: nil)
-    }
-
-    var body: some View {
-        Form {
-            Section {
-                Label("המיתוג מנוהל על ידי החברה", systemImage: "building.2")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            }
-
-            if let branding {
-                Section(AppStrings.text("פרטי חברה")) {
-                    HStack {
-                        Text(AppStrings.text("שם החברה"))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(branding.name)
-                    }
-                }
-
-                Section(AppStrings.text("לוגו")) {
-                    HStack {
-                        Spacer()
-                        BrandingLogoPreview(image: logoImage)
-                        Spacer()
-                    }
-                    .listRowBackground(Color.clear)
-                }
-
-                Section(AppStrings.text("כותרת תחתונה")) {
-                    if !branding.footerAddressLine.isEmpty {
-                        HStack {
-                            Text(AppStrings.text("כתובת"))
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Text(BrandingFooterFormatter.strippingDirectionalMarks(from: branding.footerAddressLine))
-                                .multilineTextAlignment(.trailing)
-                        }
-                    }
-                    if !branding.primaryFooterLinePDF.isEmpty {
-                        HStack {
-                            Text(AppStrings.text("קשר ראשי"))
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Text(BrandingFooterFormatter.strippingDirectionalMarks(from: branding.primaryFooterLinePDF))
-                                .multilineTextAlignment(.trailing)
-                        }
-                    }
-                    if !branding.secondaryFooterLine.isEmpty {
-                        HStack {
-                            Text(AppStrings.text("קשר משני"))
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Text(BrandingFooterFormatter.strippingDirectionalMarks(from: branding.secondaryFooterLine))
-                                .multilineTextAlignment(.trailing)
-                        }
-                    }
-                }
-            } else {
-                Section {
-                    Text("המיתוג יסונכרן בעת חיבור לאינטרנט")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
-            }
         }
     }
 }
@@ -195,6 +128,7 @@ private struct BrandingSettingsView: View {
     @State private var initialSecondaryFooterFields = BrandingSecondaryFooterFields()
     @State private var initialized = false
     @State private var isSaving = false
+    @State private var saveSucceeded = false
     @State private var errorMessage: String?
 
     private var textAlignment: TextAlignment {
@@ -323,10 +257,11 @@ private struct BrandingSettingsView: View {
         }
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
-                Button(AppStrings.text("שמור")) {
+                Button(saveSucceeded ? AppStrings.text("נשמר!") : AppStrings.text("שמור")) {
                     saveBranding()
                 }
                 .disabled(!isFormValid || isSaving)
+                .tint(saveSucceeded ? .green : nil)
             }
 
             ToolbarItem(placement: .cancellationAction) {
@@ -394,6 +329,13 @@ private struct BrandingSettingsView: View {
     }
 
     private func saveBranding() {
+        Task {
+            await performSave()
+        }
+    }
+
+    @MainActor
+    private func performSave() async {
         let normalizedCompanyName = normalized(companyName)
         let normalizedFooterAddressLine = BrandingFooterFormatter.normalizeAddressLine(normalized(footerAddressLine))
         let normalizedPrimaryFooterFields = BrandingPrimaryFooterFields(
@@ -414,6 +356,7 @@ private struct BrandingSettingsView: View {
         }
 
         isSaving = true
+        defer { isSaving = false }
 
         do {
             brandingProfile.name = normalizedCompanyName
@@ -445,12 +388,16 @@ private struct BrandingSettingsView: View {
             try modelContext.save()
             initialPrimaryFooterFields = normalizedPrimaryFooterFields
             initialSecondaryFooterFields = normalizedSecondaryFooterFields
+
+            saveSucceeded = true
+            try await Task.sleep(for: .seconds(1.5))
             dismiss()
+        } catch is CancellationError {
+            saveSucceeded = false
         } catch {
+            saveSucceeded = false
             errorMessage = AppStrings.text("אירעה שגיאה בשמירה")
         }
-
-        isSaving = false
     }
 
     private func normalized(_ value: String) -> String {

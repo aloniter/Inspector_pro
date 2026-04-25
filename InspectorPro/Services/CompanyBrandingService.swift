@@ -174,7 +174,9 @@ actor CompanyBrandingService {
     }
 
     private func currentUserID(client: SupabaseClient) async -> UUID? {
-        guard let session = try? await client.auth.session else { return nil }
-        return session.user.id
+        if let session = try? await client.auth.session {
+            return session.user.id
+        }
+        return client.auth.currentUser?.id
     }
 }
