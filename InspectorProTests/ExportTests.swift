@@ -1,7 +1,30 @@
 import Testing
 import UIKit
+import Supabase
 import ZIPFoundation
 @testable import InspectorPro
+
+private func makeAuthSession(expiresAt: TimeInterval, email: String? = "inspector@example.com") -> Session {
+    let now = Date()
+    let user = User(
+        id: UUID(),
+        appMetadata: [:],
+        userMetadata: [:],
+        aud: "authenticated",
+        email: email,
+        createdAt: now,
+        updatedAt: now
+    )
+
+    return Session(
+        accessToken: "access-token",
+        tokenType: "bearer",
+        expiresIn: expiresAt - now.timeIntervalSince1970,
+        expiresAt: expiresAt,
+        refreshToken: "refresh-token",
+        user: user
+    )
+}
 
 private func docxXMLEntries(from archiveURL: URL) throws -> [String: Data] {
     let archive = try Archive(url: archiveURL, accessMode: .read)
@@ -18,6 +41,20 @@ private func docxXMLEntries(from archiveURL: URL) throws -> [String: Data] {
 
 private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     haystack.components(separatedBy: needle).count - 1
+}
+
+@Test func authServiceDoesNotAuthenticateNilOrExpiredSessions() {
+    let expiredSession = makeAuthSession(expiresAt: Date().addingTimeInterval(-60).timeIntervalSince1970)
+
+    #expect(AuthService.sessionUsableForAuthentication(nil) == nil)
+    #expect(AuthService.sessionUsableForAuthentication(expiredSession) == nil)
+}
+
+@Test func authServiceAuthenticatesOnlyValidUnexpiredSessions() throws {
+    let validSession = makeAuthSession(expiresAt: Date().addingTimeInterval(3_600).timeIntervalSince1970)
+
+    let authenticatedSession = try #require(AuthService.sessionUsableForAuthentication(validSession))
+    #expect(authenticatedSession.user.email == "inspector@example.com")
 }
 
 @Test func imageQualityPresets() {
@@ -109,6 +146,90 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(report.reportAddress == "Project address")
 }
 
+@Test func reportMoveChangesOnlyParentProjectRelationship() {
+    let oldProject = Project(name: "Old project", address: "Old address")
+    let newProject = Project(name: "New project", address: "New address")
+    let brandingProfile = BrandingProfile(
+        name: "Client",
+        footerAddressLine: "Footer address",
+        primaryFooterLinePDF: "PDF footer",
+        primaryFooterLineDOCX: "DOCX footer",
+        secondaryFooterLine: "Secondary footer"
+    )
+    let date = Date(timeIntervalSince1970: 1_700_000_000)
+    let report = Report(
+        name: "Inspection report",
+        address: "Report address",
+        date: date,
+        attendees: "Attendee",
+        notes: "Finding notes",
+        showsNumberedImagesInReport: true,
+        project: oldProject,
+        brandingProfile: brandingProfile
+    )
+    let photo = PhotoRecord(
+        imagePath: "old-project/photo.jpg",
+        annotatedImagePath: "old-project/ann_photo.jpg",
+        freeText: "Annotation notes",
+        position: 4,
+        createdAt: Date(timeIntervalSince1970: 1_700_000_100)
+    )
+    photo.report = report
+    report.photos = [photo]
+
+    let didMove = report.move(to: newProject)
+
+    #expect(didMove)
+    #expect(report.project?.id == newProject.id)
+    #expect(report.name == "Inspection report")
+    #expect(report.address == "Report address")
+    #expect(report.date == date)
+    #expect(report.attendees == "Attendee")
+    #expect(report.notes == "Finding notes")
+    #expect(report.showsNumberedImagesInReport)
+    #expect(report.brandingProfile?.id == brandingProfile.id)
+    #expect(report.photos.count == 1)
+    #expect(report.photos.first?.imagePath == "old-project/photo.jpg")
+    #expect(report.photos.first?.annotatedImagePath == "old-project/ann_photo.jpg")
+    #expect(report.photos.first?.freeText == "Annotation notes")
+    #expect(report.photos.first?.position == 4)
+}
+
+@Test func reportMoveIgnoresCurrentProjectSelection() {
+    let project = Project(name: "Project")
+    let report = Report(name: "Report", project: project)
+
+    let didMove = report.move(to: project)
+
+    #expect(!didMove)
+    #expect(report.project?.id == project.id)
+}
+
+@Test func projectDeletionPhotoReferencesUseCurrentReportsOnly() {
+    let project = Project(name: "Project")
+    let keptProject = Project(name: "Kept project")
+    let deletedReport = Report(name: "Deleted", project: project)
+    let movedReport = Report(name: "Moved", project: keptProject)
+    let photo = PhotoRecord(
+        imagePath: "project/photo.jpg",
+        annotatedImagePath: "project/ann_photo.jpg"
+    )
+    let movedPhoto = PhotoRecord(
+        imagePath: "project/moved.jpg",
+        annotatedImagePath: "project/ann_moved.jpg"
+    )
+    photo.report = deletedReport
+    movedPhoto.report = movedReport
+    project.reports = [deletedReport]
+    keptProject.reports = [movedReport]
+
+    let references = project.photoFileReferencesForDeletion
+
+    #expect(references.count == 1)
+    #expect(references.first?.originalPath == "project/photo.jpg")
+    #expect(references.first?.annotatedPath == "project/ann_photo.jpg")
+}
+
 @Test func xmlEscaping() {
     let input = "Test & <value> \"quoted\" 'apos'"
     let escaped = OpenXMLBuilder.escapeXML(input)
@@ -119,6 +240,21 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     let input = "Valid\u{0000}Text\u{0001}\u{0008}"
     let escaped = OpenXMLBuilder.escapeXML(input)
     #expect(escaped == "ValidText")
+}
+
+@Test func creatorBrandingTextUsesIterEngineering() {
+    let legacyPersonalName = "Alon" + " Iter"
+
+    #expect(AppBranding.createdByText == "Created by Iter Engineering")
+    #expect(!AppBranding.createdByText.contains(legacyPersonalName))
+}
+
+@Test func docxCorePropertiesUseCreatorBrandingText() {
+    let legacyPersonalCreator = ["Created by", "Alon" + " Iter"].joined(separator: " ")
+    let xml = DocxTemplateBuilder.corePropertiesXML()
+
+    #expect(xml.contains("<dc:creator>Created by Iter Engineering</dc:creator>"))
+    #expect(!xml.contains(legacyPersonalCreator))
 }
 
 @Test func openXMLTableStructure() {
@@ -338,7 +474,7 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(!styles.contains("<w:ind w:right="))
 }
 
-@Test func docxCoverDetailsAvoidsDirectionalIsolatesAndUsesSeparateLabelValueParagraphs() {
+@Test func docxCoverDetailsAvoidsDirectionalIsolatesAndUsesSeparateLabelValueParagraphs() throws {
     let xml = DocxTemplateBuilder.coverDetailsXML(
         address: "כפר ויתקין",
         date: "6.4.2026",
@@ -355,16 +491,35 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(xml.contains(">כפר ויתקין<"))
     #expect(xml.contains(">תאריך<"))
     #expect(xml.contains(">6.4.2026<"))
-    #expect(xml.contains(OpenXMLBuilder.escapeXML(ExportTextFormatter.rtlHeadingText("נוכחים:"))))
+    let attendeesHeadingText = OpenXMLBuilder.escapeXML(ExportTextFormatter.rtlHeadingText("נוכחים:"))
+    let firstAttendeeText = OpenXMLBuilder.escapeXML("\u{202B}1.\u{00A0}אלון\u{202C}")
+    let secondAttendeeText = OpenXMLBuilder.escapeXML("\u{202B}2.\u{00A0}דפנה\u{202C}")
+    let attendeesHeadingParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(attendeesHeadingText) })
+    let firstAttendeeParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(firstAttendeeText) })
+    let notesContentParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">נדרש תיקון<") })
+
+    #expect(xml.contains(attendeesHeadingText))
     #expect(xml.contains("w:color w:val=\"1F4E79\""))
     #expect(xml.contains("w:jc w:val=\"center\""))
-    #expect(!xml.contains("w:jc w:val=\"right\""))
-    #expect(xml.contains("w:sz w:val=\"24\""))
     #expect(xml.contains("w:sz w:val=\"20\""))
-    #expect(xml.contains(OpenXMLBuilder.escapeXML("\u{202B}1.\u{00A0}אלון\u{202C}")))
-    #expect(xml.contains(OpenXMLBuilder.escapeXML("\u{202B}2.\u{00A0}דפנה\u{202C}")))
+    #expect(!xml.contains("w:jc w:val=\"right\""))
+    #expect(attendeesHeadingParagraph.contains("w:jc w:val=\"center\""))
+    #expect(attendeesHeadingParagraph.contains("<w:sz w:val=\"20\"/>"))
+    #expect(attendeesHeadingParagraph.contains("<w:szCs w:val=\"20\"/>"))
+    #expect(attendeesHeadingParagraph.contains("<w:b/>"))
+    #expect(attendeesHeadingParagraph.contains("<w:bCs/>"))
+    #expect(firstAttendeeParagraph.contains("w:jc w:val=\"center\""))
+    #expect(firstAttendeeParagraph.contains("<w:sz w:val=\"20\"/>"))
+    #expect(firstAttendeeParagraph.contains("<w:szCs w:val=\"20\"/>"))
+    #expect(!firstAttendeeParagraph.contains("<w:b/>"))
+    #expect(!firstAttendeeParagraph.contains("<w:bCs/>"))
+    #expect(xml.contains(firstAttendeeText))
+    #expect(xml.contains(secondAttendeeText))
     #expect(xml.contains(">הערות<"))
     #expect(xml.contains(">נדרש תיקון<"))
+    #expect(notesContentParagraph.contains("w:jc w:val=\"center\""))
+    #expect(notesContentParagraph.contains("<w:sz w:val=\"24\"/>"))
+    #expect(notesContentParagraph.contains("<w:szCs w:val=\"24\"/>"))
 }
 
 @Test func docxCoverDetailsOmitsAttendeesSectionWhenValueIsMissing() {
@@ -867,6 +1022,7 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     let report = Report(
         name: "בדיקת יצוא",
         date: Date(timeIntervalSince1970: 1_700_000_000),
+        attendees: "אלון\nדפנה",
         notes: "תקין",
         project: project
     )
@@ -974,7 +1130,9 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(documentText.contains(">כתובת<"))
     #expect(documentText.contains(">כפר ויתקין<"))
     #expect(documentText.contains(">\(ExportTextFormatter.reportCoverDateString(from: report.date))<"))
-    #expect(!documentText.contains(">נוכחים:<"))
+    #expect(documentText.contains(OpenXMLBuilder.escapeXML(ExportTextFormatter.rtlHeadingText("נוכחים:"))))
+    #expect(documentText.contains(OpenXMLBuilder.escapeXML("\u{202B}1.\u{00A0}אלון\u{202C}")))
+    #expect(documentText.contains(OpenXMLBuilder.escapeXML("\u{202B}2.\u{00A0}דפנה\u{202C}")))
     #expect(documentText.contains(">הערות<"))
     #expect(documentText.contains(">תקין<"))
     #expect(documentText.contains(">שורת בדיקה</w:t>"))

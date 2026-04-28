@@ -1,5 +1,10 @@
 # Lessons Learned
 
+## Centered cover-page sections must stay centered in actual export alignment
+- When a user asks for typography-only changes on a stacked cover-page section, do not reinterpret alignment even if the text is RTL.
+- Reason: changing `w:jc` or PDF paragraph alignment from `center` to `right` can move the whole Hebrew block to the visual side in Word/PDF, even when the text direction itself remains correct.
+- Verification rule: for `נוכחים` cover-page changes, assert the generated DOCX paragraph uses `w:jc w:val="center"` for both the heading and numbered attendee lines, and visually compare against the user-provided Word screenshot when available.
+
 ## SwiftData versioned schemas are immutable once used
 - Do not add or remove fields inside an existing versioned schema after it has been used to create a store, even during the same feature branch.
 - Reason: SwiftData/CoreData identifies model versions by checksum, so changing `InspectorProSchemaV8` after it exists can make staged migration report an unknown model version.

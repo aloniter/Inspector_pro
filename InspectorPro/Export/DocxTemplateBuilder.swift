@@ -108,7 +108,15 @@ final class DocxTemplateBuilder {
             sections.append(attendeesCoverFieldSectionXML(label: AppStrings.text("נוכחים"), value: attendees))
         }
 
-        sections.append(coverFieldSectionXML(label: AppStrings.text("הערות"), value: notes, isLast: true))
+        sections.append(
+            coverFieldSectionXML(
+                label: AppStrings.text("הערות"),
+                value: notes,
+                valueFontSize: ExportTypography.Cover.notesContentDocxSize,
+                valueAlignment: "center",
+                isLast: true
+            )
+        )
         return sections.joined()
     }
 
@@ -118,6 +126,8 @@ final class DocxTemplateBuilder {
         label: String,
         value: String,
         valueFontSize: Int = 28,
+        valueBold: Bool = true,
+        valueAlignment: String = "center",
         isLast: Bool = false
     ) -> String {
         let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -142,10 +152,11 @@ final class DocxTemplateBuilder {
             coverParagraphXML(
                 text: line,
                 fontSize: valueFontSize,
-                bold: true,
+                bold: valueBold,
                 color: "111827",
                 spacingBefore: 0,
-                spacingAfter: index == valueLines.count - 1 ? (isLast ? 120 : 260) : 40
+                spacingAfter: index == valueLines.count - 1 ? (isLast ? 120 : 260) : 40,
+                alignment: valueAlignment
             )
         }.joined()
 
@@ -160,7 +171,7 @@ final class DocxTemplateBuilder {
 
         let labelParagraph = coverParagraphXML(
             text: ExportTextFormatter.rtlHeadingText("\(label):"),
-            fontSize: 24,
+            fontSize: ExportTypography.Cover.attendeesHeadingDocxSize,
             bold: true,
             color: "1F4E79",
             spacingBefore: 0,
@@ -171,7 +182,7 @@ final class DocxTemplateBuilder {
         let valueParagraphs = valueLines.enumerated().map { index, line in
             coverParagraphXML(
                 text: line,
-                fontSize: 24,
+                fontSize: ExportTypography.Cover.attendeeItemDocxSize,
                 color: "1F4E79",
                 spacingBefore: 0,
                 spacingAfter: index == valueLines.count - 1 ? 260 : 40,
@@ -464,7 +475,7 @@ final class DocxTemplateBuilder {
                    xmlns:dc="http://purl.org/dc/elements/1.1/"
                    xmlns:dcterms="http://purl.org/dc/terms/"
                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <dc:creator>InspectorPro</dc:creator>
+  <dc:creator>\(OpenXMLBuilder.escapeXML(AppBranding.createdByText))</dc:creator>
   <dcterms:created xsi:type="dcterms:W3CDTF">\(now)</dcterms:created>
   <dcterms:modified xsi:type="dcterms:W3CDTF">\(now)</dcterms:modified>
   <cp:revision>1</cp:revision>

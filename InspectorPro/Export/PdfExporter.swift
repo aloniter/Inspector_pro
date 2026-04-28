@@ -16,7 +16,11 @@ final class PdfExporter {
         }
 
         let pageRect = CGRect(x: 0, y: 0, width: options.pageWidth, height: options.pageHeight)
-        let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
+        let rendererFormat = UIGraphicsPDFRendererFormat()
+        rendererFormat.documentInfo = [
+            kCGPDFContextCreator as String: AppBranding.createdByText,
+        ]
+        let renderer = UIGraphicsPDFRenderer(bounds: pageRect, format: rendererFormat)
 
         let totalPhotos = photos.count
         var processedPhotos = 0
@@ -130,15 +134,18 @@ final class PdfExporter {
         }
 
         if let notes = report.notes, !notes.isEmpty {
-            drawRTLText(
-                ExportTextFormatter.coverPageFieldText(
-                    label: AppStrings.text("הערות"),
-                    value: notes
-                ),
-                in: CGRect(x: options.marginLeft, y: y, width: options.contentWidth, height: 130),
-                fontSize: 13,
-                alignment: .right,
-                color: .darkGray
+            _ = drawCoverFieldSection(
+                label: AppStrings.text("הערות"),
+                value: notes,
+                originY: y,
+                width: options.contentWidth,
+                x: options.marginLeft,
+                labelFontSize: 10,
+                valueFontSize: ExportTypography.Cover.notesContentPointSize,
+                valueBold: false,
+                labelColor: branding.coverMutedLabelColor,
+                valueColor: .darkGray,
+                alignment: .center
             )
         }
     }
@@ -213,8 +220,8 @@ final class PdfExporter {
         labelColor: UIColor,
         valueColor: UIColor
     ) -> CGFloat {
-        let labelFontSize: CGFloat = 12
-        let attendeeFontSize: CGFloat = 12
+        let labelFontSize = ExportTypography.Cover.attendeesHeadingPointSize
+        let attendeeFontSize = ExportTypography.Cover.attendeeItemPointSize
         let labelHeight = labelFontSize + 8
         let attendeeLineHeight = attendeeFontSize + 10
         let attendeesHeight = max(CGFloat(attendees.count) * attendeeLineHeight, attendeeLineHeight)

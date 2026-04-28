@@ -1,5 +1,21 @@
 import Foundation
 
+enum ExportTypography {
+    enum Cover {
+        static let attendeesHeadingPointSize: CGFloat = 10
+        static let attendeeItemPointSize: CGFloat = 10
+        static let notesContentPointSize: CGFloat = 12
+
+        static let attendeesHeadingDocxSize = docxHalfPoints(from: attendeesHeadingPointSize)
+        static let attendeeItemDocxSize = docxHalfPoints(from: attendeeItemPointSize)
+        static let notesContentDocxSize = docxHalfPoints(from: notesContentPointSize)
+
+        private static func docxHalfPoints(from pointSize: CGFloat) -> Int {
+            Int(pointSize * 2)
+        }
+    }
+}
+
 struct ExportOptions {
     let format: ExportFormat
     let quality: ImageQuality

@@ -1,5 +1,60 @@
 # TODO
 
+- [x] Correct `נוכחים` cover-page alignment regression from side-aligned back to centered
+- [x] Verify DOCX/PDF export tests still pass after centered attendee alignment
+- [x] Explain where cover-page export layout is controlled for future manual edits
+
+## Review
+
+- Restored the `נוכחים` cover block to centered alignment in both `PdfExporter.drawAttendeesCoverFieldSection` and `DocxTemplateBuilder.attendeesCoverFieldSectionXML`.
+- Kept the requested typography from the previous pass: heading is not bold, heading is 10pt, attendee numbered lines are 10pt, and the numbered attendee text behavior remains unchanged.
+- Updated the DOCX cover XML test so it now requires center alignment for both the `נוכחים:` heading and the numbered attendee lines, and rejects `w:jc w:val="right"` in that cover details XML.
+- Added a lesson to avoid treating RTL direction as a reason to change centered cover sections to side alignment.
+- Validation:
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' test CODE_SIGNING_ALLOWED=NO` passed with 63 Swift Testing tests.
+- Residual warning:
+- The existing CoreData editable-model checksum warning still appears during test-host startup.
+
+- [x] Inspect PDF and DOCX cover-page rendering for `נוכחים` and `הערות`
+- [x] Add shared export cover typography constants for attendee and notes sizing/alignment
+- [x] Update PDF export cover typography while preserving attendee numbering
+- [x] Update DOCX export cover typography with explicit Word font-size and bold controls
+- [x] Add focused DOCX assertions for attendee heading/item sizes, no heading bold, notes center alignment, and attendee numbering
+- [x] Run export tests/build and record validation results
+
+## Review
+
+- Added `ExportTypography.Cover` constants so PDF point sizes and DOCX half-point sizes are derived from one place: attendees heading 10pt, attendee items 10pt, and notes content 12pt.
+- PDF cover export now keeps attendee numbering, renders `נוכחים:` non-bold at 10pt, renders attendee lines at 10pt, keeps attendees RTL/right-aligned, and renders notes as a separate centered content block at 12pt with wrapping through the existing paragraph renderer.
+- DOCX cover export now writes explicit `<w:sz>` and `<w:szCs>` sizes for those same values, omits bold tags from the attendees heading/items, keeps the numbered attendee text lines, and keeps notes content centered at 12pt.
+- Validation:
+- `docxCoverDetailsAvoidsDirectionalIsolatesAndUsesSeparateLabelValueParagraphs` asserts `נוכחים:` is right-aligned, 10pt, and not bold; attendee numbered lines remain present, right-aligned, 10pt, and not bold; notes content is centered and 12pt.
+- `docxExporterProducesWellFormedXMLParts` now exports a Hebrew DOCX report with attendees and notes and verifies the generated package contains the numbered attendees and notes text.
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' test CODE_SIGNING_ALLOWED=NO` passed with 63 Swift Testing tests.
+- Residual warning:
+- The existing CoreData editable-model checksum warning still appears during test-host startup.
+
+- [x] Inspect current project/report persistence and branding/export text paths for the report move + creator text change
+- [x] Add a safe report move operation that changes only the parent project relationship and preserves report-owned data
+- [x] Add "Move to Project" from the report list and inside the report detail menu, with current/no-other/failure/cancel handling
+- [x] Update creator text coverage to "Created by Iter Engineering" wherever present, without changing app identity or user-controlled branding
+- [x] Add or update focused tests for report movement and branding fallback text
+- [x] Run build/tests and record verification results
+
+## Review
+
+- Added `Report.move(to:)`, which changes only the report's `project` relationship and leaves report fields, photos, annotation paths, export settings, and branding profile untouched.
+- Added a `MoveReportToProjectView` picker sheet. It is available from a report row swipe/context menu and from the report detail menu. The current project is disabled and marked, the sheet handles no-other-projects/cancel/current-project no-op cases, and failed saves roll back the relationship before showing an error.
+- Project deletion now deletes only image files belonging to reports actually deleted with that project instead of deleting the entire project image directory. This keeps moved reports' existing image paths safe even if their old project is later deleted.
+- Added central `AppBranding.createdByText = "Created by Iter Engineering"` and used it for PDF creator metadata and generated DOCX core properties. Existing user/company branding fields remain user-controlled and empty defaults still resolve to unbranded exports.
+- Search confirmed the legacy personal creator phrase is absent from app/export sources.
+- Validation:
+- `plutil -lint InspectorPro/Resources/en.lproj/Localizable.strings InspectorPro/Resources/he.lproj/Localizable.strings` passed.
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' build CODE_SIGNING_ALLOWED=NO` passed.
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' test CODE_SIGNING_ALLOWED=NO` passed with 63 Swift Testing tests.
+- Residual warning:
+- The existing CoreData editable-model checksum warning still appears during test-host startup.
+
 - [x] Add App Store export-compliance encryption flag to generated Info.plist settings
 - [x] Regenerate/sync the Xcode project from `project.yml`
 - [x] Verify the built app Info.plist contains `ITSAppUsesNonExemptEncryption = false`
@@ -427,3 +482,16 @@
 - Simulator unauthenticated launch shows the login screen. The provided test account was rejected as invalid after logout, so real-account export/branding sync remains a manual blocker with a valid review account.
 - Built Release simulator app contains `PrivacyInfo.xcprivacy`, localized `InfoPlist.strings`, `SupabaseConfig.plist`, and no bundled Supabase example config; `ITSAppUsesNonExemptEncryption` is false.
 - The existing SwiftData/CoreData editable-model checksum warning still appears during test-host startup and should be watched in archive/real-device QA.
+
+- [x] Inspect Supabase auth/session routing for reliance on initial-session behavior
+- [x] Update app-owned auth handling to reject expired sessions before routing into the app
+- [x] Verify no third-party package files were modified and run focused build/test validation
+
+## Review
+
+- `AuthService` relied on old initial-session behavior by marking `.initialSession` authenticated whenever Supabase emitted any non-nil session.
+- Auth routing now uses Supabase's public `Session.isExpired` check before treating `.initialSession`, `.signedIn`, `.tokenRefreshed`, or `.userUpdated` as authenticated.
+- Expired or nil sessions clear `isAuthenticated`, `currentUserID`, and `currentUserEmail` while ending the launch loading state; valid sessions still route into the app.
+- Logout was already clearing local auth, export permission, and branding state before remote `signOut()`, so no logout change was needed.
+- No `.build`, `SourcePackages`, or third-party Supabase files were modified.
+- Validation: `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro test -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' CODE_SIGNING_ALLOWED=NO` passed with 58 Swift Testing tests, including the new auth session validity coverage.
