@@ -14,6 +14,14 @@ extension InspectorProSchemaV9.Project {
             return lhs.id.uuidString < rhs.id.uuidString
         }
     }
+
+    var photoFileReferencesForDeletion: [(originalPath: String, annotatedPath: String?)] {
+        reports.flatMap { report in
+            report.photos.map { photo in
+                (originalPath: photo.imagePath, annotatedPath: photo.annotatedImagePath)
+            }
+        }
+    }
 }
 
 extension InspectorProSchemaV9.Report {
@@ -37,5 +45,15 @@ extension InspectorProSchemaV9.Report {
 
             return lhs.id.uuidString < rhs.id.uuidString
         }
+    }
+
+    @discardableResult
+    func move(to destinationProject: Project) -> Bool {
+        guard project?.id != destinationProject.id else {
+            return false
+        }
+
+        project = destinationProject
+        return true
     }
 }

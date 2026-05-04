@@ -78,27 +78,30 @@ final class AuthService {
         }
 
         for await (event, session) in client.auth.authStateChanges {
-            let authenticated: Bool
+            let authenticatedSession: Session?
             switch event {
-            case .initialSession:
-                // On clean install there is no session; treat nil session as unauthenticated.
-                authenticated = session != nil
-            case .signedIn, .tokenRefreshed, .userUpdated:
-                authenticated = true
+            case .initialSession, .signedIn, .tokenRefreshed, .userUpdated:
+                authenticatedSession = Self.sessionUsableForAuthentication(session)
             case .signedOut, .userDeleted:
-                authenticated = false
+                authenticatedSession = nil
             default:
                 continue
             }
 
             await MainActor.run {
                 sessionTimeoutTask?.cancel()
+                let authenticated = authenticatedSession != nil
                 isAuthenticated = authenticated
                 isCheckingSession = false
-                currentUserID = authenticated ? session?.user.id.uuidString : nil
-                currentUserEmail = authenticated ? session?.user.email : nil
+                currentUserID = authenticatedSession?.user.id.uuidString
+                currentUserEmail = authenticatedSession?.user.email
             }
         }
+    }
+
+    static func sessionUsableForAuthentication(_ session: Session?) -> Session? {
+        guard let session, !session.isExpired else { return nil }
+        return session
     }
 }
 

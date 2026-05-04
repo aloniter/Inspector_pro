@@ -11,8 +11,15 @@ final class PdfExporter {
         let branding = ResolvedExportBranding.resolve(for: report)
 
         let logoImage = branding.logoImageData.flatMap(UIImage.init(data:))
-        let photoImages = try photos.map { photo in
-            try loadCompressedImage(photo: photo, options: options)
+
+        // Load images one at a time so we can report progress and yield between each,
+        // allowing queued MainActor UI updates to flush and the progress bar to animate.
+        var photoImages: [UIImage] = []
+        for (index, photo) in photos.enumerated() {
+            let image = try loadCompressedImage(photo: photo, options: options)
+            photoImages.append(image)
+            onProgress(Double(index + 1) / Double(max(photos.count, 1)) * 0.9)
+            await Task.yield()
         }
 
         let pageRect = CGRect(x: 0, y: 0, width: options.pageWidth, height: options.pageHeight)
@@ -21,9 +28,6 @@ final class PdfExporter {
             kCGPDFContextCreator as String: AppBranding.createdByText,
         ]
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect, format: rendererFormat)
-
-        let totalPhotos = photos.count
-        var processedPhotos = 0
 
         let data = renderer.pdfData { context in
             context.beginPage()
@@ -63,8 +67,6 @@ final class PdfExporter {
                 )
 
                 currentY += rowHeight
-                processedPhotos += 1
-                onProgress(Double(processedPhotos) / Double(max(totalPhotos, 1)))
             }
         }
 
@@ -74,6 +76,7 @@ final class PdfExporter {
             throw ExportError.pdfGenerationFailed
         }
 
+        onProgress(1.0)
         return outputURL
     }
 

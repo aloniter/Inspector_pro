@@ -82,6 +82,7 @@ struct ProjectListView: View {
 
     private func deleteProjects(at offsets: IndexSet) {
         let deletedProjects = offsets.map { projects[$0] }
+        let deletedPhotoPaths = deletedProjects.flatMap(\.photoFileReferencesForDeletion)
 
         for project in deletedProjects {
             modelContext.delete(project)
@@ -91,8 +92,11 @@ struct ProjectListView: View {
             try modelContext.save()
 
             Task {
-                for project in deletedProjects {
-                    await ImageStorageService.shared.deleteProjectDirectory(projectID: project.id.uuidString)
+                for photoPath in deletedPhotoPaths {
+                    await ImageStorageService.shared.deletePhotoFiles(
+                        originalPath: photoPath.originalPath,
+                        annotatedPath: photoPath.annotatedPath
+                    )
                 }
             }
         } catch {
@@ -328,6 +332,13 @@ private struct AppSettingsView: View {
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }
+            }
+
+            Section {
+                Text(AppStrings.text("Created By Iter Engineering"))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
 
         }

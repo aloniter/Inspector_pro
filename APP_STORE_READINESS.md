@@ -55,7 +55,7 @@ Inspectley is build/test clean on simulator and the major readiness issues found
 
 - Confirm final app name, subtitle, category, age rating, support URL, marketing URL, privacy policy URL, and screenshots in App Store Connect.
 - Enter a valid review/test account in App Store Connect Sign-In Information. Do not place credentials in the repository.
-- Confirm bundle ID `com.aloniter.inspectorpro`, version `1.2.0`, and build number `1` are the intended upload values.
+- Confirm bundle ID `com.aloniter.inspectorpro`, version `1.0.3`, and build number `1` are the intended upload values. Do not use stale version `1.2.0`.
 - Confirm export compliance is correct for the app and dependencies. The app currently declares `ITSAppUsesNonExemptEncryption = false`.
 - Complete privacy nutrition labels for account email, backend auth/company data, photos/documents created by users, diagnostics if collected, and any Supabase-related data handling.
 - Provide the production `SupabaseConfig.plist` locally before archive/upload.

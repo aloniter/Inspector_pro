@@ -8,6 +8,7 @@ struct ProjectDetailView: View {
     @Bindable var project: Project
     @State private var showingNewReport = false
     @State private var showingEditProject = false
+    @State private var reportToMove: Report?
     @State private var errorMessage: String?
 
     var body: some View {
@@ -26,6 +27,21 @@ struct ProjectDetailView: View {
                 ForEach(sortedReports) { report in
                     NavigationLink(value: report) {
                         ProjectReportRowView(report: report)
+                    }
+                    .swipeActions(edge: .leading) {
+                        Button {
+                            reportToMove = report
+                        } label: {
+                            Label(AppStrings.text("Move to Project"), systemImage: "folder")
+                        }
+                        .tint(.blue)
+                    }
+                    .contextMenu {
+                        Button {
+                            reportToMove = report
+                        } label: {
+                            Label(AppStrings.text("Move to Project"), systemImage: "folder")
+                        }
                     }
                 }
                 .onDelete(perform: deleteReports)
@@ -60,6 +76,11 @@ struct ProjectDetailView: View {
         .sheet(isPresented: $showingEditProject) {
             NavigationStack {
                 ProjectFormView(mode: .edit, project: project)
+            }
+        }
+        .sheet(item: $reportToMove) { report in
+            NavigationStack {
+                MoveReportToProjectView(report: report)
             }
         }
         .alert(AppStrings.text("מחיקה נכשלה"), isPresented: errorAlertPresented) {
@@ -152,6 +173,7 @@ struct ReportDetailView: View {
     @Bindable var report: Report
     @State private var showingEditReport = false
     @State private var showingExportOptions = false
+    @State private var showingMoveReport = false
     @State private var activePicker: PickerSource?
     @State private var isSavingPhotos = false
     @State private var importProgress: ImportProgress?
@@ -252,6 +274,13 @@ struct ReportDetailView: View {
                     .disabled(isReorderingPhotos)
 
                     Button {
+                        showingMoveReport = true
+                    } label: {
+                        Label(AppStrings.text("Move to Project"), systemImage: "folder")
+                    }
+                    .disabled(isReorderingPhotos)
+
+                    Button {
                         showingExportOptions = true
                     } label: {
                         Label(AppStrings.text("ייצוא דוח"), systemImage: "square.and.arrow.up")
@@ -271,6 +300,11 @@ struct ReportDetailView: View {
         }
         .sheet(isPresented: $showingExportOptions) {
             ExportOptionsSheet(report: report)
+        }
+        .sheet(isPresented: $showingMoveReport) {
+            NavigationStack {
+                MoveReportToProjectView(report: report)
+            }
         }
         .sheet(item: $activePicker) { source in
             switch source {
@@ -571,6 +605,139 @@ struct ReportDetailView: View {
 private struct ImportProgress {
     let processed: Int
     let total: Int
+}
+
+private struct MoveReportToProjectView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+    @Query(sort: \Project.name) private var projects: [Project]
+
+    let report: Report
+
+    @State private var errorMessage: String?
+
+    private var currentProjectID: UUID? {
+        report.project?.id
+    }
+
+    private var hasOtherProjects: Bool {
+        projects.contains { $0.id != currentProjectID }
+    }
+
+    var body: some View {
+        List {
+            if !hasOtherProjects {
+                EmptyStateView(
+                    icon: "folder",
+                    title: AppStrings.text("No other projects"),
+                    subtitle: AppStrings.text("Create another project before moving this report.")
+                )
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            }
+
+            Section {
+                ForEach(projects) { project in
+                    Button {
+                        moveReport(to: project)
+                    } label: {
+                        ProjectMoveRowView(
+                            project: project,
+                            isCurrentProject: project.id == currentProjectID
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(project.id == currentProjectID)
+                }
+            }
+        }
+        .navigationTitle(AppStrings.text("Move to Project"))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button(AppStrings.text("ביטול")) {
+                    dismiss()
+                }
+            }
+        }
+        .alert(AppStrings.text("Move failed"), isPresented: errorAlertPresented) {
+            Button(AppStrings.text("אישור"), role: .cancel) {
+                errorMessage = nil
+            }
+        } message: {
+            Text(errorMessage ?? AppStrings.text("אירעה שגיאה בשמירה"))
+        }
+    }
+
+    private var errorAlertPresented: Binding<Bool> {
+        Binding(
+            get: { errorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    errorMessage = nil
+                }
+            }
+        )
+    }
+
+    private func moveReport(to destinationProject: Project) {
+        let originalProject = report.project
+        guard report.move(to: destinationProject) else {
+            dismiss()
+            return
+        }
+
+        do {
+            try modelContext.save()
+            dismiss()
+        } catch {
+            report.project = originalProject
+            try? modelContext.save()
+            errorMessage = userFacingErrorMessage(for: error)
+        }
+    }
+
+    private func userFacingErrorMessage(for error: Error) -> String {
+        let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        return description.isEmpty ? AppStrings.text("אירעה שגיאה בשמירה") : description
+    }
+}
+
+private struct ProjectMoveRowView: View {
+    let project: Project
+    let isCurrentProject: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            if isCurrentProject {
+                Label(AppStrings.text("Current project"), systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .labelStyle(.titleAndIcon)
+            } else {
+                Image(systemName: "chevron.left")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(project.name.directionallyIsolated)
+                    .font(.headline)
+                    .foregroundStyle(isCurrentProject ? .secondary : .primary)
+                    .multilineTextAlignment(.trailing)
+
+                if let address = project.address, !address.isEmpty {
+                    Text(address.directionallyIsolated)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .contentShape(Rectangle())
+        .environment(\.layoutDirection, .leftToRight)
+    }
 }
 
 private enum PhotoImportError: Error, Equatable {

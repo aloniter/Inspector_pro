@@ -155,3 +155,10 @@
 "שגיאה" = "שגיאה";
 "לא ניתן להתחבר לשרת. נסה שוב כשיש חיבור לאינטרנט." = "לא ניתן להתחבר לשרת. נסה שוב כשיש חיבור לאינטרנט.";
 "שגיאה בעת קבלת נתוני החברה. נסה שוב מאוחר יותר." = "שגיאה בעת קבלת נתוני החברה. נסה שוב מאוחר יותר.";
+"Move to Project" = "העבר לפרויקט";
+"No other projects" = "אין פרויקטים אחרים";
+"Create another project before moving this report." = "צור פרויקט נוסף כדי להעביר אליו את הדוח.";
+"Current project" = "הפרויקט הנוכחי";
+"Move failed" = "העברה נכשלה";
+"Created by Iter Engineering" = "Created by Iter Engineering";
+"Created By Iter Engineering" = "Created By Iter Engineering";

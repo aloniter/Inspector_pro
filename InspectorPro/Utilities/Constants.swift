@@ -40,6 +40,10 @@ enum AppConstants {
     }
 }
 
+enum AppBranding {
+    static let createdByText = "Created by Iter Engineering"
+}
+
 enum ExportImageConstants {
     /// Padding between image and cell border (points).
     static let imageCellPaddingPoints: CGFloat = 4
