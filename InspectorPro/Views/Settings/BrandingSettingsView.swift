@@ -215,7 +215,7 @@ private struct BrandingSettingsView: View {
                         firstLeadingTitle: AppStrings.text("שם / תווית"),
                         firstTrailingTitle: AppStrings.text("מספר"),
                         secondLeadingTitle: AppStrings.text("תווית נוספת"),
-                        secondTrailingTitle: AppStrings.text("מספר נוסף"),
+                        secondTrailingTitle: AppStrings.text("דוא\"ל"),
                         firstLeadingValue: $secondaryFooterFields.firstLabel,
                         firstTrailingValue: $secondaryFooterFields.firstNumber,
                         secondLeadingValue: $secondaryFooterFields.secondLabel,
@@ -226,8 +226,10 @@ private struct BrandingSettingsView: View {
                         secondTrailingLayoutDirection: .leftToRight,
                         firstTrailingKeyboardType: .phonePad,
                         firstTrailingTextContentType: .telephoneNumber,
-                        secondTrailingKeyboardType: .phonePad,
-                        secondTrailingTextContentType: .telephoneNumber
+                        secondTrailingKeyboardType: .emailAddress,
+                        secondTrailingAutocapitalizationType: .none,
+                        secondTrailingTextContentType: .emailAddress,
+                        secondTrailingAutocorrectionType: .no
                     )
 
                     Button(AppStrings.text("הסר פרטי קשר נוספים")) {
@@ -519,12 +521,7 @@ private struct CompactInputField: View {
     var autocorrectionType: UITextAutocorrectionType = .default
 
     var body: some View {
-        VStack(alignment: layoutDirection == .rightToLeft ? .trailing : .leading, spacing: 6) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: layoutDirection == .rightToLeft ? .trailing : .leading)
-
+        VStack(alignment: fieldAlignment, spacing: 5) {
             DirectionalTextField(
                 text: $text,
                 placeholder: title,
@@ -534,9 +531,36 @@ private struct CompactInputField: View {
                 textContentType: textContentType,
                 autocorrectionType: autocorrectionType
             )
-            .frame(height: 22)
+            .frame(height: 26)
+
+            Rectangle()
+                .fill(Color.secondary.opacity(0.18))
+                .frame(height: 1)
+
+            Text(title)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, alignment: frameAlignment)
         }
-        .frame(maxWidth: .infinity, alignment: layoutDirection == .rightToLeft ? .trailing : .leading)
+        .padding(.vertical, 7)
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, minHeight: 62, alignment: frameAlignment)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.secondary.opacity(0.14), lineWidth: 1)
+        )
+    }
+
+    private var fieldAlignment: HorizontalAlignment {
+        layoutDirection == .rightToLeft ? .trailing : .leading
+    }
+
+    private var frameAlignment: Alignment {
+        layoutDirection == .rightToLeft ? .trailing : .leading
     }
 }
 
