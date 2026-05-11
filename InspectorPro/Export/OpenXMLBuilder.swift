@@ -136,7 +136,6 @@ final class OpenXMLBuilder {
         imageCrop: ImageCrop = .none,
         itemNumber: Int? = nil,
         showsNumberedImagesInReport: Bool = false,
-        rowHeightTwips: Int,
         imageColumnWidthTwips: Int,
         textColumnWidthTwips: Int
     ) -> String {
@@ -144,7 +143,6 @@ final class OpenXMLBuilder {
         <w:tr>
           <w:trPr>
             <w:cantSplit/>
-            <w:trHeight w:val="\(rowHeightTwips)" w:hRule="exact"/>
           </w:trPr>
           <w:tc>
             <w:tcPr>

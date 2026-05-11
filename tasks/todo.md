@@ -1,5 +1,78 @@
 # TODO
 
+## Report export full-cell image layout
+
+- [x] Inspect current PDF/DOCX report image placement and identify why the exported image does not match manual Word resize
+- [x] Add/adjust shared report image placement mode for full-cell no-crop stretching
+- [x] Apply full-cell image drawing to PDF report table rows
+- [x] Apply full-cell image dimensions to DOCX report table rows without crop metadata
+- [x] Update focused export tests for full-cell image extents and no crop tags
+- [x] Run build/tests and record validation results
+
+## Review
+
+- Root cause: the current export path had been changed to no-crop aspect-fit. That preserved the original photo aspect ratio but left visible empty bands inside the report image cell, which does not match a manual Word resize to the table borders.
+- Added `ReportImageFitMode.fillCellNoCrop` and routed PDF report-table drawing through it. PDF now draws the baked annotated image directly into the padded image cell drawable rect, with no aspect-fit shrinking and no crop.
+- Changed PDF row sizing to reserve the configured report image height instead of shrinking rows to the aspect-fit image height. The image column stays dominant at 68% and uses the existing 4pt cell padding.
+- Changed DOCX image processing so each report image is inserted at the table image content width and target row/image height. DOCX still emits no `<a:srcRect>` crop metadata, and Word receives fixed dimensions like a manual resize.
+- Updated focused tests from aspect-fit expectations to full-cell extent expectations across landscape, portrait, and square fixtures.
+- Validation:
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' -derivedDataPath /tmp/InspectorPro-CodexDerivedData test CODE_SIGNING_ALLOWED=NO` passed with 66 Swift Testing tests.
+- Residual warning:
+- The existing CoreData editable-model checksum warning still appears during test-host startup.
+
+## Footer settings field layout
+
+- [x] Create branch `fix/settings-footer-fields-layout` before making changes
+- [x] Inspect current branding footer settings UI and export label usage
+- [x] Rework footer settings inputs so each value is visually paired with its label in RTL
+- [x] Change the additional contact visible field label from `מספר נוסף` to `דוא"ל`
+- [x] Verify saved footer values still load/save through the existing model
+- [x] Run focused build/tests and record results
+
+## Review
+
+- Updated the shared compact footer input component so the editable value appears above a divider and its label sits directly underneath inside the same visual block.
+- Changed the secondary contact's second value field from `מספר נוסף` to `דוא"ל`, with email keyboard, email content type, no autocapitalization, and no autocorrection.
+- Kept the existing `BrandingSecondaryFooterFields` storage and `secondaryFooterLine` save/load path unchanged, preserving existing saved footer values and avoiding migration changes.
+- Export labels were not changed because PDF/DOCX footer rendering does not emit this settings field label; exports continue rendering the saved footer tokens through `BrandingFooterFormatter` runs.
+- Validation:
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' build CODE_SIGNING_ALLOWED=NO` passed.
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' test CODE_SIGNING_ALLOWED=NO` passed with 65 Swift Testing tests.
+- Residual warning:
+- The existing CoreData editable-model checksum warning still appears during test-host startup.
+
+## Export annotated image fit parity
+
+- [x] Inspect annotation/export image fit model and identify mismatch root cause
+- [x] Add shared export aspect-fit sizing helper
+- [x] Apply no-crop centered aspect-fit rendering to PDF and DOCX report tables
+- [x] Change report table image/text columns to an image-prioritized ratio
+- [x] Update focused export tests for no-crop DOCX image fitting and column ratios
+- [x] Replace fixed half-page finding rows with compact content-driven row sizing
+- [x] Run export tests/build checks and record validation results
+
+## Review
+
+- Root cause: the annotation editor uses full-frame aspect-fit and saves a flattened annotated JPEG, but export rendering had switched report-table images to aspect-fill/cover behavior. PDF clipped the fitted image inside the cell, and DOCX emitted `<a:srcRect>` crop values, so exported annotations could appear visually shifted relative to the photo.
+- Added shared `ExportImageFitter` sizing in export options and used it from PDF and DOCX report-table image rendering.
+- PDF now draws each report image centered inside the padded image cell with no clipping/cropping and preserved aspect ratio.
+- DOCX now writes proportional image extents that fit inside the image content box and always uses `ImageCrop.none`; generated report image XML no longer emits `<a:srcRect>`.
+- Second-pass size fix: the aspect-fit helper was correct, but it was still fitting into a conservative target box: 65/35 columns, 4pt image cell padding, and a 12pt DOCX table safety gap.
+- Third-pass layout fix: the table still looked unfinished because every finding row reserved a fixed half-page block, leaving huge blank description cells when text was short.
+- Changed shared report table proportions to 68% image column / 32% text column and restored balanced 4pt image padding.
+- Added a professional max image height of 260pt with a 96pt minimum row height.
+- PDF now calculates each finding row from the fitted image height and measured description text height, so short findings shrink and long descriptions can grow naturally.
+- DOCX no longer emits exact row height XML for finding rows; Word can auto-size each row from the image/text content.
+- Added focused export tests for image-prioritized column sizing, shared PDF fit rect behavior, DOCX no-crop aspect-fit behavior, and absence of exact DOCX row-height rules.
+- Validation:
+- First `xcodebuild ... test` attempt failed because a new helper file was not included in the generated `.xcodeproj`; moved the helper into an existing export source file.
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' -derivedDataPath /tmp/InspectorPro-CodexDerivedData test CODE_SIGNING_ALLOWED=NO` passed with 66 Swift Testing tests.
+- PDF raster visual validation with `pdftoppm` was not available in this environment because Poppler is not installed; PDF aspect-fit behavior is covered by the shared fit-rectangle test used by `PdfExporter`.
+- Visual QA checklist for manual review: landscape annotated + short description, portrait annotated + short description, landscape annotated + long description, multiple photos on one page, PDF export, DOCX export.
+- Residual warning:
+- The existing CoreData editable-model checksum warning still appears during test-host startup.
+
 - [x] Correct `נוכחים` cover-page alignment regression from side-aligned back to centered
 - [x] Verify DOCX/PDF export tests still pass after centered attendee alignment
 - [x] Explain where cover-page export layout is controlled for future manual edits

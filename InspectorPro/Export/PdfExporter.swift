@@ -49,7 +49,11 @@ final class PdfExporter {
                     itemNumber: itemNumber,
                     showsNumberedImagesInReport: report.showsNumberedImagesInReport
                 )
-                let rowHeight = options.targetPhotoRowHeight
+                let rowHeight = photoRowHeight(
+                    image: image,
+                    descriptionLines: descriptionLines,
+                    options: options
+                )
 
                 if currentY + rowHeight > pageBottom {
                     context.beginPage()
@@ -349,32 +353,14 @@ final class PdfExporter {
         divider.stroke()
 
         let pad = ExportImageConstants.imageCellPaddingPoints
-        let maxW = options.imageColumnWidth - pad * 2
-        let maxH = min(max(rowHeight - pad * 2, 40), options.targetPhotoImageHeight)
-
-        // Cover scaling: fill the target area, cropping overflow from center.
-        let widthScale = maxW / image.size.width
-        let heightScale = maxH / image.size.height
-        let coverScale = max(widthScale, heightScale)
-        let drawW = image.size.width * coverScale
-        let drawH = image.size.height * coverScale
-
-        // Center the (possibly oversized) image in the clip rect.
-        let clipRect = CGRect(
-            x: imageCellRect.minX + (imageCellRect.width - maxW) / 2,
-            y: imageCellRect.minY + (imageCellRect.height - maxH) / 2,
-            width: maxW,
-            height: maxH
+        let imageContentRect = imageCellRect.insetBy(dx: pad, dy: pad)
+        let drawRect = ExportImageFitter.placementRect(
+            for: image.size,
+            in: imageContentRect,
+            mode: .fillCellNoCrop
         )
-        let drawX = clipRect.midX - drawW / 2
-        let drawY = clipRect.midY - drawH / 2
 
-        if let ctx = UIGraphicsGetCurrentContext() {
-            ctx.saveGState()
-            ctx.clip(to: clipRect)
-            image.draw(in: CGRect(x: drawX, y: drawY, width: drawW, height: drawH))
-            ctx.restoreGState()
-        }
+        image.draw(in: drawRect)
 
         drawDescriptionText(
             descriptionLines,
@@ -382,6 +368,28 @@ final class PdfExporter {
             fontSize: 12,
             color: .black,
             lineSpacing: 2
+        )
+    }
+
+    private static func photoRowHeight(
+        image: UIImage,
+        descriptionLines: [ExportTextFormatter.DescriptionLine],
+        options: ExportOptions
+    ) -> CGFloat {
+        let imageDrivenHeight = options.targetPhotoImageHeight + (ExportImageConstants.imageCellPaddingPoints * 2)
+
+        let textHeight = descriptionTextHeight(
+            descriptionLines,
+            width: options.textColumnWidth - (options.tableCellPadding * 2),
+            fontSize: 12,
+            lineSpacing: 2
+        )
+        let textDrivenHeight = textHeight + (options.tableCellPadding * 2)
+
+        return max(
+            ceil(imageDrivenHeight),
+            ceil(textDrivenHeight),
+            options.minimumPhotoRowHeight
         )
     }
 
@@ -541,6 +549,44 @@ final class PdfExporter {
     ) {
         guard !lines.isEmpty else { return }
 
+        let attributedText = descriptionAttributedString(
+            lines,
+            fontSize: fontSize,
+            color: color,
+            lineSpacing: lineSpacing
+        )
+
+        attributedText.draw(in: rect)
+    }
+
+    private static func descriptionTextHeight(
+        _ lines: [ExportTextFormatter.DescriptionLine],
+        width: CGFloat,
+        fontSize: CGFloat,
+        lineSpacing: CGFloat
+    ) -> CGFloat {
+        guard !lines.isEmpty, width > 0 else { return 0 }
+
+        let attributedText = descriptionAttributedString(
+            lines,
+            fontSize: fontSize,
+            color: .black,
+            lineSpacing: lineSpacing
+        )
+        let size = attributedText.boundingRect(
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            context: nil
+        ).size
+        return ceil(size.height)
+    }
+
+    private static func descriptionAttributedString(
+        _ lines: [ExportTextFormatter.DescriptionLine],
+        fontSize: CGFloat,
+        color: UIColor,
+        lineSpacing: CGFloat
+    ) -> NSAttributedString {
         let isHebrew = AppLanguage.current == .hebrew
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = isHebrew ? .right : .left
@@ -574,7 +620,7 @@ final class PdfExporter {
             }
         }
 
-        attributedText.draw(in: rect)
+        return attributedText
     }
 
     // MARK: - Helpers

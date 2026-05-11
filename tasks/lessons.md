@@ -1,5 +1,11 @@
 # Lessons Learned
 
+## Report table image layout can prioritize full-cell presentation over aspect ratio
+- When the user asks for manual Word-resize behavior, do not preserve aspect ratio if that leaves visible empty space around annotated report photos.
+- Reason: annotations are baked into the final exported image, so controlled non-uniform scaling keeps annotations attached while making the report table look professionally filled.
+- Preferred approach: for report-table images, use a named full-cell no-crop placement mode that sets the image extent to the cell drawable width and height, emits no DOCX crop metadata, and draws the PDF image directly into the drawable rect.
+- Verification rule: assert DOCX `<wp:extent>` uses the table image content width and target image height for landscape, portrait, and square fixtures, assert no `<a:srcRect>`, and keep PDF drawing on the same full-cell placement helper.
+
 ## Centered cover-page sections must stay centered in actual export alignment
 - When a user asks for typography-only changes on a stacked cover-page section, do not reinterpret alignment even if the text is RTL.
 - Reason: changing `w:jc` or PDF paragraph alignment from `center` to `right` can move the whole Hebrew block to the visual side in Word/PDF, even when the text direction itself remains correct.
@@ -71,3 +77,8 @@
 ## Mixed RTL/LTR export lines should be rendered as positioned runs, not left to bidi resolution of one combined string
 - For footer lines that mix Hebrew words with phone numbers and email addresses, even structured data is not enough if PDF or DOCX still receives one mixed-direction string or a paragraph whose final visual order is delegated to the text engine.
 - Preferred approach: keep semantic structured fields, derive explicit run sequences, and render the export line in fixed visual order per token/run so Core Text and Word do not get to reinterpret the intended sequence.
+
+## Export image fit fixes must include row sizing, not only draw scaling
+- No-crop aspect-fit can still produce unprofessional reports if every finding row reserves a fixed half-page block.
+- Preferred approach: make PDF rows content-sized from fitted image height and measured text height, and make DOCX rows auto-sized by omitting exact `w:trHeight`.
+- Verification rule: for report-table image changes, assert there is no DOCX `<a:srcRect>` and no exact row-height rule, then visually review short-description landscape/portrait rows for excessive blank description space.
