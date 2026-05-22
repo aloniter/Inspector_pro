@@ -97,26 +97,28 @@ final class DocxTemplateBuilder {
         address: String,
         date: String,
         attendees: String?,
-        notes: String
+        notes: String?
     ) -> String {
         var sections = [
-            coverFieldSectionXML(label: AppStrings.text("כתובת"), value: address, valueFontSize: 20),
-            coverFieldSectionXML(label: AppStrings.text("תאריך"), value: date, valueFontSize: 20),
+            coverFieldSectionXML(label: AppStrings.text("כתובת"), value: address),
+            coverFieldSectionXML(label: AppStrings.text("תאריך"), value: date),
         ]
 
         if let attendees {
             sections.append(attendeesCoverFieldSectionXML(label: AppStrings.text("נוכחים"), value: attendees))
         }
 
-        sections.append(
-            coverFieldSectionXML(
-                label: AppStrings.text("הערות"),
-                value: notes,
-                valueFontSize: ExportTypography.Cover.notesContentDocxSize,
-                valueAlignment: "center",
-                isLast: true
+        if let notes {
+            sections.append(
+                coverFieldSectionXML(
+                    label: AppStrings.text("הערות"),
+                    value: notes,
+                    valueFontSize: ExportTypography.Cover.notesContentDocxSize,
+                    valueAlignment: "center",
+                    isLast: true
+                )
             )
-        )
+        }
         return sections.joined()
     }
 
@@ -125,8 +127,9 @@ final class DocxTemplateBuilder {
     private static func coverFieldSectionXML(
         label: String,
         value: String,
-        valueFontSize: Int = 28,
-        valueBold: Bool = true,
+        labelFontSize: Int = ExportTypography.Cover.metadataDocxSize,
+        valueFontSize: Int = ExportTypography.Cover.metadataDocxSize,
+        valueBold: Bool = false,
         valueAlignment: String = "center",
         isLast: Bool = false
     ) -> String {
@@ -142,7 +145,8 @@ final class DocxTemplateBuilder {
 
         let labelParagraph = coverParagraphXML(
             text: label,
-            fontSize: 20,
+            fontSize: labelFontSize,
+            bold: true,
             color: "64748B",
             spacingBefore: 0,
             spacingAfter: 50
@@ -173,7 +177,7 @@ final class DocxTemplateBuilder {
             text: ExportTextFormatter.rtlHeadingText("\(label):"),
             fontSize: ExportTypography.Cover.attendeesHeadingDocxSize,
             bold: true,
-            color: "1F4E79",
+            color: "64748B",
             spacingBefore: 0,
             spacingAfter: 70,
             alignment: "center"
@@ -183,7 +187,7 @@ final class DocxTemplateBuilder {
             coverParagraphXML(
                 text: line,
                 fontSize: ExportTypography.Cover.attendeeItemDocxSize,
-                color: "1F4E79",
+                color: "111827",
                 spacingBefore: 0,
                 spacingAfter: index == valueLines.count - 1 ? 260 : 40,
                 alignment: "center"

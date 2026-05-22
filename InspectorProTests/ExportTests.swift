@@ -531,35 +531,45 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(xml.contains(">כפר ויתקין<"))
     #expect(xml.contains(">תאריך<"))
     #expect(xml.contains(">6.4.2026<"))
+    let addressLabelParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">כתובת<") })
+    let addressValueParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">כפר ויתקין<") })
+    let dateLabelParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">תאריך<") })
+    let dateValueParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">6.4.2026<") })
     let attendeesHeadingText = OpenXMLBuilder.escapeXML(ExportTextFormatter.rtlHeadingText("נוכחים:"))
     let firstAttendeeText = OpenXMLBuilder.escapeXML("\u{202B}1.\u{00A0}אלון\u{202C}")
     let secondAttendeeText = OpenXMLBuilder.escapeXML("\u{202B}2.\u{00A0}דפנה\u{202C}")
     let attendeesHeadingParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(attendeesHeadingText) })
     let firstAttendeeParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(firstAttendeeText) })
+    let notesLabelParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">הערות<") })
     let notesContentParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">נדרש תיקון<") })
 
     #expect(xml.contains(attendeesHeadingText))
-    #expect(xml.contains("w:color w:val=\"1F4E79\""))
+    #expect(!xml.contains("w:color w:val=\"1F4E79\""))
     #expect(xml.contains("w:jc w:val=\"center\""))
-    #expect(xml.contains("w:sz w:val=\"20\""))
+    #expect(!xml.contains("w:sz w:val=\"20\""))
+    #expect(xml.contains("w:sz w:val=\"24\""))
     #expect(!xml.contains("w:jc w:val=\"right\""))
+    for labelParagraph in [addressLabelParagraph, dateLabelParagraph, attendeesHeadingParagraph, notesLabelParagraph] {
+        #expect(labelParagraph.contains("<w:b/>"))
+        #expect(labelParagraph.contains("<w:bCs/>"))
+        #expect(labelParagraph.contains("<w:sz w:val=\"24\"/>"))
+        #expect(labelParagraph.contains("<w:szCs w:val=\"24\"/>"))
+    }
+    for valueParagraph in [addressValueParagraph, dateValueParagraph, firstAttendeeParagraph, notesContentParagraph] {
+        #expect(!valueParagraph.contains("<w:b/>"))
+        #expect(!valueParagraph.contains("<w:bCs/>"))
+        #expect(valueParagraph.contains("<w:sz w:val=\"24\"/>"))
+        #expect(valueParagraph.contains("<w:szCs w:val=\"24\"/>"))
+    }
     #expect(attendeesHeadingParagraph.contains("w:jc w:val=\"center\""))
-    #expect(attendeesHeadingParagraph.contains("<w:sz w:val=\"20\"/>"))
-    #expect(attendeesHeadingParagraph.contains("<w:szCs w:val=\"20\"/>"))
-    #expect(attendeesHeadingParagraph.contains("<w:b/>"))
-    #expect(attendeesHeadingParagraph.contains("<w:bCs/>"))
+    #expect(attendeesHeadingParagraph.contains("w:color w:val=\"64748B\""))
     #expect(firstAttendeeParagraph.contains("w:jc w:val=\"center\""))
-    #expect(firstAttendeeParagraph.contains("<w:sz w:val=\"20\"/>"))
-    #expect(firstAttendeeParagraph.contains("<w:szCs w:val=\"20\"/>"))
-    #expect(!firstAttendeeParagraph.contains("<w:b/>"))
-    #expect(!firstAttendeeParagraph.contains("<w:bCs/>"))
+    #expect(firstAttendeeParagraph.contains("w:color w:val=\"111827\""))
     #expect(xml.contains(firstAttendeeText))
     #expect(xml.contains(secondAttendeeText))
     #expect(xml.contains(">הערות<"))
     #expect(xml.contains(">נדרש תיקון<"))
     #expect(notesContentParagraph.contains("w:jc w:val=\"center\""))
-    #expect(notesContentParagraph.contains("<w:sz w:val=\"24\"/>"))
-    #expect(notesContentParagraph.contains("<w:szCs w:val=\"24\"/>"))
 }
 
 @Test func docxCoverDetailsOmitsAttendeesSectionWhenValueIsMissing() {
@@ -572,6 +582,20 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
 
     #expect(!xml.contains(">נוכחים:<"))
     #expect(!xml.contains("1F4E79"))
+}
+
+@Test func docxCoverDetailsOmitsNotesSectionWhenValueIsMissing() {
+    let xml = DocxTemplateBuilder.coverDetailsXML(
+        address: "כפר ויתקין",
+        date: "6.4.2026",
+        attendees: nil,
+        notes: nil
+    )
+
+    #expect(xml.contains(">כתובת<"))
+    #expect(xml.contains(">תאריך<"))
+    #expect(!xml.contains(">הערות<"))
+    #expect(!xml.contains(">—<"))
 }
 
 @Test func openXMLBuilderKeepsNumberOnlyInDescriptionSideForNumberedReportRows() {

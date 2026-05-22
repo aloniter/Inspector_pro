@@ -114,9 +114,9 @@ final class PdfExporter {
                 originY: y,
                 width: options.contentWidth,
                 x: options.marginLeft,
-                labelFontSize: 10,
-                valueFontSize: 10,
-                valueBold: true,
+                labelFontSize: ExportTypography.Cover.metadataPointSize,
+                valueFontSize: ExportTypography.Cover.metadataPointSize,
+                valueBold: false,
                 labelColor: branding.coverMutedLabelColor
             )
         }
@@ -127,9 +127,9 @@ final class PdfExporter {
             originY: y,
             width: options.contentWidth,
             x: options.marginLeft,
-            labelFontSize: 10,
-            valueFontSize: 10,
-            valueBold: true,
+            labelFontSize: ExportTypography.Cover.metadataPointSize,
+            valueFontSize: ExportTypography.Cover.metadataPointSize,
+            valueBold: false,
             labelColor: branding.coverMutedLabelColor
         )
 
@@ -140,19 +140,19 @@ final class PdfExporter {
                 originY: y,
                 width: options.contentWidth,
                 x: options.marginLeft,
-                labelColor: branding.attendeesAccentColor,
-                valueColor: branding.attendeesAccentColor
+                labelColor: branding.coverMutedLabelColor,
+                valueColor: .black
             )
         }
 
-        if let notes = report.notes, !notes.isEmpty {
+        if let notes = normalizedOptionalCoverText(report.notes) {
             _ = drawCoverFieldSection(
                 label: AppStrings.text("הערות"),
                 value: notes,
                 originY: y,
                 width: options.contentWidth,
                 x: options.marginLeft,
-                labelFontSize: 10,
+                labelFontSize: ExportTypography.Cover.metadataPointSize,
                 valueFontSize: ExportTypography.Cover.notesContentPointSize,
                 valueBold: false,
                 labelColor: branding.coverMutedLabelColor,
@@ -205,7 +205,7 @@ final class PdfExporter {
             label,
             in: CGRect(x: x, y: originY, width: width, height: labelHeight),
             fontSize: labelFontSize,
-            bold: false,
+            bold: true,
             alignment: alignment,
             color: labelColor
         )

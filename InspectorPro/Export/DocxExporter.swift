@@ -139,7 +139,7 @@ final class DocxExporter {
 
         let address = normalizedText(report.reportAddress)
         let attendees = normalizedOptionalText(report.attendees)
-        let notes = normalizedText(report.notes)
+        let notes = normalizedOptionalText(report.notes)
         let date = ExportTextFormatter.reportCoverDateString(from: report.date)
         var documentXML = DocxTemplateBuilder.documentXML(options: options)
         documentXML = documentXML.replacingOccurrences(of: "{{PROJECT_TITLE}}", with: OpenXMLBuilder.escapeXML(report.name))

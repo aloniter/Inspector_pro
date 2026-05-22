@@ -45,7 +45,14 @@ struct DirectionalTextField: UIViewRepresentable {
             .foregroundColor: UIColor.label,
             .paragraphStyle: paragraphStyle,
         ]
-        textField.placeholder = placeholder
+        textField.attributedPlaceholder = NSAttributedString(
+            string: placeholder,
+            attributes: [
+                .font: font,
+                .foregroundColor: UIColor.placeholderText,
+                .paragraphStyle: paragraphStyle,
+            ]
+        )
         textField.textAlignment = paragraphStyle.alignment
         textField.semanticContentAttribute = layoutDirection == .rightToLeft ? .forceRightToLeft : .forceLeftToRight
         textField.keyboardType = keyboardType

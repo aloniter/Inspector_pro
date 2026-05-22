@@ -19,19 +19,18 @@ struct ProjectFormView: View {
     @State private var address = ""
     @State private var errorMessage: String?
 
-    private var textAlignment: TextAlignment {
-        AppTextDirection.textAlignment(for: layoutDirection)
-    }
-
     var body: some View {
         Form {
             Section {
-                TextField(AppStrings.text("שם הפרויקט"), text: $name)
-                    .multilineTextAlignment(textAlignment)
-                RTLLabeledTextField(
-                    label: AppStrings.text("כתובת"),
+                DirectionalTextField(
+                    text: $name,
+                    placeholder: AppStrings.text("שם הפרויקט"),
+                    layoutDirection: layoutDirection
+                )
+                DirectionalTextField(
                     text: $address,
-                    placeholder: AppStrings.text("כתובת")
+                    placeholder: AppStrings.text("כתובת"),
+                    layoutDirection: layoutDirection
                 )
             } header: {
                 RTLSectionHeader(title: AppStrings.text("פרטי פרויקט"))
@@ -160,13 +159,16 @@ struct ReportFormView: View {
     var body: some View {
         Form {
             Section {
-                TextField(AppStrings.text("שם הדוח"), text: $name)
-                    .multilineTextAlignment(textAlignment)
+                DirectionalTextField(
+                    text: $name,
+                    placeholder: AppStrings.text("שם הדוח"),
+                    layoutDirection: layoutDirection
+                )
                 RTLDateField(label: AppStrings.text("תאריך"), date: $date)
-                RTLLabeledTextField(
-                    label: AppStrings.text("כתובת"),
+                DirectionalTextField(
                     text: $address,
-                    placeholder: AppStrings.text("כתובת")
+                    placeholder: AppStrings.text("כתובת"),
+                    layoutDirection: layoutDirection
                 )
             } header: {
                 RTLSectionHeader(title: AppStrings.text("פרטי דוח"))
@@ -332,77 +334,6 @@ private struct RTLSectionHeader: View {
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
         .environment(\.layoutDirection, .leftToRight)
-    }
-}
-
-private struct RTLLabeledTextField: UIViewRepresentable {
-    let label: String
-    @Binding var text: String
-    let placeholder: String
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text)
-    }
-
-    func makeUIView(context: Context) -> UITextField {
-        let textField = UITextField(frame: .zero)
-        textField.borderStyle = .none
-        textField.clearButtonMode = .whileEditing
-        textField.adjustsFontForContentSizeCategory = true
-        textField.font = UIFont.preferredFont(forTextStyle: .body)
-        textField.delegate = context.coordinator
-        textField.addTarget(context.coordinator, action: #selector(Coordinator.textDidChange(_:)), for: .editingChanged)
-        applyConfiguration(to: textField)
-        textField.text = text
-        return textField
-    }
-
-    func updateUIView(_ textField: UITextField, context: Context) {
-        applyConfiguration(to: textField)
-        if textField.text != text {
-            textField.text = text
-        }
-    }
-
-    private func applyConfiguration(to textField: UITextField) {
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.alignment = .right
-        paragraphStyle.baseWritingDirection = .rightToLeft
-
-        let font = textField.font ?? UIFont.preferredFont(forTextStyle: .body)
-        textField.defaultTextAttributes = [
-            .font: font,
-            .foregroundColor: UIColor.label,
-            .paragraphStyle: paragraphStyle,
-        ]
-        textField.placeholder = placeholder
-        textField.textAlignment = .right
-        textField.semanticContentAttribute = .forceLeftToRight
-        textField.rightView = labelView(font: font)
-        textField.rightViewMode = .always
-    }
-
-    private func labelView(font: UIFont) -> UIView {
-        let labelView = UILabel()
-        labelView.text = "\(label): "
-        labelView.font = font
-        labelView.textColor = .label
-        labelView.textAlignment = .right
-        labelView.semanticContentAttribute = .forceRightToLeft
-        labelView.sizeToFit()
-        return labelView
-    }
-
-    final class Coordinator: NSObject, UITextFieldDelegate {
-        @Binding var text: String
-
-        init(text: Binding<String>) {
-            _text = text
-        }
-
-        @objc func textDidChange(_ sender: UITextField) {
-            text = sender.text ?? ""
-        }
     }
 }
 

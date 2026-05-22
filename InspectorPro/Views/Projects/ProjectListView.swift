@@ -33,6 +33,7 @@ struct ProjectListView: View {
                     .onDelete(perform: deleteProjects)
                 }
             }
+            .id("projects-\(languageCode)")
             .navigationTitle(AppStrings.text("פרויקטים"))
             .navigationDestination(for: Project.self) { project in
                 ProjectDetailView(project: project)

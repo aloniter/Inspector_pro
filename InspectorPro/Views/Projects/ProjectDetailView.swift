@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 struct ProjectDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var project: Project
+    @AppStorage(AppPreferenceKeys.languageCode) private var languageCode = AppLanguage.hebrew.rawValue
     @State private var showingNewReport = false
     @State private var showingEditProject = false
     @State private var reportToMove: Report?
@@ -47,6 +48,7 @@ struct ProjectDetailView: View {
                 .onDelete(perform: deleteReports)
             }
         }
+        .id("project-detail-\(project.id)-\(languageCode)")
         .navigationTitle(project.name)
         .navigationDestination(for: Report.self) { report in
             ReportDetailView(report: report)
@@ -611,6 +613,7 @@ private struct MoveReportToProjectView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Project.name) private var projects: [Project]
+    @AppStorage(AppPreferenceKeys.languageCode) private var languageCode = AppLanguage.hebrew.rawValue
 
     let report: Report
 
@@ -651,6 +654,7 @@ private struct MoveReportToProjectView: View {
                 }
             }
         }
+        .id("move-report-\(report.id)-\(languageCode)")
         .navigationTitle(AppStrings.text("Move to Project"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

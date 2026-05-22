@@ -1,5 +1,64 @@
 # TODO
 
+## Cover page export typography 12pt
+
+- [x] Inspect current PDF/DOCX cover-page font sizes and bold flags
+- [x] Set cover-page metadata labels and values to 12pt in PDF and DOCX
+- [x] Make only cover-page labels bold while keeping user-entered values regular
+- [x] Update focused DOCX export tests for 12pt sizing and bold rules
+- [x] Run build/tests and record validation results
+
+## Review
+
+- Added a shared 12pt cover metadata size and routed address/date/attendees/notes labels and values through it for PDF and DOCX.
+- PDF cover export now renders address/date/notes labels and the `נוכחים` heading as bold, while all values and user-entered text render regular.
+- DOCX cover export now emits 24 half-point font sizes for all cover metadata labels and values, with `<w:b/>` only on label paragraphs.
+- Updated focused DOCX tests to assert 12pt sizing, bold labels, regular values, centered attendees, and no old blue attendee color.
+- Validation:
+- `test_sim` via XcodeBuildMCP on iPhone 16 / iOS 18.6 passed with 69 tests.
+- `build_sim` via XcodeBuildMCP on iPhone 16 / iOS 18.6 passed.
+- `git diff --check` passed.
+
+## Language switch list text rendering
+
+- [x] Inspect dynamic language switching and project/report row rendering
+- [x] Force affected SwiftUI lists to rebuild when the app language changes
+- [x] Verify build/tests after the scoped UI refresh fix
+
+## Review
+
+- Root cause is consistent with SwiftUI reusing `List` row render state while the app-wide `layoutDirection` changes from Hebrew RTL to English LTR. A fresh app launch rebuilt the rows, which is why the text looked correct only after restarting.
+- Added language-scoped list identities to the project list, report list, and move-report project picker. When `languageCode` changes, SwiftUI now rebuilds those lists immediately instead of keeping rows in the bad intermediate text-rendering state.
+- The fix does not mutate project/report names, remove bidi isolation, or manually reverse any user-entered text.
+- Validation:
+- `test_sim` via XcodeBuildMCP on iPhone 16 / iOS 18.6 passed with 69 tests.
+- `build_sim` via XcodeBuildMCP on iPhone 16 / iOS 18.6 passed.
+- `git diff --check` passed.
+
+## Project form RTL and cover export metadata cleanup
+
+- [x] Inspect current project creation form and cover export rendering for project name, address, attendees, and notes
+- [x] Right-align the new-project name placeholder/input in Hebrew
+- [x] Remove the fixed bold address label from the project/report address input while keeping the placeholder
+- [x] Make `נוכחים` cover-page styling match the other metadata headings in PDF and DOCX
+- [x] Omit the cover-page notes section from PDF and DOCX when notes are empty
+- [x] Update focused export tests for attendee styling and empty notes omission
+- [x] Run build/tests and record validation results
+
+## Review
+
+- Replaced the project/report name and address fields with the shared directional text field so empty placeholders align to the visual right in Hebrew.
+- Removed the old inline `כתובת:` label inside the address field. The address row now shows only the `כתובת` placeholder until the user types.
+- Strengthened `DirectionalTextField` so placeholders use the same paragraph alignment and writing direction as typed text.
+- Updated PDF cover export so `נוכחים` uses the same muted heading color as `כתובת`, `תאריך`, and `הערות`, is not bold, and no longer uses the blue attendee accent color.
+- Updated DOCX cover export with the same attendee heading style and regular black attendee lines.
+- Changed DOCX/PDF notes handling so the cover-page `הערות` section is omitted when notes are nil, empty, or whitespace-only.
+- Added focused DOCX tests for the new attendee styling and missing-notes omission.
+- Validation:
+- `test_sim` via XcodeBuildMCP on iPhone 16 / iOS 18.6 passed with 69 tests.
+- `build_sim` via XcodeBuildMCP on iPhone 16 / iOS 18.6 passed.
+- `git diff --check` passed.
+
 ## Report export 60/40 table proportions
 
 - [x] Confirm current PDF/DOCX report tables use the shared image/text column ratios

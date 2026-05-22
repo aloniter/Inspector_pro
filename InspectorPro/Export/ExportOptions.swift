@@ -2,10 +2,12 @@ import Foundation
 
 enum ExportTypography {
     enum Cover {
-        static let attendeesHeadingPointSize: CGFloat = 10
-        static let attendeeItemPointSize: CGFloat = 10
-        static let notesContentPointSize: CGFloat = 12
+        static let metadataPointSize: CGFloat = 12
+        static let attendeesHeadingPointSize: CGFloat = metadataPointSize
+        static let attendeeItemPointSize: CGFloat = metadataPointSize
+        static let notesContentPointSize: CGFloat = metadataPointSize
 
+        static let metadataDocxSize = docxHalfPoints(from: metadataPointSize)
         static let attendeesHeadingDocxSize = docxHalfPoints(from: attendeesHeadingPointSize)
         static let attendeeItemDocxSize = docxHalfPoints(from: attendeeItemPointSize)
         static let notesContentDocxSize = docxHalfPoints(from: notesContentPointSize)
