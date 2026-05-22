@@ -12,12 +12,13 @@ final class PdfExporter {
 
         let logoImage = branding.logoImageData.flatMap(UIImage.init(data:))
 
-        // Load images one at a time so we can report progress and yield between each,
-        // allowing queued MainActor UI updates to flush and the progress bar to animate.
-        var photoImages: [UIImage] = []
+        // Prepare final flattened export images once so PDF and DOCX share the same
+        // source selection, compression, orientation normalization, and dimensions.
+        // Yield between images so queued MainActor UI updates can animate progress.
+        var exportImages: [FlattenedExportImage] = []
         for (index, photo) in photos.enumerated() {
-            let image = try loadCompressedImage(photo: photo, options: options)
-            photoImages.append(image)
+            let image = try FlattenedExportImageRenderer.render(photo: photo, options: options)
+            exportImages.append(image)
             onProgress(Double(index + 1) / Double(max(photos.count, 1)) * 0.9)
             await Task.yield()
         }
@@ -38,21 +39,25 @@ final class PdfExporter {
             drawBranding(logoImage: logoImage, branding: branding, options: options)
             var currentY = options.effectiveTopMargin
             let pageBottom = options.pageHeight - options.effectiveBottomMargin
+            let rowHeightBudget = options.targetPhotoRowHeight
 
             currentY += drawTableHeader(options: options, y: currentY)
 
             for (index, photo) in photos.enumerated() {
-                let image = photoImages[index]
+                let exportImage = exportImages[index]
                 let itemNumber = report.showsNumberedImagesInReport ? index + 1 : nil
                 let descriptionLines = descriptionLines(
                     photo: photo,
                     itemNumber: itemNumber,
                     showsNumberedImagesInReport: report.showsNumberedImagesInReport
                 )
-                let rowHeight = photoRowHeight(
-                    image: image,
-                    descriptionLines: descriptionLines,
-                    options: options
+                let rowHeight = min(
+                    photoRowHeight(
+                        image: exportImage.image,
+                        descriptionLines: descriptionLines,
+                        options: options
+                    ),
+                    rowHeightBudget
                 )
 
                 if currentY + rowHeight > pageBottom {
@@ -63,7 +68,7 @@ final class PdfExporter {
                 }
 
                 drawPhotoRow(
-                    image: image,
+                    image: exportImage.image,
                     descriptionLines: descriptionLines,
                     options: options,
                     y: currentY,
@@ -354,13 +359,7 @@ final class PdfExporter {
 
         let pad = ExportImageConstants.imageCellPaddingPoints
         let imageContentRect = imageCellRect.insetBy(dx: pad, dy: pad)
-        let drawRect = ExportImageFitter.placementRect(
-            for: image.size,
-            in: imageContentRect,
-            mode: .fillCellNoCrop
-        )
-
-        image.draw(in: drawRect)
+        image.draw(in: imageContentRect)
 
         drawDescriptionText(
             descriptionLines,
@@ -376,7 +375,7 @@ final class PdfExporter {
         descriptionLines: [ExportTextFormatter.DescriptionLine],
         options: ExportOptions
     ) -> CGFloat {
-        let imageDrivenHeight = options.targetPhotoImageHeight + (ExportImageConstants.imageCellPaddingPoints * 2)
+        let imageDrivenHeight = options.targetPhotoRowHeight
 
         let textHeight = descriptionTextHeight(
             descriptionLines,
@@ -635,35 +634,6 @@ final class PdfExporter {
             itemNumber: itemNumber,
             showsNumberedImagesInReport: showsNumberedImagesInReport
         )
-    }
-
-    private static func scaledImageSize(for image: UIImage, maxSize: CGSize) -> CGSize {
-        let widthScale = maxSize.width / image.size.width
-        let heightScale = maxSize.height / image.size.height
-        let scale = min(widthScale, heightScale, 1.0)
-
-        return CGSize(
-            width: image.size.width * scale,
-            height: image.size.height * scale
-        )
-    }
-
-    private static func loadCompressedImage(photo: PhotoRecord, options: ExportOptions) throws -> UIImage {
-        let imagePath = photo.displayImagePath
-        let fullURL = AppConstants.imagesBaseURL.appendingPathComponent(imagePath)
-
-        guard let imageData = try? Data(contentsOf: fullURL),
-              let compressed = ImageCompressor.compressData(
-                  imageData,
-                  quality: options.quality,
-                  maxWidthOverride: options.exportImageMaxRenderWidth,
-                  maxBytes: options.exportImageMaxBytes
-              ),
-              let image = UIImage(data: compressed) else {
-            throw ExportError.imageLoadFailed(imagePath)
-        }
-
-        return image
     }
 
     private static func dateString(_ date: Date) -> String {

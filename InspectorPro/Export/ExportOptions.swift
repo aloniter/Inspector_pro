@@ -16,74 +16,6 @@ enum ExportTypography {
     }
 }
 
-enum ReportImageFitMode {
-    /// Report-table placement: use the baked annotated image as one frame and
-    /// stretch it to the cell drawable bounds without crop metadata.
-    case fillCellNoCrop
-    case aspectFitNoCrop
-}
-
-enum ExportImageFitter {
-    static func aspectFitSize(
-        for sourceSize: CGSize,
-        in boundingSize: CGSize
-    ) -> CGSize {
-        guard sourceSize.width > 0,
-              sourceSize.height > 0,
-              boundingSize.width > 0,
-              boundingSize.height > 0 else {
-            return .zero
-        }
-
-        let scale = min(
-            boundingSize.width / sourceSize.width,
-            boundingSize.height / sourceSize.height
-        )
-
-        return CGSize(
-            width: sourceSize.width * scale,
-            height: sourceSize.height * scale
-        )
-    }
-
-    static func centeredAspectFitRect(
-        for sourceSize: CGSize,
-        in boundingRect: CGRect
-    ) -> CGRect {
-        let fittedSize = aspectFitSize(for: sourceSize, in: boundingRect.size)
-        guard fittedSize.width > 0, fittedSize.height > 0 else {
-            return .zero
-        }
-
-        return CGRect(
-            x: boundingRect.midX - fittedSize.width / 2,
-            y: boundingRect.midY - fittedSize.height / 2,
-            width: fittedSize.width,
-            height: fittedSize.height
-        )
-    }
-
-    static func placementRect(
-        for sourceSize: CGSize,
-        in boundingRect: CGRect,
-        mode: ReportImageFitMode
-    ) -> CGRect {
-        guard sourceSize.width > 0,
-              sourceSize.height > 0,
-              boundingRect.width > 0,
-              boundingRect.height > 0 else {
-            return .zero
-        }
-
-        switch mode {
-        case .fillCellNoCrop:
-            return boundingRect
-        case .aspectFitNoCrop:
-            return centeredAspectFitRect(for: sourceSize, in: boundingRect)
-        }
-    }
-}
-
 struct ExportOptions {
     let format: ExportFormat
     let quality: ImageQuality
@@ -106,10 +38,10 @@ struct ExportOptions {
     /// Distance from page bottom to footer content start.
     let brandedFooterDistancePt: CGFloat = 11.35 // 227 twips
 
-    let docxTableLayoutSafetyPadding: CGFloat = 0
+    let docxTableLayoutSafetyPadding: CGFloat = 18
 
-    let imageColumnRatio: CGFloat = 0.68
-    let textColumnRatio: CGFloat = 0.32
+    let imageColumnRatio: CGFloat = 0.60
+    let textColumnRatio: CGFloat = 0.40
     let tableHeaderHeight: CGFloat = 40
     let tableCellPadding: CGFloat = 10
     let minimumPhotoRowHeight: CGFloat = 96
@@ -161,13 +93,25 @@ struct ExportOptions {
         CGFloat(max(photosPerPage, 1))
     }
 
-    /// Maximum row height budget for image-driven rows. Actual PDF/DOCX rows shrink to content.
+    /// Row budget that keeps two normal findings on each report page.
     var targetPhotoRowHeight: CGFloat {
-        max(maximumPhotoImageHeight + (ExportImageConstants.imageCellPaddingPoints * 2), minimumPhotoRowHeight)
+        let availableRowsHeight = contentHeight - tableHeaderHeight - tableLayoutSafetyPadding
+        return max(availableRowsHeight / photoRowsPerPage, minimumPhotoRowHeight)
     }
 
     var targetPhotoImageHeight: CGFloat {
-        maximumPhotoImageHeight
+        max(
+            targetPhotoRowHeight - (ExportImageConstants.imageCellPaddingPoints * 2),
+            minimumPhotoRowHeight - (ExportImageConstants.imageCellPaddingPoints * 2)
+        )
+    }
+
+    var maximumPhotoRowHeight: CGFloat {
+        max(contentHeight - tableHeaderHeight, minimumPhotoRowHeight)
+    }
+
+    var maximumImageContentHeight: CGFloat {
+        targetPhotoImageHeight
     }
 
     /// Render width used during compression to keep quality while reducing file size.
@@ -249,6 +193,10 @@ struct ExportOptions {
 
     var targetPhotoImageHeightEMU: Int {
         Int(targetPhotoImageHeight * 12700.0)
+    }
+
+    var maximumImageContentHeightEMU: Int {
+        ExportImageGeometry.emu(fromPoints: maximumImageContentHeight)
     }
 
     init(format: ExportFormat, quality: ImageQuality, photoCount: Int = 1) {

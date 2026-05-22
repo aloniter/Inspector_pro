@@ -52,6 +52,8 @@
 		BEED3AB5FB9C60AC4234F2A8 /* Configuration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B90937B22942B3C428B4E715 /* Configuration.swift */; };
 		BF036D69E8DADCD11B356361 /* DirectionalTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED2F7B37D39457139734FA1B /* DirectionalTextField.swift */; };
 		C4447CCD6BC76207EFC5123F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 7265AAAAB75B5AC2D38A6883 /* LaunchScreen.storyboard */; };
+		C6651792EDE6D3D81DA8A499 /* ExportImageGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A749A44252D9455AEFB5E4C5 /* ExportImageGeometry.swift */; };
+		C6BBA8A2D04E1D9B0EF62C86 /* FlattenedExportImageRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C20F2CB49AE8062CFD9A57A /* FlattenedExportImageRenderer.swift */; };
 		C78213D480D5D2F91AD38601 /* SupabaseConfig.plist in Resources */ = {isa = PBXBuildFile; fileRef = C340C1102DDE746012A42F4A /* SupabaseConfig.plist */; };
 		CFC5B8680F175A992FC55F62 /* DirectionalTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A157C843E792CBCC8332C1E4 /* DirectionalTextEditor.swift */; };
 		D24867DE2C284DB62B2878BE /* PdfExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24FCA22A35747A0FCBDDF333 /* PdfExporter.swift */; };
@@ -83,6 +85,7 @@
 		24FCA22A35747A0FCBDDF333 /* PdfExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfExporter.swift; sourceTree = "<group>"; };
 		250DC10D00ACB77A01990241 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		2A1FF2A0A4AC04A516F1377C /* BrandingBootstrapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandingBootstrapper.swift; sourceTree = "<group>"; };
+		2C20F2CB49AE8062CFD9A57A /* FlattenedExportImageRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlattenedExportImageRenderer.swift; sourceTree = "<group>"; };
 		33126AA9A585846D86C2F773 /* ExportFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportFormat.swift; sourceTree = "<group>"; };
 		3335634B3BCAFE42B6C31B62 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		3B96112AC8ED09BBBD6D62D9 /* ExportOptionsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportOptionsSheet.swift; sourceTree = "<group>"; };
@@ -104,6 +107,7 @@
 		9E949DD5078F59B2E114E1CD /* PhotoRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoRecord.swift; sourceTree = "<group>"; };
 		A07E143472BCA8DF142C9D71 /* Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Project.swift; sourceTree = "<group>"; };
 		A157C843E792CBCC8332C1E4 /* DirectionalTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectionalTextEditor.swift; sourceTree = "<group>"; };
+		A749A44252D9455AEFB5E4C5 /* ExportImageGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportImageGeometry.swift; sourceTree = "<group>"; };
 		A78CCC2D2864588E52D716C2 /* template.docx */ = {isa = PBXFileReference; path = template.docx; sourceTree = "<group>"; };
 		A8B62DD3F09EC8E24B52C6F3 /* DocxTemplateBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocxTemplateBuilder.swift; sourceTree = "<group>"; };
 		AB143F75D35501113F93AF18 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
@@ -219,7 +223,9 @@
 				A8B62DD3F09EC8E24B52C6F3 /* DocxTemplateBuilder.swift */,
 				DE3CAA6394E63D2AE4067417 /* ExportCache.swift */,
 				89D09CE2BE015C00BA34A9B3 /* ExportEngine.swift */,
+				A749A44252D9455AEFB5E4C5 /* ExportImageGeometry.swift */,
 				EA3CE7031A5AD7898BDA4673 /* ExportOptions.swift */,
+				2C20F2CB49AE8062CFD9A57A /* FlattenedExportImageRenderer.swift */,
 				1FC319518367A6CBC1A0CF01 /* ImageCompressor.swift */,
 				CD05CAC2A3B21654F38500B6 /* OpenXMLBuilder.swift */,
 				24FCA22A35747A0FCBDDF333 /* PdfExporter.swift */,
@@ -473,12 +479,14 @@
 				7F07316045A9C75BAE958C61 /* ExportCache.swift in Sources */,
 				3418BA02853649EE589C1B4D /* ExportEngine.swift in Sources */,
 				F7249ED7054BF1AD43F97B76 /* ExportFormat.swift in Sources */,
+				C6651792EDE6D3D81DA8A499 /* ExportImageGeometry.swift in Sources */,
 				B54D2D41F1EC076850424093 /* ExportOptions.swift in Sources */,
 				393773F14F2011DFD8F13F78 /* ExportOptionsSheet.swift in Sources */,
 				D9538A1A7F0511C75CB233FA /* ExportPermissionService.swift in Sources */,
 				0A21A31DC269F9C8BC0D9352 /* ExportProgressView.swift in Sources */,
 				32D719DECC96929E953E82B9 /* ExportTextFormatter.swift in Sources */,
 				7A0F73B173C6834E4A7BF1E4 /* FileManagerService.swift in Sources */,
+				C6BBA8A2D04E1D9B0EF62C86 /* FlattenedExportImageRenderer.swift in Sources */,
 				A8020999354BBC892C1E3914 /* ImageCompressor.swift in Sources */,
 				7D1AA9CD62C2BBD45FE426C2 /* ImagePickerView.swift in Sources */,
 				859180B2615A1BB6236843CD /* ImageQuality.swift in Sources */,

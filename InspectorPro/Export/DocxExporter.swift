@@ -94,13 +94,9 @@ final class DocxExporter {
 
             let result = try processImage(
                 photo: photo,
-                quality: options.quality,
+                options: options,
                 mediaDir: mediaDir,
-                relId: imageRelId,
-                targetWidthEMU: options.imageContentWidthEMU,
-                targetHeightEMU: options.targetPhotoImageHeightEMU,
-                maxRenderWidth: options.exportImageMaxRenderWidth,
-                maxBytes: options.exportImageMaxBytes
+                relId: imageRelId
             )
             #if DEBUG
             totalImagePayloadBytes += result.compressedBytes
@@ -222,40 +218,28 @@ final class DocxExporter {
 
     private static func processImage(
         photo: PhotoRecord,
-        quality: ImageQuality,
+        options: ExportOptions,
         mediaDir: URL,
-        relId: Int,
-        targetWidthEMU: Int,
-        targetHeightEMU: Int,
-        maxRenderWidth: CGFloat,
-        maxBytes: Int
+        relId: Int
     ) throws -> ImageResult {
-        let imagePath = photo.displayImagePath
-        let fullURL = AppConstants.imagesBaseURL.appendingPathComponent(imagePath)
-
-        guard let sourceData = try? Data(contentsOf: fullURL),
-              let imageData = ImageCompressor.compressData(
-                  sourceData,
-                  quality: quality,
-                  maxWidthOverride: maxRenderWidth,
-                  maxBytes: maxBytes
-              ) else {
-            throw ExportError.imageLoadFailed(photo.displayImagePath)
-        }
-
-        guard UIImage(data: imageData) != nil else {
-            throw ExportError.imageLoadFailed(photo.displayImagePath)
-        }
-
-        let displayWidthEMU = max(targetWidthEMU, 1)
-        let displayHeightEMU = max(targetHeightEMU, 1)
+        let exportImage = try FlattenedExportImageRenderer.render(photo: photo, options: options)
+        let displaySize = (
+            width: options.imageContentWidthEMU,
+            height: options.targetPhotoImageHeightEMU
+        )
         let crop = OpenXMLBuilder.ImageCrop.none
 
         let filename = "image\(relId).jpg"
         let imageURL = mediaDir.appendingPathComponent(filename)
-        try imageData.write(to: imageURL)
+        try exportImage.data.write(to: imageURL)
 
-        return ImageResult(filename: filename, widthEMU: displayWidthEMU, heightEMU: displayHeightEMU, crop: crop, compressedBytes: imageData.count)
+        return ImageResult(
+            filename: filename,
+            widthEMU: displaySize.width,
+            heightEMU: displaySize.height,
+            crop: crop,
+            compressedBytes: exportImage.data.count
+        )
     }
 
     private static func normalizedText(_ value: String?) -> String {

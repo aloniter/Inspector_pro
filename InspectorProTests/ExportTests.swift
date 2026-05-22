@@ -39,6 +39,15 @@ private func docxXMLEntries(from archiveURL: URL) throws -> [String: Data] {
     return xmlEntries
 }
 
+private func docxEntryData(from archiveURL: URL, path: String) throws -> Data? {
+    let archive = try Archive(url: archiveURL, accessMode: .read)
+    guard let entry = archive.first(where: { $0.path == path }) else { return nil }
+
+    var data = Data()
+    _ = try archive.extract(entry) { chunk in data.append(chunk) }
+    return data
+}
+
 private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     haystack.components(separatedBy: needle).count - 1
 }
@@ -101,6 +110,40 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     )
 
     #expect(photo.displayImagePath == originalRelativePath)
+}
+
+@Test func flattenedExportImageRendererPrefersAnnotatedSourceAndIsDeterministic() throws {
+    FileManagerService.shared.ensureDirectoriesExist()
+    let relativeDirectory = "tests/\(UUID().uuidString)"
+    let originalPath = "\(relativeDirectory)/original.jpg"
+    let annotatedPath = "\(relativeDirectory)/annotated.jpg"
+    let directoryURL = AppConstants.imagesBaseURL.appendingPathComponent(relativeDirectory)
+    try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+    let original = UIGraphicsImageRenderer(size: CGSize(width: 80, height: 60)).image { context in
+        UIColor.systemBlue.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: 80, height: 60))
+    }
+    let annotated = UIGraphicsImageRenderer(size: CGSize(width: 80, height: 60)).image { context in
+        UIColor.systemRed.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: 80, height: 60))
+    }
+    try #require(original.jpegData(compressionQuality: 0.8))
+        .write(to: AppConstants.imagesBaseURL.appendingPathComponent(originalPath))
+    try #require(annotated.jpegData(compressionQuality: 0.8))
+        .write(to: AppConstants.imagesBaseURL.appendingPathComponent(annotatedPath))
+
+    let photo = PhotoRecord(imagePath: originalPath, annotatedImagePath: annotatedPath)
+    let options = ExportOptions(format: .pdf, quality: .balanced, photoCount: 1)
+
+    let first = try FlattenedExportImageRenderer.render(photo: photo, options: options)
+    let second = try FlattenedExportImageRenderer.render(photo: photo, options: options)
+
+    #expect(first.sourcePath == annotatedPath)
+    #expect(first.sourceKind == .annotated)
+    #expect(first.pixelSize == second.pixelSize)
+    #expect(first.data == second.data)
 }
 
 @Test func reportSortedPhotosUsesManualPosition() {
@@ -275,6 +318,7 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     )
 
     #expect(table.contains("<w:tbl>"))
+    #expect(!table.contains("<w:bidiVisual/>"))
     #expect(table.contains("תמונה"))
     #expect(table.contains("תיאור"))
     #expect(table.contains("rId10"))
@@ -931,8 +975,8 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     )
 
     #expect(docxOptions.targetPhotoRowHeight > docxOptions.minimumPhotoRowHeight)
-    #expect(docxOptions.targetPhotoImageHeight == 260)
-    #expect(docxOptions.docxTableLayoutSafetyPaddingTwips == 0)
+    #expect(docxOptions.targetPhotoImageHeight == docxOptions.targetPhotoRowHeight - (ExportImageConstants.imageCellPaddingPoints * 2))
+    #expect(docxOptions.docxTableLayoutSafetyPaddingTwips == 360)
 
     let docxContentHeightTwips = Int(docxOptions.contentHeight * 20.0)
     let headerHeightTwips = Int(docxOptions.tableHeaderHeight * 20.0)
@@ -940,6 +984,22 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     let tableUsedHeightTwips = headerHeightTwips + rowsHeightTwips
 
     #expect(tableUsedHeightTwips <= (docxContentHeightTwips - docxOptions.docxTableLayoutSafetyPaddingTwips))
+    #expect(docxOptions.maximumImageContentHeight == docxOptions.targetPhotoImageHeight)
+}
+
+@Test func pdfKeepsTwoPhotosPerPageWithReservedHeaderFooterSpace() {
+    let pdfOptions = ExportOptions(
+        format: .pdf,
+        quality: .balanced,
+        photoCount: 20
+    )
+
+    let rowsHeight = pdfOptions.targetPhotoRowHeight * pdfOptions.photoRowsPerPage
+    let tableUsedHeight = pdfOptions.tableHeaderHeight + rowsHeight
+
+    #expect(pdfOptions.tableLayoutSafetyPadding == 0)
+    #expect(tableUsedHeight <= pdfOptions.contentHeight)
+    #expect(pdfOptions.targetPhotoImageHeight == pdfOptions.targetPhotoRowHeight - (ExportImageConstants.imageCellPaddingPoints * 2))
 }
 
 @Test func compressorRespectsMaxBytes() {
@@ -1133,8 +1193,12 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(documentText.contains(">תקין<"))
     #expect(documentText.contains(">שורת בדיקה</w:t>"))
     #expect(!documentText.contains("<w:t xml:space=\"preserve\">•"))
-    // Full-cell report placement must not use DOCX crop metadata.
+    // Framed report placement must not use DOCX crop metadata.
     #expect(!documentText.contains("<a:srcRect"))
+
+    let expectedExportImage = try FlattenedExportImageRenderer.render(photo: photo, options: options)
+    let embeddedImageData = try docxEntryData(from: outputURL, path: "word/media/image10.jpg")
+    #expect(embeddedImageData == expectedExportImage.data)
 }
 
 @Test func docxExporterProducesWellFormedXMLPartsWithoutLogo() async throws {
@@ -1308,30 +1372,27 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(FileManager.default.fileExists(atPath: outputURL.path))
 }
 
-@Test func exportOptionsUseWiderImageColumnRatio() {
+@Test func exportOptionsUseBalancedReportColumnRatio() {
     let options = ExportOptions(format: .docx, quality: .balanced, photoCount: 1)
 
-    #expect(options.imageColumnWidth == options.contentWidth * 0.68)
-    #expect(options.textColumnWidth == options.contentWidth * 0.32)
-    #expect(options.imageColumnWidthTwips == Int(options.contentWidth * 0.68 * 20.0))
-    #expect(options.textColumnWidthTwips == Int(options.contentWidth * 0.32 * 20.0))
+    #expect(options.imageColumnRatio == 0.60)
+    #expect(options.textColumnRatio == 0.40)
+    #expect(options.imageColumnWidth == options.contentWidth * 0.60)
+    #expect(options.textColumnWidth == options.contentWidth * 0.40)
+    #expect(options.imageColumnWidthTwips == Int(options.contentWidth * 0.60 * 20.0))
+    #expect(options.textColumnWidthTwips == Int(options.contentWidth * 0.40 * 20.0))
+    #expect(options.imageColumnWidthEMU == Int(Double(options.contentWidthEMU) * 0.60))
+    #expect(options.textColumnWidthEMU == Int(Double(options.contentWidthEMU) * 0.40))
     #expect(ExportImageConstants.imageCellPaddingPoints == 4)
     #expect(ExportImageConstants.imageCellPaddingTwips == 80)
     #expect(ExportImageConstants.imageCellPaddingEMU == 50_800)
 }
 
-@Test func exportImageFitterSupportsFullCellReportPlacementWithoutCrop() {
+@Test func exportImageGeometrySupportsAspectFitPlacementAndCoordinateMapping() {
     let boundingRect = CGRect(x: 10, y: 20, width: 300, height: 200)
 
-    let fullCell = ExportImageFitter.placementRect(
-        for: CGSize(width: 1200, height: 900),
-        in: boundingRect,
-        mode: .fillCellNoCrop
-    )
-    #expect(fullCell == boundingRect)
-
-    let landscape = ExportImageFitter.centeredAspectFitRect(
-        for: CGSize(width: 1200, height: 900),
+    let landscape = ExportImageGeometry.centeredAspectFitRect(
+        sourceSize: CGSize(width: 1200, height: 900),
         in: boundingRect
     )
     #expect(abs(landscape.width - 266.67) < 0.01)
@@ -1339,8 +1400,8 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(abs(landscape.minX - 26.67) < 0.01)
     #expect(landscape.minY == 20)
 
-    let portrait = ExportImageFitter.centeredAspectFitRect(
-        for: CGSize(width: 900, height: 1200),
+    let portrait = ExportImageGeometry.centeredAspectFitRect(
+        sourceSize: CGSize(width: 900, height: 1200),
         in: boundingRect
     )
     #expect(portrait.width == 150)
@@ -1348,8 +1409,8 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(portrait.minX == 85)
     #expect(portrait.minY == 20)
 
-    let square = ExportImageFitter.centeredAspectFitRect(
-        for: CGSize(width: 1000, height: 1000),
+    let square = ExportImageGeometry.centeredAspectFitRect(
+        sourceSize: CGSize(width: 1000, height: 1000),
         in: boundingRect
     )
     #expect(square.width == 200)
@@ -1357,14 +1418,48 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(square.minX == 60)
     #expect(square.minY == 20)
 
-    let invalid = ExportImageFitter.centeredAspectFitRect(
-        for: .zero,
+    let invalid = ExportImageGeometry.centeredAspectFitRect(
+        sourceSize: .zero,
         in: boundingRect
     )
     #expect(invalid == .zero)
+
+    let normalized = ExportImageGeometry.normalizedPoint(CGPoint(x: 160, y: 120), in: boundingRect)
+    #expect(abs(normalized.x - 0.5) < 0.001)
+    #expect(abs(normalized.y - 0.5) < 0.001)
+
+    let denormalized = ExportImageGeometry.denormalizedPoint(normalized, in: boundingRect)
+    #expect(abs(denormalized.x - 160) < 0.001)
+    #expect(abs(denormalized.y - 120) < 0.001)
+
+    let clamped = ExportImageGeometry.normalizedPoint(CGPoint(x: -10, y: 500), in: boundingRect)
+    #expect(clamped.x == 0)
+    #expect(clamped.y == 1)
+
+    let tallBoundingRect = CGRect(x: 10, y: 20, width: 300, height: 400)
+    let widthFilledLandscape = ExportImageGeometry.centeredWidthFillRect(
+        sourceSize: CGSize(width: 1200, height: 900),
+        in: tallBoundingRect
+    )
+    #expect(widthFilledLandscape.width == 300)
+    #expect(widthFilledLandscape.height == 225)
+
+    let widthFilledPortrait = ExportImageGeometry.centeredWidthFillRect(
+        sourceSize: CGSize(width: 900, height: 1200),
+        in: tallBoundingRect
+    )
+    #expect(widthFilledPortrait.width == 300)
+    #expect(widthFilledPortrait.height == 400)
+
+    let heightLimitedPortrait = ExportImageGeometry.centeredWidthFillRect(
+        sourceSize: CGSize(width: 900, height: 1200),
+        in: boundingRect
+    )
+    #expect(heightLimitedPortrait.width == 150)
+    #expect(heightLimitedPortrait.height == 200)
 }
 
-@Test func docxExporterFillsImageCellForAllImageOrientationsWithoutCrop() async throws {
+@Test func docxExporterStretchesAllImageOrientationsToFullCellWithoutCropMetadata() async throws {
     FileManagerService.shared.ensureDirectoriesExist()
 
     func runExport(imageSize: CGSize, imagePath: String) async throws -> String {
@@ -1429,8 +1524,7 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
         imagePath: "\(squareDir)/square.jpg"
     )
 
-    // Report table images use full-cell dimensions without crop metadata; the
-    // baked annotated image is stretched as one frame, like manual Word resize.
+    // Report table images are stretched to the full cell without DOCX crop metadata.
     #expect(!landscapeXML.contains("<a:srcRect"))
     #expect(!portraitXML.contains("<a:srcRect"))
     #expect(!squareXML.contains("<a:srcRect"))
@@ -1443,9 +1537,12 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(!portraitXML.contains("<w:trHeight"))
     #expect(!squareXML.contains("<w:trHeight"))
 
-    // DOCX table column widths follow the same image-prioritized layout as PDF.
+    // DOCX table column widths follow the same balanced 60/40 layout as PDF.
     #expect(landscapeXML.contains("<w:gridCol w:w=\"\(options.imageColumnWidthTwips)\"/>"))
     #expect(landscapeXML.contains("<w:gridCol w:w=\"\(options.textColumnWidthTwips)\"/>"))
+    #expect(!landscapeXML.contains("<w:bidiVisual/>"))
+    #expect(!portraitXML.contains("<w:bidiVisual/>"))
+    #expect(!squareXML.contains("<w:bidiVisual/>"))
 
     func extractExtent(from xml: String) -> (cx: Double, cy: Double)? {
         guard let range = xml.range(of: #"<wp:extent cx="(\d+)" cy="(\d+)""#, options: .regularExpression),
@@ -1465,10 +1562,12 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
             return
         }
 
-        let maxWidth = Double(options.imageContentWidthEMU)
-        let maxHeight = Double(options.targetPhotoImageHeightEMU)
-        #expect(extent.cx == maxWidth, "\(orientationName) should match the image cell drawable width")
-        #expect(extent.cy == maxHeight, "\(orientationName) should match the image cell drawable height")
+        let expected = (
+            width: options.imageContentWidthEMU,
+            height: options.targetPhotoImageHeightEMU
+        )
+        #expect(abs(extent.cx - Double(expected.width)) < 12_000, "\(orientationName) should occupy the full export width")
+        #expect(abs(extent.cy - Double(expected.height)) < 12_000, "\(orientationName) should occupy the full export height")
     }
 
     expectFullCellExtent(
@@ -1483,4 +1582,8 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
         extractExtent(from: squareXML),
         orientationName: "square"
     )
+
+    let portraitExtent = try #require(extractExtent(from: portraitXML))
+    #expect(portraitExtent.cy <= Double(options.maximumImageContentHeightEMU) + 1_000)
+    #expect(abs(portraitExtent.cx - Double(options.imageContentWidthEMU)) < 12_000, "portrait should occupy the full table image-cell width after export stretching")
 }
