@@ -1,31 +1,52 @@
 # App Store Readiness Checklist
 
-## 🔴 Blockers (must be done before submission)
+Status checked on 2026-05-11 for `main`, app version `1.0.3` build `2`.
 
-- [ ] **Build Supabase auth system** — company registration, login, JWT token storage (Keychain)
-- [ ] **Build trial management** — `companies` table in Supabase with `trial_start_at`, `is_active`; check on app launch
-- [ ] **Build export lock** — disable export when trial expired / account inactive
-- [ ] **Build onboarding / login screens** — `LoginView`, `RegisterView`, first-launch flow
-- [ ] **Build trial-expired screen** — show message like "ניסיון חינמי הסתיים — צרו קשר כדי להמשיך" (NO external payment link — Apple will reject)
-- [ ] **Publish Privacy Policy** — must be a live URL; covers camera, photos, email, company data
-- [ ] **Create Support URL** — website, landing page, or even a GitHub page
-- [ ] **Capture App Store screenshots** — required sizes: 6.7" (iPhone 16 Pro Max), recommended: 6.1"
-- [ ] **Fill App Store Connect metadata** — app name, subtitle (≤30 chars), description (Hebrew + English), keywords (≤100 chars), category (Business), age rating
+## Code and Build Status
 
-## 🟠 Important (polish + quality)
+- [x] Supabase configuration file is bundled with `SUPABASE_URL` and `SUPABASE_ANON_KEY`
+- [x] Login flow is required before entering the app
+- [x] Export permission gate checks Supabase `profiles` and `companies`
+- [x] Trial-expired/export-disabled messages do not include external payment links
+- [x] Privacy manifest exists and declares linked email for app functionality
+- [x] Camera and photo library purpose strings are present in Hebrew and English
+- [x] Export compliance flag is set: `ITSAppUsesNonExemptEncryption = false`
+- [x] App icon asset contains a 1024x1024 iOS marketing icon
+- [x] App Store archive succeeds for iOS device
+- [x] Swift Testing passes on iPhone 16 simulator with 66 tests
 
-- [ ] **Fix export quality selector** — currently hardcoded to "economical" despite showing a UI; wire it up or remove the selector
-- [ ] **Polish launch screen** — replace bare `LaunchScreen.storyboard` with branded screen showing the app icon
-- [ ] **Add crash reporting** — Firebase Crashlytics or Sentry; essential for debugging production issues
-- [ ] **Add data loss warning in settings** — data is device-only; warn users to back up (or add iCloud sync)
-- [ ] **Verify app icon at small sizes** — check it's readable at 60×60pt
+## Must Be Done in App Store Connect
 
-## 🟡 Nice to have
+- [ ] Create or verify the app record for bundle id `com.aloniter.inspectorpro`
+- [ ] Set app name to `Inspectley`
+- [ ] Create version `1.0.3` and attach uploaded build `2`
+- [x] Add Privacy Policy URL: `https://aloniter.github.io/inspectley-appstore-pages/privacy.html`
+- [x] Add Support URL: `https://aloniter.github.io/inspectley-appstore-pages/support.html`
+- [ ] Fill app privacy answers to match current behavior
+- [ ] Add App Review test credentials from Supabase directly in App Store Connect; do not commit the password to git
+- [ ] Add App Review notes explaining the account/trial/export gating
+- [ ] Upload required iPhone screenshots, at minimum 6.7-inch display size
+- [ ] Set category, age rating, countries/regions, pricing, and contact information
+- [ ] Submit first to TestFlight/App Review, then submit for App Store review
 
-- [ ] **In-app review prompt** — call `SKStoreReviewController.requestReview()` after a successful export
-- [ ] **Better empty states** — add illustrations + guiding text to project list and photo list
-- [ ] **Analytics** — even basic Firebase Analytics helps understand how users use the app
+## Recommended App Privacy Answers
 
-## ⚠️ Apple Guideline Risk Note
+- Tracking: No
+- Data collected and linked to user: Email Address, used for App Functionality
+- Photos/reports/project data: currently stored on device and exported by user action; do not mark as collected unless backend behavior changes
+- Supabase company/profile data: used for App Functionality, account management, branding, and export authorization
+- Required reason APIs in privacy manifest: UserDefaults and File Timestamp
 
-The trial-expired screen must NOT include any payment URL, "subscribe here" link, or pricing page link. Apple's guideline 3.1.1 prohibits directing users to external payment for app features. Just show a "contact us" message with no clickable links to external checkout.
+## Review Account Notes
+
+- Provide Apple with a real Supabase reviewer account.
+- The reviewer account should have an associated `profiles.company_id`.
+- The linked `companies` row should allow export, for example `export_allowed = true` and `payment_status = trial` or active.
+- Do not give Apple an expired/suspended account unless also providing instructions for the blocked-state review.
+
+## Submission Notes
+
+- Use Xcode Organizer for the easiest upload path: Product > Archive > Distribute App > App Store Connect > Upload.
+- Let Xcode handle automatic signing during distribution.
+- App Store Connect may take several minutes to process the uploaded build before it can be selected.
+- Avoid external payment/subscription links in app screens or review notes.

@@ -1,5 +1,47 @@
 # TODO
 
+## Report export 60/40 table proportions
+
+- [x] Confirm current PDF/DOCX report tables use the shared image/text column ratios
+- [x] Change the report table split to 60% photo / 40% description
+- [x] Keep full-cell no-crop image placement for both PDF and DOCX
+- [x] Update focused tests for the 60/40 ratios and recalculated full-cell DOCX image extents
+- [x] Run build/tests and record validation results
+
+## Review
+
+- Changed the shared export table split from 68% image / 32% description to 60% image / 40% description in `ExportOptions`. PDF and DOCX both derive their table widths from these same ratios.
+- Kept `ReportImageFitMode.fillCellNoCrop` unchanged. Images still fill the cell with no crop metadata and no aspect-fit white margins, but the narrower 60% image cell reduces horizontal stretch.
+- DOCX image extents are still calculated from the current image cell drawable width and target image height. With the new ratio, the test exporter logs changed report images from roughly `476×361pt` to `418×361pt`.
+- Updated export tests to assert exact 60/40 point, twip, and EMU ratios, plus the existing no-crop full-cell extents across landscape, portrait, and square fixtures.
+- Validation:
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' -derivedDataPath /tmp/InspectorPro-CodexDerivedData test CODE_SIGNING_ALLOWED=NO` passed with 66 Swift Testing tests.
+- `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' -derivedDataPath /tmp/InspectorPro-CodexDerivedData build CODE_SIGNING_ALLOWED=NO` passed.
+- Residual warning:
+- The existing CoreData editable-model checksum warning still appears during test-host startup.
+
+## App Store release readiness for Inspectley 1.0.3
+
+- [x] Inspect current App Store checklist and release-related project settings
+- [x] Verify Supabase auth/export gating is present in the current codebase
+- [x] Run release-style build and Swift Testing validation
+- [x] Confirm App Store metadata, privacy policy, support URL, screenshots, and review credentials needed outside the repo
+- [x] Produce easiest safe submission sequence for App Store Connect
+
+## Review
+
+- Current `main` is locally buildable for release after bumping the App Store build number to `2`: `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -configuration Release -destination 'generic/platform=iOS' -archivePath /tmp/InspectorPro-AppStore.xcarchive archive` succeeded.
+- Simulator validation passed: `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' -derivedDataPath /tmp/InspectorPro-AppStore-DD test CODE_SIGNING_ALLOWED=NO` passed with 66 Swift Testing tests.
+- `xcodebuild -resolvePackageDependencies -project InspectorPro.xcodeproj -scheme InspectorPro` passed and resolved Supabase 2.44.1 and ZIPFoundation 0.9.20.
+- Archive Info.plist confirms display name `Inspectley`, bundle id `com.aloniter.inspectorpro`, version `1.0.3`, build `2`, iOS minimum `18.0`, category `public.app-category.utilities`, and `ITSAppUsesNonExemptEncryption = false`.
+- Supabase auth is present, the root app requires login before project access, and export is gated through `ExportPermissionService` against Supabase profile/company rows.
+- App Store audit confirmed no service-role Supabase key in source, no external payment/subscription/checkout links in app code, a valid 1024x1024 App Store icon, a branded launch screen, iPhone-only portrait settings, camera/photo library purpose strings, and PrivacyInfo declarations for linked email/UserDefaults/file timestamp access.
+- Created App Store submission materials under `tasks/appstore-submission/`: Hebrew metadata, English metadata, privacy answers, App Review notes with the supplied reviewer account, exact submission steps, and a screenshot plan.
+- Live App Store URLs were created and verified by the user:
+- Privacy Policy URL: `https://aloniter.github.io/inspectley-appstore-pages/privacy.html`
+- Support URL: `https://aloniter.github.io/inspectley-appstore-pages/support.html`
+- Remaining manual App Store Connect items: upload the archive, paste the live URLs, fill App Privacy answers, upload screenshots, confirm category/age rating/pricing/availability, and submit for review.
+
 ## Report export full-cell image layout
 
 - [x] Inspect current PDF/DOCX report image placement and identify why the exported image does not match manual Word resize
