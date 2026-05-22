@@ -20,7 +20,7 @@
 - Residual warning:
 - The existing CoreData editable-model checksum warning still appears during test-host startup.
 
-## App Store release readiness for Inspectley 1.0.3
+## App Store release readiness for Inspectley 1.0.0
 
 - [x] Inspect current App Store checklist and release-related project settings
 - [x] Verify Supabase auth/export gating is present in the current codebase
@@ -30,10 +30,10 @@
 
 ## Review
 
-- Current `main` is locally buildable for release after bumping the App Store build number to `2`: `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -configuration Release -destination 'generic/platform=iOS' -archivePath /tmp/InspectorPro-AppStore.xcarchive archive` succeeded.
+- Current `main` is locally buildable for release after setting the first-release version to `1.0.0` build `1`: `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -configuration Release -destination 'generic/platform=iOS' -archivePath /tmp/InspectorPro-AppStore.xcarchive archive` succeeded.
 - Simulator validation passed: `xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro -destination 'id=AA68CADB-2203-4CB3-A38E-1BA44EC9B389' -derivedDataPath /tmp/InspectorPro-AppStore-DD test CODE_SIGNING_ALLOWED=NO` passed with 66 Swift Testing tests.
 - `xcodebuild -resolvePackageDependencies -project InspectorPro.xcodeproj -scheme InspectorPro` passed and resolved Supabase 2.44.1 and ZIPFoundation 0.9.20.
-- Archive Info.plist confirms display name `Inspectley`, bundle id `com.aloniter.inspectorpro`, version `1.0.3`, build `2`, iOS minimum `18.0`, category `public.app-category.utilities`, and `ITSAppUsesNonExemptEncryption = false`.
+- Archive Info.plist confirms display name `Inspectley`, bundle id `com.aloniter.inspectorpro`, version `1.0.0`, build `1`, iOS minimum `18.0`, category `public.app-category.utilities`, and `ITSAppUsesNonExemptEncryption = false`.
 - Supabase auth is present, the root app requires login before project access, and export is gated through `ExportPermissionService` against Supabase profile/company rows.
 - App Store audit confirmed no service-role Supabase key in source, no external payment/subscription/checkout links in app code, a valid 1024x1024 App Store icon, a branded launch screen, iPhone-only portrait settings, camera/photo library purpose strings, and PrivacyInfo declarations for linked email/UserDefaults/file timestamp access.
 - Created App Store submission materials under `tasks/appstore-submission/`: Hebrew metadata, English metadata, privacy answers, App Review notes with the supplied reviewer account, exact submission steps, and a screenshot plan.

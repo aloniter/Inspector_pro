@@ -1,6 +1,6 @@
 # App Store Readiness Checklist
 
-Status checked on 2026-05-11 for `main`, app version `1.0.3` build `2`.
+Status checked on 2026-05-11 for `main`, app version `1.0.0` build `1`.
 
 ## Code and Build Status
 
@@ -19,7 +19,7 @@ Status checked on 2026-05-11 for `main`, app version `1.0.3` build `2`.
 
 - [ ] Create or verify the app record for bundle id `com.aloniter.inspectorpro`
 - [ ] Set app name to `Inspectley`
-- [ ] Create version `1.0.3` and attach uploaded build `2`
+- [ ] Create version `1.0.0` and attach uploaded build `1`
 - [x] Add Privacy Policy URL: `https://aloniter.github.io/inspectley-appstore-pages/privacy.html`
 - [x] Add Support URL: `https://aloniter.github.io/inspectley-appstore-pages/support.html`
 - [ ] Fill app privacy answers to match current behavior

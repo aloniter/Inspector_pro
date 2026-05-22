@@ -30,8 +30,8 @@ If the simulator id is unavailable, choose any available iPhone simulator and re
 
 1. Open App Store Connect.
 2. Go to My Apps > Inspectley.
-3. Wait until build `2` for version `1.0.3` finishes processing.
-4. Select build `2` for the app version.
+3. Wait until build `1` for version `1.0.0` finishes processing.
+4. Select build `1` for the app version.
 
 Apple says uploaded builds need processing time before they appear in App Store Connect.
 
@@ -69,7 +69,7 @@ Required manual fields:
 
 ## 6. If Upload Fails Because Build Number Already Exists
 
-If App Store Connect says build `2` already exists for version `1.0.3`:
+If App Store Connect says build `1` already exists for version `1.0.0`:
 
 1. Increment `CURRENT_PROJECT_VERSION` in `project.yml`.
 2. Run `xcodegen generate`.
