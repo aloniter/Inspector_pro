@@ -7,7 +7,9 @@ enum BrandingBootstrapper {
             do {
                 try bootstrap(modelContainer: modelContainer)
             } catch {
+                #if DEBUG
                 print("Branding bootstrap failed: \(error)")
+                #endif
             }
         }
     }

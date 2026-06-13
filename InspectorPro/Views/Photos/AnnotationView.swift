@@ -202,7 +202,9 @@ struct AnnotationView: View {
             dismiss()
         } catch {
             saveErrorMessage = error.localizedDescription
+            #if DEBUG
             print("Failed to save annotated image: \(error)")
+            #endif
         }
     }
 

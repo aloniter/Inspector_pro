@@ -44,6 +44,23 @@ enum AppBranding {
     static let createdByText = "Created by Iter Engineering"
 }
 
+enum AppSupport {
+    /// Canonical Inspectley support / contact address shown across the app.
+    static let email = "inspectleyapp@gmail.com"
+
+    /// Builds a `mailto:` URL to support with an optional pre-filled subject and body.
+    static func mailtoURL(subject: String? = nil, body: String? = nil) -> URL {
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.path = email
+        var items: [URLQueryItem] = []
+        if let subject { items.append(URLQueryItem(name: "subject", value: subject)) }
+        if let body { items.append(URLQueryItem(name: "body", value: body)) }
+        if !items.isEmpty { components.queryItems = items }
+        return components.url ?? URL(string: "mailto:\(email)")!
+    }
+}
+
 enum ExportImageConstants {
     /// Padding between image and cell border (points).
     static let imageCellPaddingPoints: CGFloat = 4

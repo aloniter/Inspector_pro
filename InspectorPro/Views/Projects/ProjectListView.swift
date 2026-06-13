@@ -268,6 +268,16 @@ private struct AppSettingsView: View {
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }
+
+                Section {
+                    Link(destination: accountDeletionMailtoURL) {
+                        Label(AppStrings.text("בקשת מחיקת חשבון"), systemImage: "trash")
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                } footer: {
+                    Text(AppStrings.text("נשלח אימייל לתמיכה לטיפול במחיקת החשבון והנתונים."))
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
             }
 
             Section(AppStrings.text("מראה")) {
@@ -435,6 +445,16 @@ private struct AppSettingsView: View {
                 }
             }
         }
+    }
+
+    private var accountDeletionMailtoURL: URL {
+        let body: String
+        if let email = authService.currentUserEmail {
+            body = "Account email: \(email)\n\nPlease delete my Inspectley account and all associated data."
+        } else {
+            body = "Please delete my Inspectley account and all associated data."
+        }
+        return AppSupport.mailtoURL(subject: "Account Deletion Request", body: body)
     }
 
     private var versionText: String {

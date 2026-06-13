@@ -580,7 +580,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Inspectley;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_NSCameraUsageDescription = "המצלמה נדרשת לצילום תמונות לפרויקט";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "גישה לגלריה נדרשת לייבוא תמונות לפרויקט";
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
@@ -667,7 +667,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Inspectley;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_NSCameraUsageDescription = "המצלמה נדרשת לצילום תמונות לפרויקט";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "גישה לגלריה נדרשת לייבוא תמונות לפרויקט";
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;

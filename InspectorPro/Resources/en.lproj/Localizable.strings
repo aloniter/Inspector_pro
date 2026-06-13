@@ -160,5 +160,7 @@
 "Create another project before moving this report." = "Create another project before moving this report.";
 "Current project" = "Current project";
 "Move failed" = "Move failed";
+"בקשת מחיקת חשבון" = "Request Account Deletion";
+"נשלח אימייל לתמיכה לטיפול במחיקת החשבון והנתונים." = "We'll email support to handle deleting your account and data.";
 "Created by Iter Engineering" = "Created by Iter Engineering";
 "Created By Iter Engineering" = "Created By Iter Engineering";

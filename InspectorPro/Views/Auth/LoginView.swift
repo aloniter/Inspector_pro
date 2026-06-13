@@ -158,7 +158,7 @@ struct LoginView: View {
                     .padding(.top, 4)
 
                     // Contact admin link
-                    Link(destination: URL(string: "mailto:iteralon@gmail.com")!) {
+                    Link(destination: AppSupport.mailtoURL()) {
                         HStack(spacing: 4) {
                             Text(AppStrings.text("נתקלת בבעיה?"))
                                 .foregroundStyle(Color(red: 138/255, green: 148/255, blue: 166/255))
