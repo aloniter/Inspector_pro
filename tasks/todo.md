@@ -17,7 +17,7 @@
 **Security:** redacted a plaintext reviewer password from `tasks/appstore-submission/SUBMISSION-PACKAGE.md` (2 spots). NOTE: it remains in git **history** — rotate the reviewer account password after release.
 **Excluded from the commit (untracked, unrelated):** `inspectley_login/` (login design prototype), `AppStore/` screenshot binaries + `.DS_Store`.
 **Version:** bumped to `MARKETING_VERSION 1.0.1` / build `2` (done); `xcodegen generate` run; 71 tests still pass.
-**Reviewer password:** rotated value lives only in gitignored `reviewer-credentials.local.md` + App Store Connect (must be applied in Supabase manually). Plaintext removed from tracked docs.
+**Reviewer account:** VERIFIED working 2026-06-17 (login + export entitlement active, trial_end 2030-12-31). Credentials kept UNCHANGED. Password only in gitignored `reviewer-credentials.local.md` + App Store Connect; removed from tracked docs (still in older git history).
 **Submission docs:** `version-1.0.1-fix-summary.md`, `review-notes.md`, `version-1.0.1-archive-upload-checklist.md`.
 
 ---

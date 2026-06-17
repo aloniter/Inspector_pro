@@ -10,10 +10,10 @@ Prepared 2026-06-17. **Do not submit until you've completed every box.** Reviewe
 - [x] `ITSAppUsesNonExemptEncryption = NO` present.
 - [x] No plaintext reviewer password committed; `SupabaseConfig.plist` gitignored.
 
-## 1. Rotate reviewer account (manual — do first)
-- [ ] In Supabase → Authentication → Users, set `inspectleyapp@gmail.com` to the new password from `reviewer-credentials.local.md`.
-- [ ] Verify login works in a local build with the new password.
-- [ ] Confirm the account is export-enabled (active trial / `companies.export_allowed = true`, future `trial_end_date`) per `review-notes.md` backend requirements.
+## 1. Reviewer account — VERIFIED 2026-06-17 (no rotation needed)
+- [x] Login verified against live Supabase with the existing password (`inspectleyapp@gmail.com`).
+- [x] Export entitlement verified: company "Apple Review Account", `export_allowed = true`, `payment_status = active`, `trial_end_date = 2030-12-31` → export is allowed in-app.
+- [x] Decision: existing credentials kept unchanged. Password lives only in `reviewer-credentials.local.md` (gitignored) + App Store Connect Sign-In Information.
 
 ## 2. Archive
 - [ ] Open `InspectorPro.xcodeproj` in Xcode; select **Any iOS Device (arm64)** as destination.
@@ -46,4 +46,4 @@ Prepared 2026-06-17. **Do not submit until you've completed every box.** Reviewe
 - [ ] **Submit for Review** — only when you're ready (per current instruction: not yet).
 
 ## Post-release
-- [ ] Reviewer password was previously in git history — rotation (step 1) addresses live risk; consider history scrub only if the repo becomes public.
+- [ ] Reviewer password is kept unchanged and still exists in older git history (not in any current tracked file). Rotate + scrub history if repo access ever widens (e.g. open-sourcing).

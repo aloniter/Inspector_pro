@@ -69,7 +69,7 @@ Tests/docs/project: `InspectorProTests/ExportTests.swift`, `InspectorPro.xcodepr
 ---
 
 ## 7. Pre-Upload Reminders
-- Set `MARKETING_VERSION` to `1.0.1` and bump `CURRENT_PROJECT_VERSION` before archiving (currently `1.0.0` / build `1` in `project.yml`).
+- Version set to `1.0.1` / build `2` in `project.yml` and the generated project (done).
 - Screenshots for 6.9" and 6.5" are staged under `AppStore/screenshots/` (not committed to git).
 - Verify reviewer Supabase account is active (see `review-notes.md` → backend requirements).
-- **Security:** the reviewer password was previously committed in git history — rotate it after this release and keep it only in App Store Connect.
+- **Security:** reviewer account verified working 2026-06-17; credentials kept unchanged. The password is no longer in any tracked file (only in the gitignored local file + App Store Connect). It still exists in older git history — rotate/scrub if repo access widens.
