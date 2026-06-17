@@ -16,7 +16,9 @@
 **Guardrails honored:** originals/annotated photos never deleted; non-empty folders never removed; export quality unchanged (economical); no workflow changes.
 **Security:** redacted a plaintext reviewer password from `tasks/appstore-submission/SUBMISSION-PACKAGE.md` (2 spots). NOTE: it remains in git **history** — rotate the reviewer account password after release.
 **Excluded from the commit (untracked, unrelated):** `inspectley_login/` (login design prototype), `AppStore/` screenshot binaries + `.DS_Store`.
-**Pre-upload TODO (yours):** bump `MARKETING_VERSION` → `1.0.1` and set the build number before archiving. Submission notes: `tasks/appstore-submission/version-1.0.1-fix-summary.md` + `review-notes.md`.
+**Version:** bumped to `MARKETING_VERSION 1.0.1` / build `2` (done); `xcodegen generate` run; 71 tests still pass.
+**Reviewer password:** rotated value lives only in gitignored `reviewer-credentials.local.md` + App Store Connect (must be applied in Supabase manually). Plaintext removed from tracked docs.
+**Submission docs:** `version-1.0.1-fix-summary.md`, `review-notes.md`, `version-1.0.1-archive-upload-checklist.md`.
 
 ---
 

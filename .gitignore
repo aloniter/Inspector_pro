@@ -40,3 +40,7 @@ Package.resolved
 
 # Supabase secrets (copy the root SupabaseConfig.plist.example into Resources locally)
 InspectorPro/Resources/SupabaseConfig.plist
+
+# Local-only credentials (reviewer/demo passwords) — never commit plaintext
+*.local.md
+tasks/appstore-submission/reviewer-credentials.local.md
