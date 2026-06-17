@@ -273,6 +273,50 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(references.first?.annotatedPath == "project/ann_photo.jpg")
 }
 
+@Test func removeDirectoryIfEmptyRemovesEmptyButPreservesMovedReportPhotos() async throws {
+    FileManagerService.shared.ensureDirectoriesExist()
+    let base = AppConstants.imagesBaseURL
+
+    // An empty project image folder (e.g. left behind after deleting a project) is removed.
+    let emptyRelative = "tests/\(UUID().uuidString)"
+    let emptyURL = base.appendingPathComponent(emptyRelative)
+    try FileManager.default.createDirectory(at: emptyURL, withIntermediateDirectories: true)
+
+    await ImageStorageService.shared.removeDirectoryIfEmpty(at: emptyRelative)
+    #expect(!FileManager.default.fileExists(atPath: emptyURL.path))
+
+    // A folder that still holds a moved report's photo must be preserved.
+    let occupiedRelative = "tests/\(UUID().uuidString)"
+    let occupiedURL = base.appendingPathComponent(occupiedRelative)
+    try FileManager.default.createDirectory(at: occupiedURL, withIntermediateDirectories: true)
+    let survivorURL = occupiedURL.appendingPathComponent("moved.jpg")
+    try Data([0x01, 0x02, 0x03]).write(to: survivorURL)
+    defer { try? FileManager.default.removeItem(at: occupiedURL) }
+
+    await ImageStorageService.shared.removeDirectoryIfEmpty(at: occupiedRelative)
+    #expect(FileManager.default.fileExists(atPath: occupiedURL.path))
+    #expect(FileManager.default.fileExists(atPath: survivorURL.path))
+}
+
+@Test func purgeExportsClearsLeftoverFilesButKeepsExportsDirectory() throws {
+    FileManagerService.shared.ensureDirectoriesExist()
+    let exportsURL = AppConstants.exportsURL
+
+    let leftoverPDF = exportsURL.appendingPathComponent("leftover-\(UUID().uuidString).pdf")
+    let leftoverDOCX = exportsURL.appendingPathComponent("leftover-\(UUID().uuidString).docx")
+    try Data([0x01, 0x02]).write(to: leftoverPDF)
+    try Data([0x03, 0x04]).write(to: leftoverDOCX)
+    #expect(FileManager.default.fileExists(atPath: leftoverPDF.path))
+    #expect(FileManager.default.fileExists(atPath: leftoverDOCX.path))
+
+    FileManagerService.shared.purgeExports()
+
+    #expect(!FileManager.default.fileExists(atPath: leftoverPDF.path))
+    #expect(!FileManager.default.fileExists(atPath: leftoverDOCX.path))
+    // The directory itself must survive so future exports can be written.
+    #expect(FileManager.default.fileExists(atPath: exportsURL.path))
+}
+
 @Test func xmlEscaping() {
     let input = "Test & <value> \"quoted\" 'apos'"
     let escaped = OpenXMLBuilder.escapeXML(input)

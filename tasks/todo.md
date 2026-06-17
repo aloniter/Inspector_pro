@@ -1,5 +1,234 @@
 # TODO
 
+---
+
+# v1.0.1 — Storage & Export Cleanup — ✅ COMPLETE (2026-06-17)
+
+> Status: **implemented, tested (71 passing), real-device share QA passed.** One clean commit prepared.
+> Scope was locked to storage/export *file hygiene*. RTL/UI polish was completed earlier in the cycle.
+
+## FINAL v1.0.1 SUMMARY (release `release-prep`)
+**Two bodies of work shipped in 1.0.1:**
+1. **Hebrew/RTL UI polish** — Project/Report forms, Settings rows/headers, mixed Hebrew/English values, report-editor date row. (`DirectionalTextField` alignment option; `AccountInfoRow`/`Settings*Row` helpers; RTL rules added to `AGENTS.md`.)
+2. **Storage/export cleanup** — removed dead `ExportCache`; safe empty-folder cleanup on project delete (never touches non-empty/moved-photo folders); transient exports (delete-after-share + purge `Exports/` on launch).
+
+**Verification:** clean build, **71 Swift Testing tests pass** (iPhone 16 sim), real-device PDF/DOCX share QA passed.
+**Guardrails honored:** originals/annotated photos never deleted; non-empty folders never removed; export quality unchanged (economical); no workflow changes.
+**Security:** redacted a plaintext reviewer password from `tasks/appstore-submission/SUBMISSION-PACKAGE.md` (2 spots). NOTE: it remains in git **history** — rotate the reviewer account password after release.
+**Excluded from the commit (untracked, unrelated):** `inspectley_login/` (login design prototype), `AppStore/` screenshot binaries + `.DS_Store`.
+**Pre-upload TODO (yours):** bump `MARKETING_VERSION` → `1.0.1` and set the build number before archiving. Submission notes: `tasks/appstore-submission/version-1.0.1-fix-summary.md` + `review-notes.md`.
+
+---
+
+## Guardrails / non-goals (do NOT touch in 1.0.1)
+- Export quality stays **economical only**. No quality picker. No multiple quality modes.
+- No cloud storage. No Supabase photo storage.
+- No Share-individual-photo, no Save-to-Gallery, no Move/Copy photos between projects.
+- No Storage-management screen UI.
+
+## Explicitly deferred from the earlier approved scope (flagging so you can pull back if intended)
+- **Annotated image quality 0.92 → 0.85** (old item 5) — *deferred* per "cleanup only."
+- **PDF byte-budget audit / enforcement** (old item 6) — *deferred* per "cleanup only."
+  - (Both are real wins but are export *content* changes, not file hygiene. Say the word and I re-add them.)
+
+## Decisive facts this plan relies on (verified in code)
+- Exports are written **permanently** to `Documents/InspectorPro/Exports/` and are **never cleaned**; re-exports add `_1/_2…` duplicates. (`PdfExporter.outputFileURL`, `DocxExporter.outputFileURL`)
+- The app sets **no `UIFileSharingEnabled` / `LSSupportsOpeningDocumentsInPlace`** → `Documents/` is private; export files are **not** visible in the Files app. ⇒ purging them is invisible to users and safe.
+- `ExportCache` is **dead**: only `invalidate(for:)` is ever called (2 sites in `AnnotationView`), and it operates on a cache that is **never populated or read**. (`compressedImageData`/`clearAll` have zero callers.)
+- Project deletion deletes photo files **by path** and leaves an **empty** `Images/<projectID>/` dir behind. The existing `deleteProjectDirectory(_:)` (wholesale `rm -rf`) is intentionally **unused** because a moved report's photos can still physically live in its old project's folder.
+- Launch hook for maintenance already exists: `FileManagerService.ensureDirectoriesExist()` in `InspectorProApp.init()`.
+
+---
+
+## Key design decision (needs your nod): export retention model
+**Recommended — "transient exports":**
+1. Delete each exported file when its share session finishes (`UIActivityViewController.completionWithItemsHandler`).
+2. On app launch, empty the `Exports/` directory (regenerable on demand; reclaims existing backlog).
+
+Result: `Exports/` is ~empty at rest, ≤ one export (~≤11 MB economical) at peak.
+
+**Alternative — "keep then purge":** keep exports, purge on launch anything older than 24 h (lets users re-share without re-exporting). Slightly more storage; I don't recommend it given exports are cheap to regenerate.
+
+→ **Plan below assumes the recommended transient model.** Tell me if you want the 24 h variant.
+
+---
+
+## Change 1 — Transient export files (cleanup + retention + stop accumulation + sharing-safe)
+Covers: "Exports folder cleanup", "prevent repeated exports accumulating forever", "safe retention policy", "verify cleanup does not break sharing".
+
+**Files:** `Services/FileManagerService.swift`, `InspectorProApp.swift`, `Views/Export/ExportOptionsSheet.swift` (`ShareSheet`).
+
+**Tasks**
+- [x] Add `FileManagerService.purgeExports()` — delete all files inside `Exports/`, keep the directory. ✅ (also removes the legacy empty `ExportCache/` dir)
+- [x] Call `purgeExports()` from `InspectorProApp.init()` right after `ensureDirectoriesExist()`. ✅
+- [x] In `ShareSheet.makeUIViewController`, set `completionWithItemsHandler` to delete `fileURL` once the activity finishes (completed **or** cancelled). ✅
+- [x] Keep the existing `_1/_2…` filename uniquifier. ✅ (untouched)
+- [x] Tests: `purgeExports()` empties the dir but keeps the directory. ✅ `purgeExportsClearsLeftoverFilesButKeepsExportsDirectory`
+- [ ] Manual share QA matrix — **requires a device/your hands** (see verification). Code path verified; cannot be unit-tested.
+
+- **Expected storage savings:** One-time reclaim of the **entire existing `Exports/` backlog** on first 1.0.1 launch — unbounded today (heavy users: tens→hundreds of MB; e.g. 30 exports × ~4 MB ≈ 120 MB). Ongoing: unbounded growth → **~0 at rest, ≤~11 MB transient peak**.
+- **Risk level:** **MEDIUM** — only because it touches the share flow. Mitigations: delete strictly in `completionWithItemsHandler`; launch purge is a belt-and-suspenders safety net; manual share QA matrix (below).
+- **Impact on existing reports/projects:** **None** to data. Existing accumulated export *files* are cleared on first launch — intended, and they regenerate on demand.
+- **Migration requirements:** **None** (filesystem only; no schema change).
+- **App Store review impact:** **None.** No new permissions/privacy; no file-sharing flag, so files aren't user-visible. Mild positive (smaller footprint).
+
+## Change 2 — Remove dead `ExportCache` code
+Covers: "Remove unused ExportCache code if truly dead." (Confirmed dead.)
+
+**Files:** delete `Export/ExportCache.swift`; `Views/Photos/AnnotationView.swift` (remove the 2 `ExportCache.shared.invalidate(for:)` calls, ~L169 & ~L189); `Utilities/Constants.swift` (remove `exportCacheDirectoryName` + `exportCacheURL`); `Services/FileManagerService.swift` (drop `exportCacheURL` from `ensureDirectoriesExist`). Then `xcodegen generate`.
+
+**Tasks**
+- [x] `grep -r ExportCache` returns **no** references after edits. ✅ (no refs in Swift sources or pbxproj)
+- [ ] Optional defensive: delete any legacy `ExportCache/` dir on launch (typically empty → ~0 bytes). → folded into Step 3 launch maintenance.
+- [x] `xcodegen generate`; confirm the file drops out of `project.pbxproj`. ✅ (0 references in pbxproj)
+- [x] Build + full test suite pass on iPhone 16 sim. ✅ (69 tests passed)
+
+- **Expected storage savings:** **~0 bytes** (cache was never populated). Value is code clarity + one fewer directory created at launch. *(Honest: this is a maintainability cleanup, not a storage win.)*
+- **Risk level:** **LOW.** The only callers are no-ops against an empty cache; removing them changes no behavior. Annotation save/clear flow re-verified after removal.
+- **Impact on existing reports/projects:** **None.**
+- **Migration requirements:** **None.**
+- **App Store review impact:** **None.**
+
+## Change 3 — Remove orphaned empty image folders after project deletion
+Covers: "Remove orphaned empty image folders after project deletion."
+
+**Files:** `Services/ImageStorageService.swift` (new `removeDirectoryIfEmpty`), `Views/Projects/ProjectListView.swift` (`deleteProjects`).
+
+**Critical safety constraint:** **remove a directory only if it is empty.** Do NOT use the wholesale `deleteProjectDirectory(_:)` — a report moved out of this project can still have its photo files physically stored under this project's folder, and a wholesale delete would destroy them.
+
+**Tasks**
+- [x] Add `ImageStorageService.removeDirectoryIfEmpty(at relativeDir:)` (lists contents; removes dir only when empty). ✅ + `FileManagerService.removeDirectoryIfEmpty(at:)` primitive.
+- [x] In `deleteProjects`, after the existing by-path `deletePhotoFiles` loop, derive the unique parent dirs from `deletedPhotoPaths` and call `removeDirectoryIfEmpty` on each. ✅
+- [x] Regression test: deleting a project whose report was moved elsewhere **preserves** the moved report's files (non-empty dir kept); a genuinely empty dir is removed. ✅ `removeDirectoryIfEmptyRemovesEmptyButPreservesMovedReportPhotos`
+- [x] Scope to **project deletion only**. ✅
+- [x] Build + full test suite pass (70 tests incl. new one). ✅
+
+- **Expected storage savings:** **Negligible bytes** (empty directories). Value is hygiene — prevents orphan-folder accumulation over the app's lifetime.
+- **Risk level:** **LOW as specified** (remove-only-if-empty). NOTE: a naive wholesale delete would be **HIGH** (moved-photo data loss) — the plan forbids it and adds the regression test.
+- **Impact on existing reports/projects:** **None** (only empty dirs removed; moved-report files untouched).
+- **Migration requirements:** **None.**
+- **App Store review impact:** **None.**
+
+---
+
+## Cross-cutting verification (gate before "done")
+- [x] `xcodegen generate` after removing `ExportCache.swift`. ✅ (0 refs in pbxproj)
+- [x] Build (sim) clean; **full Swift Testing suite passes** — **71 tests** (69 original + 2 new), no errors/warnings. ✅
+- [ ] **Manual share QA matrix** (the real risk surface for Change 1): export **PDF** and **DOCX**, then share via **AirDrop**, **Mail attach**, **WhatsApp (document)**, **Save to Files** — for each confirm: (a) share succeeds, (b) the export file is removed afterward, (c) re-export works, (d) after app relaunch `Exports/` is empty. → **needs you / a device.**
+- [x] Annotation save/clear path reviewed after `ExportCache` removal (the removed `invalidate` calls were no-ops on a never-populated cache; thumbnail invalidation + model save are unchanged). ✅
+
+## Implementation result (2026-06-17)
+- **Files changed:** `Export/ExportCache.swift` (deleted), `Services/FileManagerService.swift`, `Services/ImageStorageService.swift`, `Utilities/Constants.swift`, `Views/Photos/AnnotationView.swift`, `Views/Projects/ProjectListView.swift`, `Views/Export/ExportOptionsSheet.swift`, `InspectorProApp.swift`, `InspectorProTests/ExportTests.swift`, regenerated `InspectorPro.xcodeproj`.
+- **Tests:** 71 passing (added `removeDirectoryIfEmptyRemovesEmptyButPreservesMovedReportPhotos`, `purgeExportsClearsLeftoverFilesButKeepsExportsDirectory`).
+- **Guardrails honored:** originals/annotated photos never deleted; non-empty folders never removed (`deleteProjectDirectory` wholesale delete left unused); export quality unchanged (economical); no workflow changes.
+- **Not committed** — left for review alongside the separate uncommitted RTL work.
+- **Note (optional follow-up, out of scope):** `ImageStorageService.deleteProjectDirectory(_:)` is now fully unused; could be removed later to eliminate a wholesale-delete footgun.
+
+## Sequencing
+1. Change 2 (lowest risk, isolates the `xcodegen generate`).
+2. Change 3 (+ regression test).
+3. Change 1 (+ manual share QA matrix).
+- Work on a dedicated branch off `release-prep`; commit per change; run tests between.
+
+## Combined outcome
+- **Before:** `Exports/` grows without bound; re-exports duplicate; empty image folders pile up.
+- **After:** `Exports/` ~0 at rest / ≤~11 MB peak; existing backlog reclaimed on first launch (the only large real-world win); no orphan folders; no dead cache code/dir.
+
+**→ Awaiting approval. No code will change until you approve this plan (and confirm the retention model).**
+
+---
+
+## New report form RTL polish
+
+- [x] Restore a full-width divider below the report date row
+- [x] Move the attendees placeholder/text to the visual right
+- [x] Verify the focused SwiftUI form change with build/test checks
+
+## Review
+
+- Updated the New/Edit Report date row to hide the default row separator and draw one full-width divider inside the row, so the line under `תאריך` spans the form content width.
+- Forced the `נוכחים` input to use the current app language direction and matching text alignment, keeping the Hebrew placeholder and entered text on the visual right.
+- Validation:
+- XcodeBuildMCP `build_sim` on iPhone 16 / iOS 18.6 passed with no warnings or errors.
+- XcodeBuildMCP `test_sim` on iPhone 16 / iOS 18.6 passed with 69 tests.
+
+## v1.0.1 App Store fix summary
+
+- [x] Create a dedicated 1.0.1 fix summary for App Store submission
+- [x] Include paste-ready App Store "What's New" text in English and Hebrew
+- [x] Include detailed internal fix list, changed files, and QA checklist
+
+## Review
+
+- Added `tasks/appstore-submission/version-1.0.1-fix-summary.md` for the next App Store update.
+- The file summarizes the RTL fixes across Project forms, Report editing, and Settings.
+- It includes App Store Connect release-note text, changed files, completed verification, and manual QA reminders before upload.
+
+## v1.0.1 Settings full RTL polish
+
+- [x] Inspect remaining Settings sections below account
+- [x] Right-align Settings section headers
+- [x] Put row labels/titles on the visual right and values/controls/actions on the visual left
+- [x] Preserve account row fix and unrelated Settings behavior
+- [x] Add permanent Hebrew / RTL UI Rules to project instructions
+- [x] Run build/tests and record validation results
+
+## Review
+
+- Added Settings-specific row/header helpers so visual order is explicit without forcing the whole Settings screen LTR.
+- `SettingsSectionHeader` right-aligns Hebrew section titles.
+- `SettingsControlRow` puts controls such as the dark-mode toggle on the visual left and the row title on the visual right.
+- `SettingsValueRow` puts values/actions such as the version, branding logo/disclosure, and other secondary content on the visual left while titles remain on the visual right.
+- Replaced the native branding `NavigationLink` row with a plain button plus `navigationDestination` so the logo and chevron can stay grouped on the visual left and the company title/subtitle stay right-aligned.
+- `SettingsActionRow` keeps the logout action readable and right-weighted without changing sign-out behavior.
+- Preserved the existing account row fix: labels on the right, values/status/date on the left.
+- Added `## Hebrew / RTL UI Rules` to `AGENTS.md`.
+- Validation:
+- `build_sim` via XcodeBuildMCP on iPhone 17 Pro / iOS 26.4 passed.
+- `test_sim` via XcodeBuildMCP on iPhone 17 Pro / iOS 26.4 passed with 69 tests.
+- `build_run_sim` launched the updated app in Hebrew, but the simulator remained on the login screen, so authenticated Settings visual inspection still needs a logged-in session.
+
+## v1.0.1 Settings account RTL rows
+
+- [x] Inspect Settings account section row layout
+- [x] Add/update a reusable account detail row with value on visual left and label on visual right
+- [x] Apply it to user, company, export status, and trial expiration rows
+- [x] Keep unrelated Settings controls unchanged
+- [x] Run build/tests and record validation results
+
+## Review
+
+- Replaced the account section's mirrored `HStack { label Spacer value }` rows with `AccountInfoRow`, a local two-column row that forces only row content to left-to-right physical layout.
+- Each account row now renders the value view first on the visual left and the secondary label column second on the visual right.
+- Email and trial date values keep a local left-to-right environment so they stay readable; the company name remains Hebrew but is placed in the left value column with controlled wrapping/truncation.
+- The export status badge remains the same colored status view, now grouped on the left value side.
+- Unrelated Settings sections, buttons, toggles, language selector, card styling, and navigation were not changed.
+- Validation:
+- `test_sim` via XcodeBuildMCP on iPhone 16 / iOS 18.6 passed with 69 tests.
+- `build_sim` via XcodeBuildMCP on iPhone 16 / iOS 18.6 passed.
+- `build_run_sim` on iPhone 17 Pro / iOS 26.4 launched the updated app in Hebrew, but the simulator was on the login screen, so live Settings account-section inspection still needs a logged-in session.
+
+## v1.0.1 focused RTL polish
+
+- [x] Inspect project/report form fields and current shared input behavior
+- [x] Add an explicit alignment option to the shared directional text field
+- [x] Set New Project/Edit Project name and address input content to visual right
+- [x] Keep Edit Report name and address input content visual right
+- [x] Remove the extra short date-row underline while preserving the long row separator
+- [x] Run build/tests and record validation results
+
+## Review
+
+- Added `DirectionalTextFieldAlignment` so shared text fields can explicitly resolve content alignment as `.left`, `.right`, or the ambient layout direction. Existing callers keep the default layout-direction behavior.
+- Project create/edit name and address fields now pass `.right`, forcing placeholder and entered value content to the visual right inside the field only.
+- Report create/edit name and address fields now pass `.right`, keeping those Hebrew report details right-aligned in the RTL form.
+- Removed the custom internal `Divider()` from `RTLDateField`; the `Form` row separator remains, eliminating the extra short underline below `תאריך` while preserving one row separator.
+- Validation:
+- `test_sim` via XcodeBuildMCP on iPhone 16 / iOS 18.6 passed with 69 tests.
+- `build_sim` via XcodeBuildMCP on iPhone 16 / iOS 18.6 passed.
+- The user-provided New Project screenshot showed the project placeholders on the visual left; source now sets those fields to `.right`.
+- `git diff --check` passed.
+
 ## Cover page export typography 12pt
 
 - [x] Inspect current PDF/DOCX cover-page font sizes and bold flags

@@ -67,6 +67,26 @@ DOCX structure is **generated programmatically** in `DocxTemplateBuilder.swift` 
 - **Image paths are relative**: Always relative to `Documents/InspectorPro/Images/`
 - **Localization**: Hebrew is default (RTL). Add strings to both `he.lproj/Localizable.strings` and `en.lproj/Localizable.strings`; use `AppStrings.text()` to retrieve
 
+## Hebrew / RTL UI Rules
+
+- The app is Hebrew-first and should preserve RTL layout by default.
+- Do not solve RTL issues with a global LTR override.
+- For Settings-style rows:
+  - Section headers align right.
+  - Row labels/titles appear on the right.
+  - Row values/actions/toggles/secondary values usually appear on the left.
+  - Use explicit row components/parameters where needed instead of relying blindly on SwiftUI leading/trailing behavior.
+- For form fields:
+  - Alignment depends on the field purpose.
+  - Project name/address fields in New Project/Edit Project are intentionally right-aligned inside the input.
+  - Report name/address fields in Edit Report are intentionally right-aligned.
+  - Do not make all text fields globally left or right aligned.
+- For mixed Hebrew/English content:
+  - Emails, version numbers, dates, and technical identifiers must remain readable and not reversed.
+  - Apply local layoutDirection fixes only to the specific value/text when needed.
+- Any future UI feature must be checked in Hebrew on simulator/device before being considered complete.
+- Always verify both placeholder alignment and actual entered text alignment.
+
 # Workflow Orchestration
 
 ## 1. Plan Mode Default

@@ -1,5 +1,15 @@
 # Lessons Learned
 
+## Authenticated UI QA should use the provided test account
+- When simulator visual verification is blocked by the login screen, use the user-provided app test account from the current chat/session instead of stopping at unauthenticated launch.
+- Do not write credentials, passwords, emails, or tokens into tracked repo files, task notes, screenshots, or logs.
+- Verification rule: for changes behind authentication, log in on the simulator and inspect the actual screen whenever credentials are available in the session.
+
+## Latest visual correction overrides earlier alignment briefs
+- When the user provides a newer screenshot and says a field is on the wrong side, treat that as the current source of truth even if an earlier pasted brief said the opposite.
+- For the New Project/Edit Project Hebrew fields in this app, placeholders and entered values should be visually right-aligned unless the user explicitly reverses that again.
+- Verification rule: after changing form alignment, inspect the actual simulator screen or a user-provided screenshot against the specific side requested, not only the original written checklist.
+
 ## Report table image layout can prioritize full-cell presentation over aspect ratio
 - When the user asks for manual Word-resize behavior, do not preserve aspect ratio if that leaves visible empty space around annotated report photos.
 - Reason: annotations are baked into the final exported image, so controlled non-uniform scaling keeps annotations attached while making the report table look professionally filled.

@@ -166,7 +166,6 @@ struct AnnotationView: View {
                         photo.annotatedImagePath = nil
                     }
                     try modelContext.save()
-                    await ExportCache.shared.invalidate(for: photo)
                     notifyThumbnailRefresh(for: [previousDisplayPath, photo.imagePath])
                 }
                 dismiss()
@@ -186,7 +185,6 @@ struct AnnotationView: View {
             )
             photo.annotatedImagePath = annotatedPath
             try modelContext.save()
-            await ExportCache.shared.invalidate(for: photo)
             await ThumbnailService.shared.invalidate(path: annotatedPath)
             if let previousAnnotatedPath, previousAnnotatedPath != annotatedPath {
                 await ThumbnailService.shared.invalidate(path: previousAnnotatedPath)

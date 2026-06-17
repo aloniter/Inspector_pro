@@ -1,10 +1,17 @@
 import SwiftUI
 import UIKit
 
+enum DirectionalTextFieldAlignment {
+    case layoutDirection
+    case left
+    case right
+}
+
 struct DirectionalTextField: UIViewRepresentable {
     @Binding var text: String
     let placeholder: String
     let layoutDirection: LayoutDirection
+    var alignment: DirectionalTextFieldAlignment = .layoutDirection
     var keyboardType: UIKeyboardType = .default
     var autocapitalizationType: UITextAutocapitalizationType = .sentences
     var textContentType: UITextContentType?
@@ -36,8 +43,9 @@ struct DirectionalTextField: UIViewRepresentable {
 
     private func applyConfiguration(to textField: UITextField) {
         let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.alignment = layoutDirection == .rightToLeft ? .right : .left
-        paragraphStyle.baseWritingDirection = layoutDirection == .rightToLeft ? .rightToLeft : .leftToRight
+        let resolvedLayoutDirection = resolvedLayoutDirection
+        paragraphStyle.alignment = resolvedLayoutDirection == .rightToLeft ? .right : .left
+        paragraphStyle.baseWritingDirection = resolvedLayoutDirection == .rightToLeft ? .rightToLeft : .leftToRight
 
         let font = textField.font ?? UIFont.preferredFont(forTextStyle: .body)
         textField.defaultTextAttributes = [
@@ -54,11 +62,22 @@ struct DirectionalTextField: UIViewRepresentable {
             ]
         )
         textField.textAlignment = paragraphStyle.alignment
-        textField.semanticContentAttribute = layoutDirection == .rightToLeft ? .forceRightToLeft : .forceLeftToRight
+        textField.semanticContentAttribute = resolvedLayoutDirection == .rightToLeft ? .forceRightToLeft : .forceLeftToRight
         textField.keyboardType = keyboardType
         textField.autocapitalizationType = autocapitalizationType
         textField.autocorrectionType = autocorrectionType
         textField.textContentType = textContentType
+    }
+
+    private var resolvedLayoutDirection: LayoutDirection {
+        switch alignment {
+        case .layoutDirection:
+            layoutDirection
+        case .left:
+            .leftToRight
+        case .right:
+            .rightToLeft
+        }
     }
 
     final class Coordinator: NSObject, UITextFieldDelegate {

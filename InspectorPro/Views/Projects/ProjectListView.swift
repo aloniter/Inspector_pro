@@ -84,6 +84,10 @@ struct ProjectListView: View {
     private func deleteProjects(at offsets: IndexSet) {
         let deletedProjects = offsets.map { projects[$0] }
         let deletedPhotoPaths = deletedProjects.flatMap(\.photoFileReferencesForDeletion)
+        let directoriesToPrune = Set(deletedPhotoPaths.compactMap { reference -> String? in
+            let directory = (reference.originalPath as NSString).deletingLastPathComponent
+            return directory.isEmpty ? nil : directory
+        })
 
         for project in deletedProjects {
             modelContext.delete(project)
@@ -98,6 +102,11 @@ struct ProjectListView: View {
                         originalPath: photoPath.originalPath,
                         annotatedPath: photoPath.annotatedPath
                     )
+                }
+                // Remove now-empty project image folders. removeDirectoryIfEmpty
+                // never touches a folder that still holds a moved report's photos.
+                for directory in directoriesToPrune {
+                    await ImageStorageService.shared.removeDirectoryIfEmpty(at: directory)
                 }
             }
         } catch {
@@ -187,6 +196,7 @@ private struct AppSettingsView: View {
     @State private var trialEndDateString: String?
     @State private var isRefreshing = false
     @State private var refreshErrorMessage: String?
+    @State private var showingBrandingSettings = false
 
     private var defaultBrandingProfile: BrandingProfile? {
         brandingProfiles.first(where: \.isDefault) ?? brandingProfiles.first
@@ -203,46 +213,43 @@ private struct AppSettingsView: View {
         Form {
             // Account info section — shown only when logged in
             if authService.isAuthenticated {
-                Section(AppStrings.text("חשבון")) {
+                Section {
                     if let email = accountEmail {
-                        HStack {
-                            Text(AppStrings.text("משתמש"))
-                                .foregroundStyle(.secondary)
-                            Spacer()
+                        AccountInfoRow(label: AppStrings.text("משתמש")) {
                             Text(email)
                                 .font(.subheadline.monospacedDigit())
                                 .foregroundStyle(.primary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
                                 .environment(\.layoutDirection, .leftToRight)
                         }
                     }
 
                     if let company = accountCompany {
-                        HStack {
-                            Text(AppStrings.text("חברה"))
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Text(company)
-                                .multilineTextAlignment(.trailing)
+                        AccountInfoRow(label: AppStrings.text("חברה")) {
+                            Text(company.directionallyIsolated)
+                                .foregroundStyle(.primary)
+                                .multilineTextAlignment(.leading)
+                                .lineLimit(1...2)
+                                .truncationMode(.tail)
                         }
                     }
 
-                    HStack {
-                        Text(AppStrings.text("סטטוס ייצוא"))
-                            .foregroundStyle(.secondary)
-                        Spacer()
+                    AccountInfoRow(label: AppStrings.text("סטטוס ייצוא")) {
                         exportStatusBadge
                     }
 
                     if let trialEnd = trialEndDateString {
-                        HStack {
-                            Text(AppStrings.text("תוקף ניסיון עד"))
-                                .foregroundStyle(.secondary)
-                            Spacer()
+                        AccountInfoRow(label: AppStrings.text("תוקף ניסיון עד")) {
                             Text(trialEnd)
                                 .font(.subheadline.monospacedDigit())
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                                .environment(\.layoutDirection, .leftToRight)
                         }
                     }
+                } header: {
+                    SettingsSectionHeader(title: AppStrings.text("חשבון"))
                 }
 
                 Section {
@@ -280,13 +287,18 @@ private struct AppSettingsView: View {
                 }
             }
 
-            Section(AppStrings.text("מראה")) {
-                Toggle(isOn: $darkModeEnabled) {
+            Section {
+                SettingsControlRow {
+                    Toggle("", isOn: $darkModeEnabled)
+                        .labelsHidden()
+                } title: {
                     Label(AppStrings.text("מצב לילה"), systemImage: "moon.stars.fill")
                 }
+            } header: {
+                SettingsSectionHeader(title: AppStrings.text("מראה"))
             }
 
-            Section(AppStrings.text("שפה")) {
+            Section {
                 Picker(AppStrings.text("שפה"), selection: selectedLanguage) {
                     ForEach(AppLanguage.allCases) { language in
                         Text(language.displayTitle).tag(language)
@@ -297,38 +309,54 @@ private struct AppSettingsView: View {
                 Text(AppStrings.text("השינויים מוחלים מיידית בכל האפליקציה."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            } header: {
+                SettingsSectionHeader(title: AppStrings.text("שפה"))
             }
 
-            Section(AppStrings.text("מיתוג חברה")) {
-                NavigationLink {
-                    BrandingSettingsContainerView()
+            Section {
+                Button {
+                    showingBrandingSettings = true
                 } label: {
-                    HStack(spacing: 12) {
-                        BrandingLogoThumbnail(brandingProfile: defaultBrandingProfile)
+                    SettingsValueRow {
+                        HStack(spacing: 10) {
+                            BrandingLogoThumbnail(brandingProfile: defaultBrandingProfile)
 
+                            Image(systemName: "chevron.left")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                    } title: {
                         VStack(alignment: .trailing, spacing: 2) {
-                            Text(accountCompany ?? defaultBrandingProfile?.name ?? AppStrings.text("טוען..."))
+                            Text((accountCompany ?? defaultBrandingProfile?.name ?? AppStrings.text("טוען...")).directionallyIsolated)
                                 .foregroundStyle(.primary)
                                 .multilineTextAlignment(.trailing)
+                                .lineLimit(1...2)
 
                             Text(AppStrings.text("ברירת מחדל"))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.trailing)
                         }
-                        .frame(maxWidth: .infinity, alignment: .trailing)
                     }
-                    .environment(\.layoutDirection, .leftToRight)
                 }
+                .buttonStyle(.plain)
+            } header: {
+                SettingsSectionHeader(title: AppStrings.text("מיתוג חברה"))
             }
 
-            Section(AppStrings.text("אפליקציה")) {
-                HStack {
-                    Label(AppStrings.text("גרסה"), systemImage: "info.circle")
-                    Spacer()
+            Section {
+                SettingsValueRow {
                     Text(versionText)
                         .font(.subheadline.monospacedDigit())
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .environment(\.layoutDirection, .leftToRight)
+                } title: {
+                    Label(AppStrings.text("גרסה"), systemImage: "info.circle")
                 }
+            } header: {
+                SettingsSectionHeader(title: AppStrings.text("אפליקציה"))
             }
 
             if authService.isAuthenticated {
@@ -339,8 +367,10 @@ private struct AppSettingsView: View {
                             dismiss()
                         }
                     } label: {
-                        Label(AppStrings.text("יציאה מהחשבון"), systemImage: "rectangle.portrait.and.arrow.right")
-                            .frame(maxWidth: .infinity, alignment: .trailing)
+                        SettingsActionRow {
+                            Label(AppStrings.text("יציאה מהחשבון"), systemImage: "rectangle.portrait.and.arrow.right")
+                                .foregroundStyle(.red)
+                        }
                     }
                 }
             }
@@ -365,6 +395,9 @@ private struct AppSettingsView: View {
                     dismiss()
                 }
             }
+        }
+        .navigationDestination(isPresented: $showingBrandingSettings) {
+            BrandingSettingsContainerView()
         }
     }
 
@@ -461,5 +494,111 @@ private struct AppSettingsView: View {
         let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0"
         let buildVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
         return "v\(shortVersion) (\(buildVersion))"
+    }
+}
+
+private struct SettingsSectionHeader: View {
+    let title: String
+
+    var body: some View {
+        HStack {
+            Spacer(minLength: 0)
+            Text(title)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.trailing)
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .environment(\.layoutDirection, .leftToRight)
+    }
+}
+
+private struct SettingsValueRow<Value: View, Title: View>: View {
+    private let value: Value
+    private let title: Title
+
+    init(@ViewBuilder value: () -> Value, @ViewBuilder title: () -> Title) {
+        self.value = value()
+        self.title = title()
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            value
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            title
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .frame(maxWidth: .infinity)
+        .environment(\.layoutDirection, .leftToRight)
+    }
+}
+
+private struct SettingsControlRow<Control: View, Title: View>: View {
+    private let control: Control
+    private let title: Title
+
+    init(@ViewBuilder control: () -> Control, @ViewBuilder title: () -> Title) {
+        self.control = control()
+        self.title = title()
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            control
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            title
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .frame(maxWidth: .infinity)
+        .environment(\.layoutDirection, .leftToRight)
+    }
+}
+
+private struct SettingsActionRow<Content: View>: View {
+    private let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        HStack {
+            Spacer(minLength: 0)
+            content
+                .multilineTextAlignment(.trailing)
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .environment(\.layoutDirection, .leftToRight)
+    }
+}
+
+private struct AccountInfoRow<Value: View>: View {
+    let label: String
+    private let value: Value
+
+    init(label: String, @ViewBuilder value: () -> Value) {
+        self.label = label
+        self.value = value()
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            value
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text(label)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.trailing)
+                .lineLimit(2)
+                .frame(width: 126, alignment: .trailing)
+        }
+        .frame(maxWidth: .infinity)
+        .environment(\.layoutDirection, .leftToRight)
     }
 }

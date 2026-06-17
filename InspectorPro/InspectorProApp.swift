@@ -13,6 +13,9 @@ struct InspectorProApp: App {
 
     init() {
         FileManagerService.shared.ensureDirectoriesExist()
+        // Exports are transient: clear any leftover export files from a previous
+        // session before showing the UI.
+        FileManagerService.shared.purgeExports()
 
         let schema = Schema(versionedSchema: InspectorProSchemaV9.self)
 

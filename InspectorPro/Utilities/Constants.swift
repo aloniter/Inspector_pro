@@ -5,7 +5,6 @@ enum AppConstants {
     static let appDirectoryName = "InspectorPro"
     static let imagesDirectoryName = "Images"
     static let brandingDirectoryName = "Branding"
-    static let exportCacheDirectoryName = "ExportCache"
     static let exportsDirectoryName = "Exports"
     static let thumbnailMaxSize: CGFloat = 200
     static let thumbnailJPEGQuality: CGFloat = 0.6
@@ -29,10 +28,6 @@ enum AppConstants {
 
     static var brandingAssetsURL: URL {
         appBaseURL.appendingPathComponent(brandingDirectoryName)
-    }
-
-    static var exportCacheURL: URL {
-        appBaseURL.appendingPathComponent(exportCacheDirectoryName)
     }
 
     static var exportsURL: URL {

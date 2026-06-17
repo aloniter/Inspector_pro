@@ -149,7 +149,17 @@ struct ShareSheet: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
         let itemSource = ExportShareItemSource(fileURL: fileURL)
-        return UIActivityViewController(activityItems: [itemSource], applicationActivities: nil)
+        let controller = UIActivityViewController(activityItems: [itemSource], applicationActivities: nil)
+
+        // Transient exports: remove the file once the share flow finishes (whether
+        // the user completed or cancelled). The system has already copied whatever
+        // data it needs by the time this handler fires, so sharing is unaffected.
+        let exportedFileURL = fileURL
+        controller.completionWithItemsHandler = { _, _, _, _ in
+            try? FileManager.default.removeItem(at: exportedFileURL)
+        }
+
+        return controller
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}

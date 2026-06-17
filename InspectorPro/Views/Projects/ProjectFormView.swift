@@ -25,12 +25,14 @@ struct ProjectFormView: View {
                 DirectionalTextField(
                     text: $name,
                     placeholder: AppStrings.text("שם הפרויקט"),
-                    layoutDirection: layoutDirection
+                    layoutDirection: layoutDirection,
+                    alignment: .right
                 )
                 DirectionalTextField(
                     text: $address,
                     placeholder: AppStrings.text("כתובת"),
-                    layoutDirection: layoutDirection
+                    layoutDirection: layoutDirection,
+                    alignment: .right
                 )
             } header: {
                 RTLSectionHeader(title: AppStrings.text("פרטי פרויקט"))
@@ -152,23 +154,22 @@ struct ReportFormView: View {
     @State private var isEditingNotes = false
     @State private var errorMessage: String?
 
-    private var textAlignment: TextAlignment {
-        AppTextDirection.textAlignment(for: layoutDirection)
-    }
-
     var body: some View {
         Form {
             Section {
                 DirectionalTextField(
                     text: $name,
                     placeholder: AppStrings.text("שם הדוח"),
-                    layoutDirection: layoutDirection
+                    layoutDirection: layoutDirection,
+                    alignment: .right
                 )
                 RTLDateField(label: AppStrings.text("תאריך"), date: $date)
+                    .listRowSeparator(.hidden)
                 DirectionalTextField(
                     text: $address,
                     placeholder: AppStrings.text("כתובת"),
-                    layoutDirection: layoutDirection
+                    layoutDirection: layoutDirection,
+                    alignment: .right
                 )
             } header: {
                 RTLSectionHeader(title: AppStrings.text("פרטי דוח"))
@@ -176,8 +177,9 @@ struct ReportFormView: View {
 
             Section {
                 TextField(AppStrings.text("נוכחים"), text: $attendees, axis: .vertical)
-                    .multilineTextAlignment(textAlignment)
+                    .multilineTextAlignment(AppTextDirection.textAlignment(for: AppLanguage.current.layoutDirection))
                     .lineLimit(1...3)
+                    .environment(\.layoutDirection, AppLanguage.current.layoutDirection)
             } header: {
                 RTLSectionHeader(title: ExportTextFormatter.rtlHeadingText("\(AppStrings.text("נוכחים")):"))
             }

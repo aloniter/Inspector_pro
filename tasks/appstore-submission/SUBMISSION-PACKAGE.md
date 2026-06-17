@@ -165,7 +165,7 @@ Content rules: no real client data; never show payment/trial/expiry or the delet
 
 ```
 AUTH
-[ ] Login (inspectleyapp@gmail.com / Iloveapple2026) -> project list
+[ ] Login (inspectleyapp@gmail.com / <reviewer password — kept out of git>) -> project list
 [ ] Wrong password shows clear error, no crash
 [ ] Force-quit + relaunch -> session restored
 
@@ -221,7 +221,7 @@ inspection photos, and export the report as PDF or DOCX to share with clients.
 
 LOGIN IS REQUIRED — please use the demo account in the Sign-In fields above.
 Username: inspectleyapp@gmail.com
-Password: Iloveapple2026
+Password: [enter the reviewer password directly in the App Store Connect "Sign-In Information" fields — do not commit it to git]
 This account is fully active with export enabled (valid through 2030).
 
 B2B / NO IN-APP PURCHASE

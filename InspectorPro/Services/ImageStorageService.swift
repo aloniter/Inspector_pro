@@ -81,6 +81,14 @@ actor ImageStorageService {
         FileManagerService.shared.deleteItem(at: dirURL)
     }
 
+    /// Remove an image subdirectory only if it is empty. A report that was moved
+    /// to another project can still have its photo files stored here, so a
+    /// non-empty directory is intentionally left untouched.
+    func removeDirectoryIfEmpty(at relativeDir: String) {
+        let dirURL = baseURL.appendingPathComponent(relativeDir)
+        FileManagerService.shared.removeDirectoryIfEmpty(at: dirURL)
+    }
+
     private func deleteFile(at relativePath: String) {
         let url = baseURL.appendingPathComponent(relativePath)
         FileManagerService.shared.deleteItem(at: url)
