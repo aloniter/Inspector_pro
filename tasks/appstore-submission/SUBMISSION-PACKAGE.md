@@ -1,6 +1,6 @@
 # Inspectley — App Store Connect Submission Package
 
-**App:** Inspectley · **Bundle ID:** `com.aloniter.inspectorpro` · **Version:** 1.0.0 · **Build:** 1
+**App:** Inspectley · **Bundle ID:** `com.aloniter.inspectorpro` · **Version:** 1.0.1 · **Build:** 2
 **Primary language:** Hebrew · **Secondary:** English
 **Status:** Production-ready copy. Paste directly into App Store Connect.
 
@@ -200,8 +200,8 @@ EDGE
 ```
 APP INFO: Name, Subtitle (EN/HE), Primary=Business, Secondary=Productivity, Content Rights=No, Age=4+
 PRICING: Free, availability
-VERSION 1.0.0 (EN+HE): Promo, Description, Keywords, Support URL, Screenshots
-BUILD: attach 1.0.0 (1), Export Compliance = No
+VERSION 1.0.1 (EN+HE): Promo, Description, Keywords, Support URL, Screenshots
+BUILD: attach 1.0.1 (2), Export Compliance = No
 APP PRIVACY: Data=Yes, Tracking=No, Email collected/linked/app-functionality, Privacy URL
 REVIEW INFO: Sign-In ON, demo creds, contact, Notes (section 10)
 SUBMIT: Add for Review -> Submit, Manual release

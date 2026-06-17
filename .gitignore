@@ -38,6 +38,9 @@ Package.resolved
 .idea/
 .vscode/
 
+# Local agent tool permissions (machine-specific, never commit)
+.claude/
+
 # Supabase secrets (copy the root SupabaseConfig.plist.example into Resources locally)
 InspectorPro/Resources/SupabaseConfig.plist
 

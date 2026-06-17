@@ -1,5 +1,7 @@
 # Release Checklist
 
+> Product name: **Inspectley** (internal target/scheme: `InspectorPro`). Current App Store release: **1.0.1 (build 2)** — submitted 2026-06-17, Waiting for Review.
+
 ## Baseline Policy
 
 The current tester build is the stability baseline. Before sending another build, confirm that any new work preserves the shipped behavior unless the release explicitly intends to change it.

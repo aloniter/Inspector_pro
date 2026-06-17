@@ -1,6 +1,10 @@
-# InspectorPro
+# Inspectley
 
-InspectorPro is an iPhone-only SwiftUI app for building inspectors to create inspection reports with photos and export them to PDF or DOCX with Hebrew/RTL support.
+> **Naming:** "Inspectley" is the user-facing / App Store product name. The internal Xcode project, target, scheme, Swift module, and source folders are named **InspectorPro** (bundle id `com.aloniter.inspectorpro`) and must not be renamed.
+>
+> **Current App Store release:** 1.0.1 (build 2) — submitted 2026-06-17, Waiting for Review.
+
+Inspectley is an iPhone-only SwiftUI app for building inspectors to create inspection reports with photos and export them to PDF or DOCX with Hebrew/RTL support.
 
 ## Baseline
 
@@ -55,11 +59,11 @@ xcodebuild -project InspectorPro.xcodeproj -scheme InspectorPro test
 xcodegen generate
 ```
 
-Current automated coverage lives in [InspectorProTests/ExportTests.swift](/Users/aloniter/Projects/InspectorPro/InspectorProTests/ExportTests.swift) and contains 40 Swift Testing tests focused mainly on export formatting and document generation.
+Current automated coverage lives in [InspectorProTests/ExportTests.swift](/Users/aloniter/Projects/InspectorPro/InspectorProTests/ExportTests.swift) and contains 71 Swift Testing tests focused mainly on export formatting and document generation.
 
 ## Project Docs
 
-- [PROJECT_STATUS.md](/Users/aloniter/Projects/InspectorPro/PROJECT_STATUS.md)
 - [ARCHITECTURE.md](/Users/aloniter/Projects/InspectorPro/ARCHITECTURE.md)
-- [CLIENT_CUSTOMIZATION_PLAN.md](/Users/aloniter/Projects/InspectorPro/CLIENT_CUSTOMIZATION_PLAN.md)
 - [RELEASE_CHECKLIST.md](/Users/aloniter/Projects/InspectorPro/RELEASE_CHECKLIST.md)
+- App Store submission package: [tasks/appstore-submission/SUBMISSION-PACKAGE.md](/Users/aloniter/Projects/InspectorPro/tasks/appstore-submission/SUBMISSION-PACKAGE.md)
+- Superseded plans and history are archived under [docs/archive/](/Users/aloniter/Projects/InspectorPro/docs/archive/) (e.g. `PROJECT_STATUS.md`, `CLIENT_CUSTOMIZATION_PLAN.md`, `appstore-history/`).

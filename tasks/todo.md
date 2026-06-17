@@ -1,5 +1,32 @@
 # TODO
 
+> **Current status:**
+>
+> - User-facing app name: Inspectley
+> - Internal project/target name: InspectorPro
+> - Current App Store version: 1.0.1
+> - Current build: 2
+> - Current status: Submitted / Waiting for Review
+> - App Store category: Business
+> - Older entries below are historical work-log notes and may mention old versions/builds/categories.
+
+---
+
+## App Store 6.5-inch screenshot polish
+
+- [x] Confirm App Store technical constraints for the existing 6.5-inch screenshot slot
+- [x] Create a reusable screenshot composition script using real app screenshots as the UI source
+- [x] Generate a new `iphone-6.5-v2` set without overwriting current screenshots
+- [x] Verify generated dimensions, color mode, and visual quality
+- [x] Document the result and remaining App Store review caveats
+
+## Review
+
+- Added `AppStore/scripts/make_appstore_screenshots.py`, which composes the real 6.5-inch app UI captures into a cleaner App Store presentation with Hebrew headlines, benefit subtitles, professional light background, and an iPhone-style frame.
+- Generated six new PNG files in `AppStore/screenshots/iphone-6.5-v2/`; the original `AppStore/screenshots/iphone-6.5/` files were not overwritten.
+- Verification: all generated files are `1242 x 2688`, PNG, RGB/no alpha, and the script reruns successfully.
+- App Store caveat: these are technically valid for the 6.5-inch screenshot slot and use real app UI, but Apple review can still reject screenshots if the displayed app content/branding does not match the submitted binary. The current screenshots still show the existing in-app `Inspectley` logo/login branding where that appears in the real app capture.
+
 ---
 
 # v1.0.1 — Storage & Export Cleanup — ✅ COMPLETE (2026-06-17)

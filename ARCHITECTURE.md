@@ -6,7 +6,7 @@ Architecture changes should start from the current tester build as the stable ba
 
 ## High-Level Structure
 
-InspectorPro currently follows a local-first three-layer structure:
+Inspectley currently follows a local-first three-layer structure (the codebase, schema types, and paths below keep the internal `InspectorPro` name):
 
 1. Data layer: SwiftData models plus file-backed image storage.
 2. Service layer: filesystem, image persistence, thumbnails, export cache utilities.
