@@ -252,39 +252,6 @@ private struct AppSettingsView: View {
                     SettingsSectionHeader(title: AppStrings.text("חשבון"))
                 }
 
-                Section {
-                    Button {
-                        refresh()
-                    } label: {
-                        HStack {
-                            if isRefreshing {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                                    .padding(.trailing, 4)
-                            }
-                            Label(AppStrings.text("רענון פרטי חברה"), systemImage: "arrow.clockwise")
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                        }
-                    }
-                    .disabled(isRefreshing)
-
-                    if let error = refreshErrorMessage {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                    }
-                }
-
-                Section {
-                    Link(destination: accountDeletionMailtoURL) {
-                        Label(AppStrings.text("בקשת מחיקת חשבון"), systemImage: "trash")
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                    }
-                } footer: {
-                    Text(AppStrings.text("נשלח אימייל לתמיכה לטיפול במחיקת החשבון והנתונים."))
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
             }
 
             Section {
@@ -341,8 +308,44 @@ private struct AppSettingsView: View {
                     }
                 }
                 .buttonStyle(.plain)
+
+                if authService.isAuthenticated {
+                    Button {
+                        refresh()
+                    } label: {
+                        HStack {
+                            if isRefreshing {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                    .padding(.trailing, 4)
+                            }
+                            Label(AppStrings.text("רענון פרטי חברה"), systemImage: "arrow.clockwise")
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                    }
+                    .disabled(isRefreshing)
+
+                    if let error = refreshErrorMessage {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                }
             } header: {
                 SettingsSectionHeader(title: AppStrings.text("מיתוג חברה"))
+            }
+
+            if authService.isAuthenticated {
+                Section {
+                    Link(destination: accountDeletionMailtoURL) {
+                        Label(AppStrings.text("בקשת מחיקת חשבון"), systemImage: "trash")
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                } footer: {
+                    Text(AppStrings.text("נשלח אימייל לתמיכה לטיפול במחיקת החשבון והנתונים."))
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
             }
 
             Section {

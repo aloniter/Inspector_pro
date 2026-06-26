@@ -131,10 +131,6 @@ private struct BrandingSettingsView: View {
     @State private var saveSucceeded = false
     @State private var errorMessage: String?
 
-    private var textAlignment: TextAlignment {
-        AppTextDirection.textAlignment(for: layoutDirection)
-    }
-
     private var isFormValid: Bool {
         !normalized(companyName).isEmpty
     }
@@ -142,12 +138,20 @@ private struct BrandingSettingsView: View {
     var body: some View {
         Form {
             Section(AppStrings.text("פרטי חברה")) {
-                TextField(AppStrings.text("שם החברה"), text: $companyName)
-                    .multilineTextAlignment(textAlignment)
+                DirectionalTextField(
+                    text: $companyName,
+                    placeholder: AppStrings.text("שם החברה"),
+                    layoutDirection: layoutDirection,
+                    alignment: .right
+                )
+                .frame(height: 22)
             }
 
             Section(AppStrings.text("לוגו")) {
-                Toggle(AppStrings.text("הצג לוגו בדוח"), isOn: $showLogoInReport)
+                BrandingSettingsToggleRow(
+                    title: AppStrings.text("הצג לוגו בדוח"),
+                    isOn: $showLogoInReport
+                )
 
                 HStack {
                     Spacer()
@@ -161,7 +165,10 @@ private struct BrandingSettingsView: View {
                     matching: .images,
                     photoLibrary: .shared()
                 ) {
-                    Label(AppStrings.text("בחר לוגו מהספריה"), systemImage: "photo.on.rectangle")
+                    BrandingSettingsActionRow(
+                        title: AppStrings.text("בחר לוגו מהספריה"),
+                        systemImage: "photo.on.rectangle"
+                    )
                 }
 
                 if !usesBundledDefaultLogo {
@@ -172,7 +179,10 @@ private struct BrandingSettingsView: View {
             }
 
             Section(AppStrings.text("כותרת תחתונה")) {
-                Toggle(AppStrings.text("הצג כותרת בדוח"), isOn: $showFooterInReport)
+                BrandingSettingsToggleRow(
+                    title: AppStrings.text("הצג כותרת בדוח"),
+                    isOn: $showFooterInReport
+                )
 
                 VStack(alignment: .trailing, spacing: 8) {
                     Text(AppStrings.text("שורת כתובת תחתונה"))
@@ -561,6 +571,47 @@ private struct CompactInputField: View {
 
     private var frameAlignment: Alignment {
         layoutDirection == .rightToLeft ? .trailing : .leading
+    }
+}
+
+private struct BrandingSettingsToggleRow: View {
+    let title: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+
+            Spacer(minLength: 0)
+
+            Text(title)
+                .multilineTextAlignment(.trailing)
+        }
+        .frame(maxWidth: .infinity)
+        .environment(\.layoutDirection, .leftToRight)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct BrandingSettingsActionRow: View {
+    let title: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Spacer(minLength: 0)
+
+            Text(title)
+                .multilineTextAlignment(.trailing)
+
+            Image(systemName: systemImage)
+                .imageScale(.large)
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .environment(\.layoutDirection, .leftToRight)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
     }
 }
 

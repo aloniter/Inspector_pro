@@ -12,6 +12,120 @@
 
 ---
 
+## Codex iOS build/test workflow verification
+
+- [x] Configure XcodeBuildMCP defaults for `InspectorPro.xcodeproj`, scheme `InspectorPro`, on an iPhone simulator
+- [x] Build, install, and launch Inspectley from Codex
+- [x] Run the Swift Testing suite from Codex
+- [x] Capture simulator proof or explain any tooling blocker
+
+## Review
+
+- Build/run succeeded on iPhone 16 Pro / iOS 18.6 through XcodeBuildMCP. App bundle: `com.aloniter.inspectorpro`.
+- Tests succeeded through XcodeBuildMCP: 71 passed, 0 failed, 0 skipped.
+- Simulator screenshot captured at `/var/folders/xf/8h1_qd0x159_l7v8kj6dxpk40000gn/T/screenshot_optimized_d423e052-beab-469e-aa1a-7cb432383a76.jpg`.
+- Live simulator mirror started with `serve-sim` at `http://localhost:3200/` and opened in the Codex browser. Browser verification found visible simulator canvases on the `Simulator Preview` page.
+- Browser screenshot capture timed out, so visual proof is the simulator screenshot plus the verified live mirror state.
+
+---
+
+## Settings company refresh row placement
+
+- [x] Move the `רענון פרטי חברה` action lower in Settings, near company branding
+- [x] Preserve authenticated-only behavior and refresh error display
+- [x] Build and verify the Settings screen still launches
+
+## Review
+
+- Moved the refresh-company-details action out of the top account area and into the company branding section, below the branding row.
+- The action still appears only for authenticated users and still shows the same loading/error state.
+- Verification: XcodeBuildMCP build/run succeeded on iPhone 16 Pro / iOS 18.6; Settings UI snapshot showed `רענון פרטי חברה` after the branding row; final restored Settings screenshot captured at `/var/folders/xf/8h1_qd0x159_l7v8kj6dxpk40000gn/T/screenshot_optimized_d18b7dc1-e59b-458e-a206-efd248cbcd29.jpg`.
+- Tests: XcodeBuildMCP `test_sim` passed with 71 passed, 0 failed, 0 skipped.
+
+---
+
+## Settings account deletion row placement
+
+- [x] Move `בקשת מחיקת חשבון` below `רענון פרטי חברה`
+- [x] Keep account deletion authenticated-only and preserve the footer text
+- [x] Build, inspect Settings ordering, and run tests
+
+## Review
+
+- Moved the account deletion section from the top account area to immediately after the company branding section, so it appears below `רענון פרטי חברה`.
+- The deletion request remains authenticated-only and keeps its support-email footer text.
+- Verification: XcodeBuildMCP build/run succeeded on iPhone 16 Pro / iOS 18.6; Settings UI snapshot showed `רענון פרטי חברה` before `בקשת מחיקת חשבון`; screenshot captured at `/var/folders/xf/8h1_qd0x159_l7v8kj6dxpk40000gn/T/screenshot_optimized_e6e61725-cb47-44f0-a563-697a324e3941.jpg`.
+- Tests: XcodeBuildMCP `test_sim` passed with 71 passed, 0 failed, 0 skipped.
+
+---
+
+## Report attendees RTL field alignment
+
+- [x] Move the `נוכחים` field placeholder/input to the visual right in the report form
+- [x] Build and inspect the Hebrew new-report screen on simulator
+- [x] Run the Swift Testing suite
+
+## Review
+
+- Replaced the SwiftUI vertical `TextField` for report attendees with the existing UIKit-backed `DirectionalTextField`, forced to `.right`, so placeholder/text use RTL alignment like the other report fields.
+- Verification: XcodeBuildMCP build/run succeeded on iPhone 16 Pro / iOS 18.6; opened a new report form and visually confirmed the `נוכחים` placeholder appears on the visual right. Screenshot captured at `/var/folders/xf/8h1_qd0x159_l7v8kj6dxpk40000gn/T/screenshot_optimized_6e019fae-f368-4dd4-943e-af3dcd5603e4.jpg`.
+- Note: AXe UI automation could not type Hebrew characters for entered-text verification because it only supports US keyboard characters.
+- Tests: XcodeBuildMCP `test_sim` passed with 71 passed, 0 failed, 0 skipped.
+
+---
+
+## Branding company name RTL field alignment
+
+- [x] Move the company name field value/placeholder to the visual right in Branding Settings
+- [x] Build and inspect the Hebrew Branding Settings screen on simulator
+- [x] Run the Swift Testing suite
+- [x] Update v1.0.2 draft notes
+
+## Review
+
+- Replaced the SwiftUI `TextField` for company name in Branding Settings with the existing UIKit-backed `DirectionalTextField`, forced to `.right`.
+- Removed the now-unused local `textAlignment` helper from `BrandingSettingsView`.
+- Verification: XcodeBuildMCP build/run succeeded on iPhone 16 Pro / iOS 18.6; opened `מיתוג חברה` and visually confirmed the company name value appears on the visual right. Screenshot captured at `/var/folders/xf/8h1_qd0x159_l7v8kj6dxpk40000gn/T/screenshot_optimized_fb9e0707-c480-4564-87ea-023a03918a63.jpg`.
+- Tests: XcodeBuildMCP `test_sim` passed with 71 passed, 0 failed, 0 skipped.
+- Updated `tasks/appstore-submission/version-1.0.2-draft-notes.md` with this branding RTL fix.
+
+---
+
+## Branding settings RTL toggle row placement
+
+- [x] Put `הצג לוגו בדוח` label on the visual right and its switch on the visual left
+- [x] Apply the same RTL row treatment to `הצג כותרת בדוח` for consistency
+- [x] Build and inspect Branding Settings on simulator
+- [x] Run the Swift Testing suite
+- [x] Update v1.0.2 draft notes
+
+## Review
+
+- Added `BrandingSettingsToggleRow`, an explicit RTL settings row with switch on the visual left and label on the visual right.
+- Replaced the native SwiftUI toggles for `הצג לוגו בדוח` and `הצג כותרת בדוח`.
+- Verification: XcodeBuildMCP build/run succeeded on iPhone 16 Pro / iOS 18.6; opened `מיתוג חברה` and visually confirmed the logo/header toggles now place switches on the left and labels on the right. Screenshot captured at `/var/folders/xf/8h1_qd0x159_l7v8kj6dxpk40000gn/T/screenshot_optimized_96b89ba5-1ad3-417b-938f-2cf957ded700.jpg`.
+- Tests: XcodeBuildMCP `test_sim` passed with 71 passed, 0 failed, 0 skipped.
+- Updated `tasks/appstore-submission/version-1.0.2-draft-notes.md` with this branding toggle RTL fix.
+
+---
+
+## Branding logo picker RTL action row
+
+- [x] Make `בחר לוגו מהספריה` use explicit RTL visual order
+- [x] Build and inspect Branding Settings on simulator
+- [x] Run the Swift Testing suite
+- [x] Update v1.0.2 draft notes
+
+## Review
+
+- Added `BrandingSettingsActionRow`, an explicit icon/text action row for Branding Settings.
+- Replaced the native SwiftUI `Label` in the logo picker with the explicit row so `בחר לוגו מהספריה` uses RTL visual order with the icon on the right.
+- Verification: XcodeBuildMCP build/run succeeded on iPhone 16 Pro / iOS 18.6; opened `מיתוג חברה` and visually confirmed the logo picker action row is RTL. Screenshot captured at `/var/folders/xf/8h1_qd0x159_l7v8kj6dxpk40000gn/T/screenshot_optimized_e85d0aa1-1a79-4383-a0e9-a035ee606095.jpg`.
+- Tests: XcodeBuildMCP `test_sim` passed with 71 passed, 0 failed, 0 skipped.
+- Updated `tasks/appstore-submission/version-1.0.2-draft-notes.md` with this logo picker RTL fix.
+
+---
+
 ## App Store 6.5-inch screenshot polish
 
 - [x] Confirm App Store technical constraints for the existing 6.5-inch screenshot slot

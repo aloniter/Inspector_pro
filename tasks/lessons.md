@@ -68,6 +68,22 @@
 - In `Form`/`Section` headers, a simple `.frame(..., alignment: .trailing)` is not always enough to keep Hebrew labels on the visual right.
 - Preferred approach: wrap the header in an explicit container and force the container layout direction when the system header styling fights the intended RTL position.
 
+## Hebrew form text fields should use the UIKit-backed directional wrapper
+- Do not rely on SwiftUI `TextField` plus `.multilineTextAlignment(.trailing)` for Hebrew-first editable fields that must visually start on the right.
+- Reason: SwiftUI can still render the placeholder or value from the visual left in `Form` rows, especially after focus or when wrapped by system row styling.
+- Preferred approach: use `DirectionalTextField` with `alignment: .right` for Hebrew/right-aligned fields such as report attendees and company name, while keeping emails, phone numbers, version values, and technical identifiers explicitly LTR.
+- Verification rule: inspect both the placeholder and an entered value on simulator/device for every RTL field fix.
+
+## Settings toggles need explicit visual order in RTL forms
+- Do not use native `Toggle(title, isOn:)` in Hebrew Settings/Form rows when the required visual order is label on the right and switch on the left.
+- Preferred approach: build an explicit HStack row with the switch first, spacer, text last, and force the row environment to left-to-right so the visual positions remain stable.
+- Verification rule: inspect the actual simulator row, because the AX/browser overlay can select the row while hiding whether SwiftUI reversed the control placement correctly.
+
+## Icon action rows in Hebrew settings need explicit RTL ordering
+- Do not rely on SwiftUI `Label(title, systemImage:)` for Hebrew action rows when the visual order matters.
+- Preferred approach: build a dedicated row with explicit `Text` and `Image` placement, then force the row environment to left-to-right so the intended visual order does not get reinterpreted by surrounding `Form` layout.
+- Verification rule: inspect the actual row in the simulator, including icon side and text side, before calling RTL action-row work complete.
+
 ## Follow-up export tweaks often need identical intent across PDF and DOCX
 - When a user refines report presentation after an initial pass, do not assume the first acceptable implementation is semantically complete.
 - Verification rule: if a feature exists in both PDF and DOCX, mirror the exact user-facing behavior in both builders for list numbering, heading emphasis, and cover-page date formatting, and add tests for the shared formatter rules that drive both outputs.

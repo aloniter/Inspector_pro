@@ -176,10 +176,12 @@ struct ReportFormView: View {
             }
 
             Section {
-                TextField(AppStrings.text("נוכחים"), text: $attendees, axis: .vertical)
-                    .multilineTextAlignment(AppTextDirection.textAlignment(for: AppLanguage.current.layoutDirection))
-                    .lineLimit(1...3)
-                    .environment(\.layoutDirection, AppLanguage.current.layoutDirection)
+                DirectionalTextField(
+                    text: $attendees,
+                    placeholder: AppStrings.text("נוכחים"),
+                    layoutDirection: layoutDirection,
+                    alignment: .right
+                )
             } header: {
                 RTLSectionHeader(title: ExportTextFormatter.rtlHeadingText("\(AppStrings.text("נוכחים")):"))
             }
