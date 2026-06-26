@@ -53,8 +53,8 @@ targets:
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
         INFOPLIST_KEY_CFBundleDisplayName: Inspectley
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.business
-        MARKETING_VERSION: "1.0.1"
-        CURRENT_PROJECT_VERSION: "2"
+        MARKETING_VERSION: "1.0.2"
+        CURRENT_PROJECT_VERSION: "3"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 
   InspectorProTests:
