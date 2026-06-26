@@ -16,23 +16,25 @@ struct ExportOptionsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(AppStrings.text("פורמט")) {
+                Section {
                     Picker(AppStrings.text("פורמט יצוא"), selection: $selectedFormat) {
                         ForEach(ExportFormat.allCases) { format in
                             Text(format.hebrewLabel).tag(format)
                         }
                     }
                     .pickerStyle(.segmented)
+                } header: {
+                    ExportSectionHeader(title: AppStrings.text("פורמט"))
                 }
 
                 Section {
-                    HStack {
-                        Text(AppStrings.text("מספר ליקויים פתוחים"))
-                        Spacer()
+                    ExportSummaryRow {
                         Text("\(report.openDefectCount)")
+                    } title: {
+                        Text(AppStrings.text("מספר ליקויים פתוחים"))
                     }
                 } header: {
-                    Text(AppStrings.text("סיכום"))
+                    ExportSectionHeader(title: AppStrings.text("סיכום"))
                 }
 
                 if isExporting {
@@ -139,6 +141,45 @@ struct ExportOptionsSheet: View {
                 }
             }
         }
+    }
+}
+
+private struct ExportSectionHeader: View {
+    let title: String
+
+    var body: some View {
+        HStack {
+            Spacer(minLength: 0)
+            Text(title)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.trailing)
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .environment(\.layoutDirection, .leftToRight)
+    }
+}
+
+private struct ExportSummaryRow<Value: View, Title: View>: View {
+    private let value: Value
+    private let title: Title
+
+    init(@ViewBuilder value: () -> Value, @ViewBuilder title: () -> Title) {
+        self.value = value()
+        self.title = title()
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            value
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            title
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .frame(maxWidth: .infinity)
+        .environment(\.layoutDirection, .leftToRight)
     }
 }
 

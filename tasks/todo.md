@@ -12,6 +12,23 @@
 
 ---
 
+## Export sheet RTL layout polish
+
+- [x] Move the `פורמט` and `סיכום` section headers to the visual right
+- [x] Keep `מספר ליקויים פתוחים` on the visual right and the count on the visual left
+- [x] Build and run the Swift Testing suite
+- [x] Document verification results
+
+## Review
+
+- Added explicit `ExportSectionHeader` rendering in `ExportOptionsSheet` so `פורמט` and `סיכום` are pinned to the visual right inside the export sheet form.
+- Added `ExportSummaryRow` with fixed left-to-right row layout: the count is pinned to the visual left and `מספר ליקויים פתוחים` is pinned to the visual right.
+- Verification: XcodeBuildMCP build/run succeeded on iPhone 16 Pro / iOS 18.6 with no warnings or errors.
+- Tests: XcodeBuildMCP `test_sim` passed with 73 passed, 0 failed, 0 skipped.
+- Visual export-modal capture was not completed in this simulator session because the app launched to the unauthenticated login screen.
+
+---
+
 ## Export shows open defects count (screen + PDF + DOCX)
 
 - [x] Add a shared `Report.openDefectCount` helper (logical photo count; annotated copies not counted separately)
