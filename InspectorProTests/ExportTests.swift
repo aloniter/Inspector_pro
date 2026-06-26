@@ -682,6 +682,9 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     )
     #expect(defectParagraph.contains("w:jc w:val=\"center\""))
     #expect(defectParagraph.contains("<w:sz w:val=\"24\"/>"))
+    // Rendered red and not bold.
+    #expect(defectParagraph.contains("w:color w:val=\"D32F2F\""))
+    #expect(!defectParagraph.contains("<w:b/>"))
 
     // Cover deliberately avoids directional isolate characters.
     #expect(!xml.contains("\u{2066}"))

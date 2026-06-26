@@ -124,13 +124,13 @@ final class DocxTemplateBuilder {
         return sections.joined()
     }
 
-    /// Single combined cover line such as "מספר ליקויים פתוחים: 109".
+    /// Single combined cover line such as "מספר ליקויים פתוחים: 109", rendered red and not bold.
     private static func defectSummaryXML(count: Int) -> String {
         coverParagraphXML(
             text: ExportTextFormatter.rtlHeadingText("\(AppStrings.text("מספר ליקויים פתוחים")): \(count)"),
             fontSize: ExportTypography.Cover.metadataDocxSize,
-            bold: true,
-            color: "64748B",
+            bold: false,
+            color: "D32F2F",
             spacingBefore: 0,
             spacingAfter: 260,
             alignment: "center"

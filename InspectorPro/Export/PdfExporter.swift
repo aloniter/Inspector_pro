@@ -139,8 +139,7 @@ final class PdfExporter {
             ),
             originY: y,
             width: options.contentWidth,
-            x: options.marginLeft,
-            color: branding.coverMutedLabelColor
+            x: options.marginLeft
         )
 
         if let attendees = numberedAttendeeLines(report.attendees) {
@@ -193,13 +192,16 @@ final class PdfExporter {
         return attendees.isEmpty ? nil : attendees
     }
 
-    /// Draws a single combined cover line such as "מספר ליקויים פתוחים: 109".
+    /// Red, non-bold open-defects cover line, e.g. "מספר ליקויים פתוחים: 109".
+    private static let coverDefectColor = UIColor(
+        red: 211.0 / 255.0, green: 47.0 / 255.0, blue: 47.0 / 255.0, alpha: 1
+    )
+
     private static func drawCoverSummaryLine(
         text: String,
         originY: CGFloat,
         width: CGFloat,
-        x: CGFloat,
-        color: UIColor
+        x: CGFloat
     ) -> CGFloat {
         let fontSize = ExportTypography.Cover.metadataPointSize
         let lineHeight = fontSize + 8
@@ -208,9 +210,9 @@ final class PdfExporter {
             text,
             in: CGRect(x: x, y: originY, width: width, height: lineHeight),
             fontSize: fontSize,
-            bold: true,
+            bold: false,
             alignment: .center,
-            color: color
+            color: coverDefectColor
         )
 
         return lineHeight + 12
