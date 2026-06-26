@@ -148,6 +148,7 @@ final class DocxExporter {
             with: DocxTemplateBuilder.coverDetailsXML(
                 address: address,
                 date: date,
+                defectCount: report.openDefectCount,
                 attendees: attendees,
                 notes: notes
             )

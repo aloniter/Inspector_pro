@@ -133,6 +133,16 @@ final class PdfExporter {
             labelColor: branding.coverMutedLabelColor
         )
 
+        y += drawCoverSummaryLine(
+            text: ExportTextFormatter.rtlHeadingText(
+                "\(AppStrings.text("מספר ליקויים פתוחים")): \(report.openDefectCount)"
+            ),
+            originY: y,
+            width: options.contentWidth,
+            x: options.marginLeft,
+            color: branding.coverMutedLabelColor
+        )
+
         if let attendees = numberedAttendeeLines(report.attendees) {
             y += drawAttendeesCoverFieldSection(
                 label: ExportTextFormatter.rtlHeadingText("\(AppStrings.text("נוכחים")):"),
@@ -181,6 +191,29 @@ final class PdfExporter {
 
         let attendees = ExportTextFormatter.numberedAttendeeLines(from: normalizedValue)
         return attendees.isEmpty ? nil : attendees
+    }
+
+    /// Draws a single combined cover line such as "מספר ליקויים פתוחים: 109".
+    private static func drawCoverSummaryLine(
+        text: String,
+        originY: CGFloat,
+        width: CGFloat,
+        x: CGFloat,
+        color: UIColor
+    ) -> CGFloat {
+        let fontSize = ExportTypography.Cover.metadataPointSize
+        let lineHeight = fontSize + 8
+
+        drawRTLText(
+            text,
+            in: CGRect(x: x, y: originY, width: width, height: lineHeight),
+            fontSize: fontSize,
+            bold: true,
+            alignment: .center,
+            color: color
+        )
+
+        return lineHeight + 12
     }
 
     private static func drawCoverFieldSection(

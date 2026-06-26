@@ -12,6 +12,42 @@
 
 ---
 
+## Export shows open defects count (screen + PDF + DOCX)
+
+- [x] Add a shared `Report.openDefectCount` helper (logical photo count; annotated copies not counted separately)
+- [x] Export screen `סיכום` row: replace `תמונות X` with `מספר ליקויים פתוחים X`, same RTL row style
+- [x] PDF cover/first page: add combined line `מספר ליקויים פתוחים: X`
+- [x] DOCX cover/first page: add the same combined line
+- [x] Localize `מספר ליקויים פתוחים` (he + en `Open defects`)
+- [x] Tests + full suite green
+
+## Review
+
+- Added `Report.openDefectCount` in `Models/Project.swift`; it returns `photos.count`. Each `PhotoRecord` is one logical defect and an annotated copy lives on the same record, so annotating never inflates the count and deleting a photo lowers it.
+- `ExportOptionsSheet` summary row now uses the helper and the new label; layout (label right, number left) is unchanged.
+- PDF: new `drawCoverSummaryLine` renders one centered, RTL-embedded line after the date section in `PdfExporter.drawCoverPage`.
+- DOCX: `coverDetailsXML` gained a required `defectCount:` parameter and a new `defectSummaryXML` paragraph (centered, bold, muted) placed after the date section; `DocxExporter` passes `report.openDefectCount`.
+- Localization added to both `he.lproj`/`en.lproj` `Localizable.strings`; `plutil -lint` clean.
+- Verification: `xcodebuild ... test` on iPhone 16 / iOS 18.6 — **73 tests passed, 0 failed**. New tests: `reportOpenDefectCountMatchesLogicalPhotoCountIgnoringAnnotations`, `docxCoverDetailsIncludesOpenDefectCountAsSingleCombinedLine`. Updated 3 existing `coverDetailsXML` call sites for the new parameter.
+- PDF first-page text cannot be unit-asserted in this environment (consistent with prior export tasks); covered by build + shared helper. Manual on-device spot-check noted in the 1.0.2 draft follow-ups.
+
+---
+
+## App icon on splash and login
+
+- [x] Confirm current splash/login image wiring
+- [x] Replace the `AppLogo` image asset with the App Store app icon artwork
+- [x] Build the app and verify the login/launch branding path
+- [x] Document the result and any verification limits
+
+## Review
+
+- Replaced `InspectorPro/Resources/Assets.xcassets/AppLogo.imageset/inspectley-icon.png` with the App Store icon artwork from `AppIcon.appiconset/ItunesArtwork@2x.png`.
+- `LoginView` and `LaunchScreen.storyboard` already reference `AppLogo`, so both login and splash now use the same app icon artwork without additional view/storyboard wiring changes.
+- Verification: AppLogo is now `1024 x 1024`, RGB PNG, no alpha, and byte-identical to the App Store icon file.
+- Verification: XcodeBuildMCP build/run succeeded on iPhone 16 Pro / iOS 18.6; login screenshot showed the App Store icon. Screenshot captured at `/var/folders/xf/8h1_qd0x159_l7v8kj6dxpk40000gn/T/screenshot_optimized_aa220456-bec5-4149-bc5c-7b8f124e2bb6.jpg`.
+- Tests: XcodeBuildMCP `test_sim` passed with 71 passed, 0 failed, 0 skipped.
+
 ## Codex iOS build/test workflow verification
 
 - [x] Configure XcodeBuildMCP defaults for `InspectorPro.xcodeproj`, scheme `InspectorPro`, on an iPhone simulator

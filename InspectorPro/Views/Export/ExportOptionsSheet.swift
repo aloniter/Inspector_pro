@@ -27,9 +27,9 @@ struct ExportOptionsSheet: View {
 
                 Section {
                     HStack {
-                        Text(AppStrings.text("תמונות"))
+                        Text(AppStrings.text("מספר ליקויים פתוחים"))
                         Spacer()
-                        Text("\(report.photos.count)")
+                        Text("\(report.openDefectCount)")
                     }
                 } header: {
                     Text(AppStrings.text("סיכום"))

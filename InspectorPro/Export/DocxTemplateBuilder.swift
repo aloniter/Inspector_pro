@@ -96,12 +96,14 @@ final class DocxTemplateBuilder {
     static func coverDetailsXML(
         address: String,
         date: String,
+        defectCount: Int,
         attendees: String?,
         notes: String?
     ) -> String {
         var sections = [
             coverFieldSectionXML(label: AppStrings.text("כתובת"), value: address),
             coverFieldSectionXML(label: AppStrings.text("תאריך"), value: date),
+            defectSummaryXML(count: defectCount),
         ]
 
         if let attendees {
@@ -120,6 +122,19 @@ final class DocxTemplateBuilder {
             )
         }
         return sections.joined()
+    }
+
+    /// Single combined cover line such as "מספר ליקויים פתוחים: 109".
+    private static func defectSummaryXML(count: Int) -> String {
+        coverParagraphXML(
+            text: ExportTextFormatter.rtlHeadingText("\(AppStrings.text("מספר ליקויים פתוחים")): \(count)"),
+            fontSize: ExportTypography.Cover.metadataDocxSize,
+            bold: true,
+            color: "64748B",
+            spacingBefore: 0,
+            spacingAfter: 260,
+            alignment: "center"
+        )
     }
 
     // MARK: - Document Relationships

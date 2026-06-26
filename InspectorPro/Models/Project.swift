@@ -33,6 +33,13 @@ extension InspectorProSchemaV9.Report {
         return project?.address
     }
 
+    /// Number of open defects in the report, derived from the count of logical
+    /// report photos. Each `PhotoRecord` is one defect; an annotated copy lives on
+    /// the same record (`annotatedImagePath`) and is never counted separately.
+    var openDefectCount: Int {
+        photos.count
+    }
+
     var sortedPhotos: [PhotoRecord] {
         photos.sorted { lhs, rhs in
             if lhs.position != rhs.position {

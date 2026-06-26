@@ -163,6 +163,23 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(report.sortedPhotos.map(\.imagePath) == ["c.jpg", "b.jpg", "a.jpg"])
 }
 
+@Test func reportOpenDefectCountMatchesLogicalPhotoCountIgnoringAnnotations() {
+    let report = Report(name: "Report")
+    let plainPhoto = PhotoRecord(imagePath: "a.jpg")
+    let annotatedPhoto = PhotoRecord(imagePath: "b.jpg", annotatedImagePath: "b-annotated.jpg")
+    plainPhoto.report = report
+    annotatedPhoto.report = report
+    report.photos = [plainPhoto, annotatedPhoto]
+
+    // Two logical photos => two open defects, even though one carries an annotated copy.
+    #expect(report.openDefectCount == 2)
+    #expect(report.openDefectCount == report.photos.count)
+
+    // Deleting one logical photo lowers the count.
+    report.photos = [plainPhoto]
+    #expect(report.openDefectCount == 1)
+}
+
 @Test func reportDefaultsToDisabledNumberedImageExport() {
     let report = Report(name: "Report")
     #expect(report.showsNumberedImagesInReport == false)
@@ -562,6 +579,7 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     let xml = DocxTemplateBuilder.coverDetailsXML(
         address: "כפר ויתקין",
         date: "6.4.2026",
+        defectCount: 5,
         attendees: "אלון\nדפנה",
         notes: "נדרש תיקון"
     )
@@ -620,6 +638,7 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     let xml = DocxTemplateBuilder.coverDetailsXML(
         address: "כפר ויתקין",
         date: "6.4.2026",
+        defectCount: 5,
         attendees: nil,
         notes: "נדרש תיקון"
     )
@@ -632,6 +651,7 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     let xml = DocxTemplateBuilder.coverDetailsXML(
         address: "כפר ויתקין",
         date: "6.4.2026",
+        defectCount: 5,
         attendees: nil,
         notes: nil
     )
@@ -640,6 +660,33 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     #expect(xml.contains(">תאריך<"))
     #expect(!xml.contains(">הערות<"))
     #expect(!xml.contains(">—<"))
+}
+
+@Test func docxCoverDetailsIncludesOpenDefectCountAsSingleCombinedLine() throws {
+    let xml = DocxTemplateBuilder.coverDetailsXML(
+        address: "כפר ויתקין",
+        date: "6.4.2026",
+        defectCount: 109,
+        attendees: nil,
+        notes: nil
+    )
+
+    let defectText = OpenXMLBuilder.escapeXML(
+        ExportTextFormatter.rtlHeadingText("\(AppStrings.text("מספר ליקויים פתוחים")): 109")
+    )
+    #expect(xml.contains(defectText))
+
+    // The summary is one combined, centered paragraph carrying the count.
+    let defectParagraph = try #require(
+        xml.components(separatedBy: "<w:p>").first { $0.contains(defectText) }
+    )
+    #expect(defectParagraph.contains("w:jc w:val=\"center\""))
+    #expect(defectParagraph.contains("<w:sz w:val=\"24\"/>"))
+
+    // Cover deliberately avoids directional isolate characters.
+    #expect(!xml.contains("\u{2066}"))
+    #expect(!xml.contains("\u{2067}"))
+    #expect(!xml.contains("\u{2069}"))
 }
 
 @Test func openXMLBuilderKeepsNumberOnlyInDescriptionSideForNumberedReportRows() {
