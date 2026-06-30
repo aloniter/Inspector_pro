@@ -22,9 +22,9 @@ struct PhotoDetailView: View {
     var body: some View {
         VStack(spacing: 0) {
             PhotoDetailImagePreview(image: displayedImage)
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 10)
+                .padding(.horizontal, 14)
+                .padding(.top, 14)
+                .padding(.bottom, 12)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .layoutPriority(1)
 
@@ -193,8 +193,21 @@ private struct PhotoDetailImagePreview: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemBackground))
+
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(uiColor: .tertiarySystemGroupedBackground),
+                            Color(uiColor: .secondarySystemGroupedBackground),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .padding(6)
 
             if let image {
                 Image(uiImage: image)
@@ -206,7 +219,12 @@ private struct PhotoDetailImagePreview: View {
                 ProgressView()
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
     }
 }
 
@@ -221,8 +239,8 @@ private struct PhotoDetailBottomPanel: View {
     let onDelete: () -> Void
 
     var body: some View {
-        VStack(spacing: 10) {
-            VStack(spacing: 8) {
+        VStack(spacing: 12) {
+            VStack(spacing: 10) {
                 HStack(spacing: 12) {
                     Button {
                         onFinishNotes()
@@ -238,14 +256,22 @@ private struct PhotoDetailBottomPanel: View {
                         .font(.headline)
                 }
 
-                DirectionalTextEditor(
-                    text: $noteText,
-                    isFocused: $isEditingNotes,
-                    layoutDirection: layoutDirection
-                )
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color(uiColor: .secondarySystemGroupedBackground))
+
+                    DirectionalTextEditor(
+                        text: $noteText,
+                        isFocused: $isEditingNotes,
+                        layoutDirection: layoutDirection
+                    )
+                    .padding(8)
+                }
                 .frame(height: 104)
-                .padding(8)
-                .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Color.black.opacity(0.05), lineWidth: 1)
+                }
             }
 
             HStack(spacing: 12) {
@@ -256,6 +282,7 @@ private struct PhotoDetailBottomPanel: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .controlSize(.large)
 
                 Button {
                     onAnnotate()
@@ -264,15 +291,28 @@ private struct PhotoDetailBottomPanel: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.large)
                 .disabled(!canAnnotate)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 12)
-        .background(.bar)
+        .padding(.top, 14)
+        .padding(.bottom, 14)
+        .background {
+            UnevenRoundedRectangle(
+                topLeadingRadius: 20,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: 20,
+                style: .continuous
+            )
+            .fill(Color(uiColor: .systemBackground))
+            .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: -3)
+        }
         .overlay(alignment: .top) {
-            Divider()
+            Rectangle()
+                .fill(Color.black.opacity(0.06))
+                .frame(height: 1)
         }
     }
 }

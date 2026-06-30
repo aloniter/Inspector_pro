@@ -12,6 +12,22 @@
 
 ---
 
+## Photo editor preview visual polish
+
+- [x] Polish photo detail preview card without changing fit, scroll, annotation, save, or export behavior
+- [x] Polish the notes/action panel so it feels connected to the editor
+- [x] Verify no export files or annotation geometry changed
+- [x] Run tests and `git diff --check`
+- [x] Capture simulator visual confirmation
+
+## Review
+
+- Updated only the photo detail presentation: the preview now sits in a rounded neutral stage with a subtle border/shadow, while the image remains `scaledToFit`.
+- Polished the fixed notes/action panel with a connected surface, bordered notes field, and larger controls. No `ScrollView` was added.
+- Did not change `AnnotationView.swift`, annotation geometry/rendering, saved annotated image rendering, or PDF/DOCX export behavior.
+- Verification: XcodeBuildMCP `test_sim` passed on iPhone 16 / iOS 18.6 with 78 passed, 0 failed. XcodeBuildMCP `test_sim` also passed on iPhone 16e / iOS 18.6 with 78 passed, 0 failed.
+- Runtime: photo detail UI snapshot had no scroll targets and visible delete/annotation buttons. Screenshot captured at `/var/folders/xf/8h1_qd0x159_l7v8kj6dxpk40000gn/T/screenshot_optimized_9bdfb99c-215e-4e3f-b68e-1d98d5b02fcc.jpg`.
+
 ## Photo edit annotation viewport fit
 
 - [x] Audit current photo detail, annotation, save, and export image paths
