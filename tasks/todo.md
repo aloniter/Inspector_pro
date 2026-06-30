@@ -12,6 +12,27 @@
 
 ---
 
+## Photo edit annotation viewport fit
+
+- [x] Audit current photo detail, annotation, save, and export image paths
+- [x] Refactor annotation editor into a fixed viewport with visible bottom controls
+- [x] Keep annotation hit testing, preview drawing, and saved rendering on the same aspect-fit image bounds
+- [x] Add focused geometry/rendering tests for portrait, landscape, tall images, and normalized alignment
+- [x] Build/run tests and verify on small and current iPhone simulators in Hebrew/RTL
+- [x] Document review results
+
+## Review
+
+- Replaced the photo detail `ScrollView` with a fixed editor layout: flexible aspect-fit image preview above a compact fixed bottom notes/action panel. Delete and annotation actions are visible immediately.
+- Refactored `AnnotationView` into a fixed vertical layout. The controls bar is no longer inserted after the canvas; the canvas gets only the remaining height.
+- Added shared `AnnotationGeometry` and `AnnotationImageRenderer` helpers so visible preview math, gesture normalization, saved composite rendering, and tests use the same aspect-fit image bounds.
+- Export audit/fix: PDF/DOCX consume `photo.displayImagePath`, so saved annotated composites are the exported source. Report export image placement was restored to the previous fill-cell behavior: PDF draws into the full image cell rectangle, and DOCX emits the full image-cell extent with no crop metadata.
+- Tests: XcodeBuildMCP `test_sim` passed after restoring export fill-cell behavior on iPhone 16 / iOS 18.6 with 78 passed, 0 failed. XcodeBuildMCP `test_sim` also passed on iPhone 16e / iOS 18.6 with 78 passed, 0 failed.
+- Sample export confirmation: generated `tmp/pdfs/generated/export-fill-cell-sample.pdf` and `tmp/pdfs/generated/export-fill-cell-sample.docx`. Rendered PDF page `tmp/pdfs/generated/export-fill-cell-sample-2.png` shows the image filling the image cell with no centered inner margins; DOCX `word/document.xml` has no `<a:srcRect>` and full-cell image extent `3831082 x 3834701` EMU.
+- Runtime: XcodeBuildMCP build/run succeeded on iPhone 16 / iOS 18.6. Visual photo detail screenshot showed no scroll targets and visible image, notes, delete, and annotation controls: `/var/folders/xf/8h1_qd0x159_l7v8kj6dxpk40000gn/T/screenshot_optimized_eb81d9b6-35c7-4bad-b9b6-a89185d78a1b.jpg`.
+- Runtime: annotation screen screenshot showed full-width aspect-fit image, no scroll targets, and all drawing controls visible: `/var/folders/xf/8h1_qd0x159_l7v8kj6dxpk40000gn/T/screenshot_optimized_9a39634f-614b-480a-97f9-05ac61cb226d.jpg`.
+- Runtime: iPhone 16e build/run succeeded but opened to login with no accessible seeded photo data; screenshot captured at `/var/folders/xf/8h1_qd0x159_l7v8kj6dxpk40000gn/T/screenshot_optimized_b67f9d8e-bf4d-4ee4-a76e-ad1c9d1dfd7e.jpg`.
+
 ## Export sheet RTL layout polish
 
 - [x] Move the `פורמט` and `סיכום` section headers to the visual right

@@ -45,43 +45,24 @@ struct AnnotationView: View {
 
     var body: some View {
         NavigationStack {
-            GeometryReader { geometry in
-                let imageFrame = aspectFitRect(
-                    for: baseImage.size,
-                    in: geometry.size
+            VStack(spacing: 0) {
+                annotationCanvas
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .layoutPriority(1)
+
+                AnnotationControlsBar(
+                    selectedTool: $selectedTool,
+                    selectedColor: $selectedColor,
+                    strokeWidth: $strokeWidth,
+                    annotationsCount: annotations.count,
+                    onUndo: {
+                        guard !annotations.isEmpty else { return }
+                        _ = annotations.removeLast()
+                    },
+                    colorPalette: colorPalette
                 )
-
-                ZStack {
-                    Color(uiColor: .systemBackground)
-                        .ignoresSafeArea()
-
-                    Image(uiImage: baseImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: imageFrame.width, height: imageFrame.height)
-                        .position(x: imageFrame.midX, y: imageFrame.midY)
-
-                    Canvas { context, _ in
-                        for annotation in annotations {
-                            draw(annotation, in: imageFrame, context: &context)
-                        }
-
-                        if let draftAnnotation {
-                            draw(draftAnnotation, in: imageFrame, context: &context)
-                        }
-                    }
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 0, coordinateSpace: .local)
-                            .onChanged { value in
-                                updateDraft(for: value, imageFrame: imageFrame)
-                            }
-                            .onEnded { _ in
-                                commitDraft()
-                            }
-                    )
-                }
             }
+            .background(Color(uiColor: .systemBackground))
             .navigationTitle(AppStrings.text("סימון"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -106,19 +87,6 @@ struct AnnotationView: View {
                     .disabled(isSaving)
                 }
             }
-            .safeAreaInset(edge: .bottom) {
-                AnnotationControlsBar(
-                    selectedTool: $selectedTool,
-                    selectedColor: $selectedColor,
-                    strokeWidth: $strokeWidth,
-                    annotationsCount: annotations.count,
-                    onUndo: {
-                        guard !annotations.isEmpty else { return }
-                        _ = annotations.removeLast()
-                    },
-                    colorPalette: colorPalette
-                )
-            }
             .overlay {
                 if isSaving {
                     ProgressView(AppStrings.text("שומר..."))
@@ -139,6 +107,50 @@ struct AnnotationView: View {
             }
         } message: {
             Text(AppStrings.text("פעולה זו תסיר את כל הסימונים הקיימים. ניתן לצייר מחדש ולשמור."))
+        }
+    }
+
+    private var annotationCanvas: some View {
+        GeometryReader { geometry in
+            let imageFrame = AnnotationGeometry.aspectFitFrame(
+                for: baseImage.size,
+                in: geometry.size
+            )
+            let imageBounds = CGRect(origin: .zero, size: imageFrame.size)
+
+            ZStack {
+                Color(uiColor: .systemBackground)
+
+                ZStack {
+                    Image(uiImage: baseImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: imageFrame.width, height: imageFrame.height)
+
+                    Canvas { context, _ in
+                        for annotation in annotations {
+                            draw(annotation, in: imageBounds, context: &context)
+                        }
+
+                        if let draftAnnotation {
+                            draw(draftAnnotation, in: imageBounds, context: &context)
+                        }
+                    }
+                    .frame(width: imageFrame.width, height: imageFrame.height)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                            .onChanged { value in
+                                updateDraft(for: value, imageFrame: imageBounds)
+                            }
+                            .onEnded { _ in
+                                commitDraft()
+                            }
+                    )
+                }
+                .frame(width: imageFrame.width, height: imageFrame.height)
+                .position(x: imageFrame.midX, y: imageFrame.midY)
+            }
         }
     }
 
@@ -208,20 +220,7 @@ struct AnnotationView: View {
 
     @MainActor
     private func renderComposite() -> UIImage {
-        let imageSize = baseImage.size
-        let format = UIGraphicsImageRendererFormat.default()
-        format.scale = baseImage.scale > 0 ? baseImage.scale : 1
-        format.opaque = true
-
-        let renderer = UIGraphicsImageRenderer(size: imageSize, format: format)
-        return renderer.image { rendererContext in
-            baseImage.draw(in: CGRect(origin: .zero, size: imageSize))
-
-            let destinationFrame = CGRect(origin: .zero, size: imageSize)
-            for annotation in annotations {
-                draw(annotation, in: destinationFrame, cgContext: rendererContext.cgContext)
-            }
-        }
+        AnnotationImageRenderer.render(baseImage: baseImage, annotations: annotations)
     }
 
     private func clearMarkup() {
@@ -308,7 +307,86 @@ struct AnnotationView: View {
         )
     }
 
-    private func draw(_ annotation: AnnotationElement, in frame: CGRect, cgContext: CGContext) {
+    private func normalize(point: CGPoint, in frame: CGRect) -> CGPoint {
+        AnnotationGeometry.normalizedPoint(point, in: frame)
+    }
+}
+
+enum AnnotationGeometry {
+    static func aspectFitFrame(for imageSize: CGSize, in containerSize: CGSize) -> CGRect {
+        guard imageSize.width > 0,
+              imageSize.height > 0,
+              containerSize.width > 0,
+              containerSize.height > 0 else {
+            return .zero
+        }
+
+        let scale = min(
+            containerSize.width / imageSize.width,
+            containerSize.height / imageSize.height
+        )
+        let size = CGSize(
+            width: imageSize.width * scale,
+            height: imageSize.height * scale
+        )
+
+        return CGRect(
+            x: (containerSize.width - size.width) / 2,
+            y: (containerSize.height - size.height) / 2,
+            width: size.width,
+            height: size.height
+        )
+    }
+
+    static func normalizedPoint(_ point: CGPoint, in frame: CGRect) -> CGPoint {
+        guard frame.width > 0, frame.height > 0 else { return .zero }
+
+        return CGPoint(
+            x: clamp((point.x - frame.minX) / frame.width),
+            y: clamp((point.y - frame.minY) / frame.height)
+        )
+    }
+
+    static func denormalizedPoint(_ point: CGPoint, in frame: CGRect) -> CGPoint {
+        CGPoint(
+            x: frame.minX + (point.x * frame.width),
+            y: frame.minY + (point.y * frame.height)
+        )
+    }
+
+    static func denormalizedRect(_ rect: CGRect, in frame: CGRect) -> CGRect {
+        CGRect(
+            x: frame.minX + (rect.minX * frame.width),
+            y: frame.minY + (rect.minY * frame.height),
+            width: rect.width * frame.width,
+            height: rect.height * frame.height
+        )
+    }
+
+    private static func clamp(_ value: CGFloat) -> CGFloat {
+        min(max(value, 0), 1)
+    }
+}
+
+enum AnnotationImageRenderer {
+    static func render(baseImage: UIImage, annotations: [AnnotationElement]) -> UIImage {
+        let imageSize = baseImage.size
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = baseImage.scale > 0 ? baseImage.scale : 1
+        format.opaque = true
+
+        let renderer = UIGraphicsImageRenderer(size: imageSize, format: format)
+        return renderer.image { rendererContext in
+            baseImage.draw(in: CGRect(origin: .zero, size: imageSize))
+
+            let destinationFrame = CGRect(origin: .zero, size: imageSize)
+            for annotation in annotations {
+                draw(annotation, in: destinationFrame, cgContext: rendererContext.cgContext)
+            }
+        }
+    }
+
+    static func draw(_ annotation: AnnotationElement, in frame: CGRect, cgContext: CGContext) {
         let color = annotation.color.cgColor
         let lineWidth = annotation.lineWidth(in: frame)
         cgContext.saveGState()
@@ -323,7 +401,7 @@ struct AnnotationView: View {
                 cgContext.restoreGState()
                 return
             }
-            let points = annotation.points.map { denormalize(point: $0, in: frame) }
+            let points = annotation.points.map { AnnotationGeometry.denormalizedPoint($0, in: frame) }
             cgContext.beginPath()
             cgContext.move(to: points[0])
             for point in points.dropFirst() {
@@ -336,8 +414,8 @@ struct AnnotationView: View {
                 cgContext.restoreGState()
                 return
             }
-            let start = denormalize(point: annotation.points[0], in: frame)
-            let end = denormalize(point: annotation.points[1], in: frame)
+            let start = AnnotationGeometry.denormalizedPoint(annotation.points[0], in: frame)
+            let end = AnnotationGeometry.denormalizedPoint(annotation.points[1], in: frame)
             let arrowHeadLength = max(lineWidth * 3, min(frame.width, frame.height) * 0.025)
             let angle = atan2(end.y - start.y, end.x - start.x)
             let spread = CGFloat.pi / 7
@@ -367,61 +445,14 @@ struct AnnotationView: View {
                 cgContext.restoreGState()
                 return
             }
-            let rect = denormalize(
-                rect: CGRect.normalizedBetween(annotation.points[0], annotation.points[1]),
+            let rect = AnnotationGeometry.denormalizedRect(
+                CGRect.normalizedBetween(annotation.points[0], annotation.points[1]),
                 in: frame
             )
             cgContext.strokeEllipse(in: rect)
         }
 
         cgContext.restoreGState()
-    }
-
-    private func aspectFitRect(for imageSize: CGSize, in containerSize: CGSize) -> CGRect {
-        guard imageSize.width > 0,
-              imageSize.height > 0,
-              containerSize.width > 0,
-              containerSize.height > 0 else {
-            return .zero
-        }
-
-        let scale = min(
-            containerSize.width / imageSize.width,
-            containerSize.height / imageSize.height
-        )
-        let size = CGSize(
-            width: imageSize.width * scale,
-            height: imageSize.height * scale
-        )
-
-        return CGRect(
-            x: (containerSize.width - size.width) / 2,
-            y: (containerSize.height - size.height) / 2,
-            width: size.width,
-            height: size.height
-        )
-    }
-
-    private func normalize(point: CGPoint, in frame: CGRect) -> CGPoint {
-        let x = ((point.x - frame.minX) / frame.width).clamped(to: 0...1)
-        let y = ((point.y - frame.minY) / frame.height).clamped(to: 0...1)
-        return CGPoint(x: x, y: y)
-    }
-
-    private func denormalize(point: CGPoint, in frame: CGRect) -> CGPoint {
-        CGPoint(
-            x: frame.minX + (point.x * frame.width),
-            y: frame.minY + (point.y * frame.height)
-        )
-    }
-
-    private func denormalize(rect: CGRect, in frame: CGRect) -> CGRect {
-        CGRect(
-            x: frame.minX + (rect.minX * frame.width),
-            y: frame.minY + (rect.minY * frame.height),
-            width: rect.width * frame.width,
-            height: rect.height * frame.height
-        )
     }
 }
 
@@ -511,7 +542,7 @@ private struct AnnotationControlsBar: View {
     }
 }
 
-private enum AnnotationTool: CaseIterable, Identifiable {
+enum AnnotationTool: CaseIterable, Identifiable {
     case freehand
     case arrow
     case circle
@@ -535,7 +566,7 @@ private enum AnnotationTool: CaseIterable, Identifiable {
     }
 }
 
-private struct AnnotationElement: Identifiable {
+struct AnnotationElement: Identifiable {
     let id = UUID()
     let tool: AnnotationTool
     let color: UIColor
@@ -572,17 +603,17 @@ private struct AnnotationElement: Identifiable {
     private func freehandPath(in frame: CGRect) -> Path {
         guard let first = points.first else { return Path() }
         var path = Path()
-        path.move(to: denormalize(point: first, in: frame))
+        path.move(to: AnnotationGeometry.denormalizedPoint(first, in: frame))
         for point in points.dropFirst() {
-            path.addLine(to: denormalize(point: point, in: frame))
+            path.addLine(to: AnnotationGeometry.denormalizedPoint(point, in: frame))
         }
         return path
     }
 
     private func arrowPath(in frame: CGRect) -> Path {
         guard points.count == 2 else { return Path() }
-        let start = denormalize(point: points[0], in: frame)
-        let end = denormalize(point: points[1], in: frame)
+        let start = AnnotationGeometry.denormalizedPoint(points[0], in: frame)
+        let end = AnnotationGeometry.denormalizedPoint(points[1], in: frame)
         let lineWidth = lineWidth(in: frame)
         let arrowHeadLength = max(lineWidth * 3, min(frame.width, frame.height) * 0.025)
         let angle = atan2(end.y - start.y, end.x - start.x)
@@ -608,33 +639,11 @@ private struct AnnotationElement: Identifiable {
 
     private func circlePath(in frame: CGRect) -> Path {
         guard points.count == 2 else { return Path() }
-        let rect = denormalize(
-            rect: CGRect.normalizedBetween(points[0], points[1]),
+        let rect = AnnotationGeometry.denormalizedRect(
+            CGRect.normalizedBetween(points[0], points[1]),
             in: frame
         )
         return Path(ellipseIn: rect)
-    }
-
-    private func denormalize(point: CGPoint, in frame: CGRect) -> CGPoint {
-        CGPoint(
-            x: frame.minX + (point.x * frame.width),
-            y: frame.minY + (point.y * frame.height)
-        )
-    }
-
-    private func denormalize(rect: CGRect, in frame: CGRect) -> CGRect {
-        CGRect(
-            x: frame.minX + (rect.minX * frame.width),
-            y: frame.minY + (rect.minY * frame.height),
-            width: rect.width * frame.width,
-            height: rect.height * frame.height
-        )
-    }
-}
-
-private extension CGFloat {
-    func clamped(to range: ClosedRange<CGFloat>) -> CGFloat {
-        Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
     }
 }
 

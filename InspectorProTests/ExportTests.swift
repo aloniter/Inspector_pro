@@ -52,6 +52,39 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     haystack.components(separatedBy: needle).count - 1
 }
 
+private func pixelRGBA(in image: UIImage, at point: CGPoint) -> (red: UInt8, green: UInt8, blue: UInt8, alpha: UInt8)? {
+    guard let cgImage = image.cgImage, cgImage.width > 0, cgImage.height > 0 else {
+        return nil
+    }
+
+    let scale = image.scale > 0 ? image.scale : 1
+    let x = min(max(Int((point.x * scale).rounded(.down)), 0), cgImage.width - 1)
+    let y = min(max(Int((point.y * scale).rounded(.down)), 0), cgImage.height - 1)
+    guard let cropped = cgImage.cropping(to: CGRect(x: x, y: y, width: 1, height: 1)) else {
+        return nil
+    }
+
+    var pixel = [UInt8](repeating: 0, count: 4)
+    return pixel.withUnsafeMutableBytes { buffer -> (red: UInt8, green: UInt8, blue: UInt8, alpha: UInt8)? in
+        guard let baseAddress = buffer.baseAddress,
+              let context = CGContext(
+                data: baseAddress,
+                width: 1,
+                height: 1,
+                bitsPerComponent: 8,
+                bytesPerRow: 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+              ) else {
+            return nil
+        }
+
+        context.draw(cropped, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        let bytes = buffer.bindMemory(to: UInt8.self)
+        return (bytes[0], bytes[1], bytes[2], bytes[3])
+    }
+}
+
 @Test func authServiceDoesNotAuthenticateNilOrExpiredSessions() {
     let expiredSession = makeAuthSession(expiresAt: Date().addingTimeInterval(-60).timeIntervalSince1970)
 
@@ -1575,6 +1608,157 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     )
     #expect(heightLimitedPortrait.width == 150)
     #expect(heightLimitedPortrait.height == 200)
+}
+
+@Test func annotationGeometryFitsPortraitLandscapeAndTallImagesInsideFixedViewport() {
+    let containerSize = CGSize(width: 360, height: 310)
+    let cases = [
+        CGSize(width: 1200, height: 900),
+        CGSize(width: 900, height: 1200),
+        CGSize(width: 600, height: 2400),
+    ]
+
+    for imageSize in cases {
+        let frame = AnnotationGeometry.aspectFitFrame(for: imageSize, in: containerSize)
+        let expectedAspectRatio = imageSize.width / imageSize.height
+        let actualAspectRatio = frame.width / frame.height
+
+        #expect(frame.minX >= -0.001)
+        #expect(frame.minY >= -0.001)
+        #expect(frame.maxX <= containerSize.width + 0.001)
+        #expect(frame.maxY <= containerSize.height + 0.001)
+        #expect(abs(actualAspectRatio - expectedAspectRatio) < 0.001)
+        #expect(abs(frame.midX - (containerSize.width / 2)) < 0.001)
+        #expect(abs(frame.midY - (containerSize.height / 2)) < 0.001)
+    }
+}
+
+@Test func annotationGeometryRoundTripsCoordinatesThroughLetterboxedEditorFrame() {
+    let imageSize = CGSize(width: 1200, height: 600)
+    let containerSize = CGSize(width: 300, height: 500)
+    let displayFrame = AnnotationGeometry.aspectFitFrame(for: imageSize, in: containerSize)
+    let visiblePoint = AnnotationGeometry.denormalizedPoint(
+        CGPoint(x: 0.75, y: 0.25),
+        in: displayFrame
+    )
+
+    #expect(displayFrame.width == 300)
+    #expect(displayFrame.height == 150)
+    #expect(displayFrame.minY == 175)
+
+    let normalizedPoint = AnnotationGeometry.normalizedPoint(visiblePoint, in: displayFrame)
+    #expect(abs(normalizedPoint.x - 0.75) < 0.001)
+    #expect(abs(normalizedPoint.y - 0.25) < 0.001)
+
+    let originalImagePoint = AnnotationGeometry.denormalizedPoint(
+        normalizedPoint,
+        in: CGRect(origin: .zero, size: imageSize)
+    )
+    #expect(abs(originalImagePoint.x - 900) < 0.001)
+    #expect(abs(originalImagePoint.y - 150) < 0.001)
+
+    let clampedPoint = AnnotationGeometry.normalizedPoint(
+        CGPoint(x: displayFrame.minX - 40, y: displayFrame.maxY + 40),
+        in: displayFrame
+    )
+    #expect(clampedPoint.x == 0)
+    #expect(clampedPoint.y == 1)
+}
+
+@Test func annotationGeometryIsStableForHebrewRTLLayoutMode() {
+    let imageSize = CGSize(width: 900, height: 1200)
+    let containerSize = CGSize(width: 330, height: 260)
+    let ltrFrame = AnnotationGeometry.aspectFitFrame(for: imageSize, in: containerSize)
+    let rtlFrame = AnnotationGeometry.aspectFitFrame(for: imageSize, in: containerSize)
+
+    #expect(ltrFrame == rtlFrame)
+    #expect(AppStrings.text("סימון").isEmpty == false)
+}
+
+@Test func annotationRendererPlacesSavedMarkupAtThePreviewCoordinate() throws {
+    let baseImage = UIGraphicsImageRenderer(size: CGSize(width: 200, height: 100)).image { context in
+        UIColor.white.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: 200, height: 100))
+    }
+    let annotation = AnnotationElement(
+        tool: .freehand,
+        color: .red,
+        lineWidthRatio: 0.08,
+        points: [
+            CGPoint(x: 0.35, y: 0.5),
+            CGPoint(x: 0.65, y: 0.5),
+        ]
+    )
+
+    let renderedImage = AnnotationImageRenderer.render(
+        baseImage: baseImage,
+        annotations: [annotation]
+    )
+
+    #expect(renderedImage.size == baseImage.size)
+
+    let centerPixel = try #require(pixelRGBA(in: renderedImage, at: CGPoint(x: 100, y: 50)))
+    #expect(centerPixel.red > 180)
+    #expect(centerPixel.green < 90)
+    #expect(centerPixel.blue < 90)
+
+    let untouchedPixel = try #require(pixelRGBA(in: renderedImage, at: CGPoint(x: 100, y: 12)))
+    #expect(untouchedPixel.red > 230)
+    #expect(untouchedPixel.green > 230)
+    #expect(untouchedPixel.blue > 230)
+}
+
+@Test func annotatedExportUsesFullSavedCompositeWithoutCroppingOrOffsettingMarkup() throws {
+    FileManagerService.shared.ensureDirectoriesExist()
+    let relativeDirectory = "tests/annotation-export-\(UUID().uuidString)"
+    let originalPath = "\(relativeDirectory)/original.jpg"
+    let annotatedPath = "\(relativeDirectory)/ann_original.jpg"
+    let directoryURL = AppConstants.imagesBaseURL.appendingPathComponent(relativeDirectory)
+    try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+    let originalImage = UIGraphicsImageRenderer(size: CGSize(width: 200, height: 100)).image { context in
+        UIColor.white.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: 200, height: 100))
+    }
+    let annotation = AnnotationElement(
+        tool: .freehand,
+        color: .red,
+        lineWidthRatio: 0.08,
+        points: [
+            CGPoint(x: 0.35, y: 0.5),
+            CGPoint(x: 0.65, y: 0.5),
+        ]
+    )
+    let annotatedImage = AnnotationImageRenderer.render(
+        baseImage: originalImage,
+        annotations: [annotation]
+    )
+
+    try #require(originalImage.jpegData(compressionQuality: 0.95))
+        .write(to: AppConstants.imagesBaseURL.appendingPathComponent(originalPath))
+    try #require(annotatedImage.jpegData(compressionQuality: 0.95))
+        .write(to: AppConstants.imagesBaseURL.appendingPathComponent(annotatedPath))
+
+    let photo = PhotoRecord(imagePath: originalPath, annotatedImagePath: annotatedPath)
+    let exportImage = try FlattenedExportImageRenderer.render(
+        photo: photo,
+        options: ExportOptions(format: .pdf, quality: .high, photoCount: 1)
+    )
+
+    #expect(exportImage.sourcePath == annotatedPath)
+    #expect(exportImage.sourceKind == .annotated)
+    #expect(abs((exportImage.image.size.width / exportImage.image.size.height) - 2.0) < 0.01)
+
+    let centerPixel = try #require(
+        pixelRGBA(
+            in: exportImage.image,
+            at: CGPoint(x: exportImage.image.size.width / 2, y: exportImage.image.size.height / 2)
+        )
+    )
+    #expect(centerPixel.red > 160)
+    #expect(centerPixel.green < 120)
+    #expect(centerPixel.blue < 120)
 }
 
 @Test func docxExporterStretchesAllImageOrientationsToFullCellWithoutCropMetadata() async throws {

@@ -20,66 +20,34 @@ struct PhotoDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                Group {
-                    if let image = displayedImage {
-                        Image(uiImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                    } else {
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.12))
-                            .overlay { ProgressView() }
-                    }
+        VStack(spacing: 0) {
+            PhotoDetailImagePreview(image: displayedImage)
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 10)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .layoutPriority(1)
+
+            PhotoDetailBottomPanel(
+                noteText: $noteText,
+                isEditingNotes: $isEditingNotes,
+                layoutDirection: layoutDirection,
+                hasUnsavedNoteChanges: hasUnsavedNoteChanges,
+                canAnnotate: displayedImage != nil,
+                onFinishNotes: finishNotesEditing,
+                onAnnotate: {
+                    guard displayedImage != nil else { return }
+                    showingAnnotation = true
+                },
+                onDelete: {
+                    showingDeleteConfirmation = true
                 }
-                .frame(maxWidth: .infinity)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(AppStrings.text("הערות"))
-                        .font(.headline)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    DirectionalTextEditor(
-                        text: $noteText,
-                        isFocused: $isEditingNotes,
-                        layoutDirection: layoutDirection
-                    )
-                        .frame(minHeight: 140)
-                        .padding(8)
-                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
-
-                    Button {
-                        finishNotesEditing()
-                    } label: {
-                        Label(AppStrings.text("סיום ושמירת הערות"), systemImage: "checkmark.circle.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!isEditingNotes && !hasUnsavedNoteChanges)
-                }
-            }
-            .padding()
+            )
         }
+        .background(Color(uiColor: .systemGroupedBackground))
         .navigationTitle(AppStrings.text("תמונה"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItemGroup(placement: .bottomBar) {
-                Button {
-                    showingAnnotation = true
-                } label: {
-                    Label(AppStrings.text("צייר / סמן"), systemImage: "pencil.tip.crop.circle")
-                }
-
-                Spacer()
-
-                Button(role: .destructive) {
-                    showingDeleteConfirmation = true
-                } label: {
-                    Label(AppStrings.text("מחק"), systemImage: "trash")
-                }
-            }
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
 
@@ -217,5 +185,94 @@ struct PhotoDetailView: View {
     private func userFacingErrorMessage(for error: Error) -> String {
         let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
         return description.isEmpty ? AppStrings.text("אירעה שגיאה בשמירה") : description
+    }
+}
+
+private struct PhotoDetailImagePreview: View {
+    let image: UIImage?
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(2)
+            } else {
+                ProgressView()
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+private struct PhotoDetailBottomPanel: View {
+    @Binding var noteText: String
+    @Binding var isEditingNotes: Bool
+    let layoutDirection: LayoutDirection
+    let hasUnsavedNoteChanges: Bool
+    let canAnnotate: Bool
+    let onFinishNotes: () -> Void
+    let onAnnotate: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        VStack(spacing: 10) {
+            VStack(spacing: 8) {
+                HStack(spacing: 12) {
+                    Button {
+                        onFinishNotes()
+                    } label: {
+                        Label(AppStrings.text("סיום"), systemImage: "checkmark.circle.fill")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!isEditingNotes && !hasUnsavedNoteChanges)
+
+                    Spacer(minLength: 8)
+
+                    Text(AppStrings.text("הערות"))
+                        .font(.headline)
+                }
+
+                DirectionalTextEditor(
+                    text: $noteText,
+                    isFocused: $isEditingNotes,
+                    layoutDirection: layoutDirection
+                )
+                .frame(height: 104)
+                .padding(8)
+                .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
+            }
+
+            HStack(spacing: 12) {
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Label(AppStrings.text("מחק"), systemImage: "trash")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    onAnnotate()
+                } label: {
+                    Label(AppStrings.text("צייר / סמן"), systemImage: "pencil.tip.crop.circle")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!canAnnotate)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 12)
+        .background(.bar)
+        .overlay(alignment: .top) {
+            Divider()
+        }
     }
 }
