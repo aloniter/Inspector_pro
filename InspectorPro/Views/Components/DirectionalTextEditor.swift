@@ -5,19 +5,27 @@ struct DirectionalTextEditor: UIViewRepresentable {
     @Binding var text: String
     @Binding var isFocused: Bool
     let layoutDirection: LayoutDirection
+    var alignment: DirectionalTextFieldAlignment
 
     init(
         text: Binding<String>,
         isFocused: Binding<Bool> = .constant(false),
-        layoutDirection: LayoutDirection
+        layoutDirection: LayoutDirection,
+        alignment: DirectionalTextFieldAlignment = .layoutDirection
     ) {
         _text = text
         _isFocused = isFocused
         self.layoutDirection = layoutDirection
+        self.alignment = alignment
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, isFocused: $isFocused, layoutDirection: layoutDirection)
+        Coordinator(
+            text: $text,
+            isFocused: $isFocused,
+            layoutDirection: layoutDirection,
+            alignment: alignment
+        )
     }
 
     func makeUIView(context: Context) -> UITextView {
@@ -36,6 +44,7 @@ struct DirectionalTextEditor: UIViewRepresentable {
 
     func updateUIView(_ textView: UITextView, context: Context) {
         context.coordinator.layoutDirection = layoutDirection
+        context.coordinator.alignment = alignment
         applyDirection(to: textView, coordinator: context.coordinator)
 
         if textView.text != text {
@@ -85,23 +94,42 @@ struct DirectionalTextEditor: UIViewRepresentable {
         @Binding var text: String
         @Binding var isFocused: Bool
         var layoutDirection: LayoutDirection
+        var alignment: DirectionalTextFieldAlignment
 
-        init(text: Binding<String>, isFocused: Binding<Bool>, layoutDirection: LayoutDirection) {
+        init(
+            text: Binding<String>,
+            isFocused: Binding<Bool>,
+            layoutDirection: LayoutDirection,
+            alignment: DirectionalTextFieldAlignment
+        ) {
             _text = text
             _isFocused = isFocused
             self.layoutDirection = layoutDirection
+            self.alignment = alignment
         }
 
         var paragraphStyle: NSParagraphStyle {
             let style = NSMutableParagraphStyle()
-            style.alignment = layoutDirection == .rightToLeft ? .right : .left
-            style.baseWritingDirection = layoutDirection == .rightToLeft ? .rightToLeft : .leftToRight
+            let resolvedLayoutDirection = resolvedLayoutDirection
+            style.alignment = resolvedLayoutDirection == .rightToLeft ? .right : .left
+            style.baseWritingDirection = resolvedLayoutDirection == .rightToLeft ? .rightToLeft : .leftToRight
             style.lineBreakMode = .byWordWrapping
             return style
         }
 
         var semanticContentAttribute: UISemanticContentAttribute {
-            layoutDirection == .rightToLeft ? .forceRightToLeft : .forceLeftToRight
+            resolvedLayoutDirection == .rightToLeft ? .forceRightToLeft : .forceLeftToRight
+        }
+
+        private var resolvedLayoutDirection: LayoutDirection {
+            switch alignment {
+            case .layoutDirection:
+                layoutDirection
+            case .left:
+                .leftToRight
+            case .right:
+                .rightToLeft
+            }
         }
 
         func textViewDidChange(_ textView: UITextView) {

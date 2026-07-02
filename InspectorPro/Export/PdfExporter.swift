@@ -142,7 +142,7 @@ final class PdfExporter {
             x: options.marginLeft
         )
 
-        if let attendees = numberedAttendeeLines(report.attendees) {
+        if let attendees = numberedAttendees(report.attendees) {
             y += drawAttendeesCoverFieldSection(
                 label: ExportTextFormatter.rtlHeadingText("\(AppStrings.text("נוכחים")):"),
                 attendees: attendees,
@@ -185,10 +185,10 @@ final class PdfExporter {
         return lines.joined(separator: "\n")
     }
 
-    private static func numberedAttendeeLines(_ value: String?) -> [String]? {
+    private static func numberedAttendees(_ value: String?) -> [ExportTextFormatter.NumberedAttendee]? {
         guard let normalizedValue = normalizedOptionalCoverText(value) else { return nil }
 
-        let attendees = ExportTextFormatter.numberedAttendeeLines(from: normalizedValue)
+        let attendees = ExportTextFormatter.numberedAttendees(from: normalizedValue)
         return attendees.isEmpty ? nil : attendees
     }
 
@@ -196,6 +196,7 @@ final class PdfExporter {
     private static let coverDefectColor = UIColor(
         red: 211.0 / 255.0, green: 47.0 / 255.0, blue: 47.0 / 255.0, alpha: 1
     )
+    private static let attendeeCoverVisualLeftOffset: CGFloat = 14
 
     private static func drawCoverSummaryLine(
         text: String,
@@ -260,7 +261,7 @@ final class PdfExporter {
 
     private static func drawAttendeesCoverFieldSection(
         label: String,
-        attendees: [String],
+        attendees: [ExportTextFormatter.NumberedAttendee],
         originY: CGFloat,
         width: CGFloat,
         x: CGFloat,
@@ -272,6 +273,7 @@ final class PdfExporter {
         let labelHeight = labelFontSize + 8
         let attendeeLineHeight = attendeeFontSize + 10
         let attendeesHeight = max(CGFloat(attendees.count) * attendeeLineHeight, attendeeLineHeight)
+        let attendeeFont = UIFont.systemFont(ofSize: attendeeFontSize)
 
         drawRTLText(
             label,
@@ -282,15 +284,37 @@ final class PdfExporter {
             color: labelColor
         )
 
-        drawRTLText(
-            attendees.joined(separator: "\n"),
-            in: CGRect(x: x, y: originY + labelHeight, width: width, height: attendeesHeight),
-            fontSize: attendeeFontSize,
-            bold: false,
-            alignment: .center,
-            color: valueColor,
-            lineSpacing: 4
+        let rowLayouts = attendeeCoverRowLayouts(
+            for: attendees,
+            x: x,
+            y: originY + labelHeight,
+            width: width,
+            lineHeight: attendeeLineHeight,
+            font: attendeeFont,
+            visualLeftOffset: attendeeCoverVisualLeftOffset,
+            isRTL: AppLanguage.current == .hebrew
         )
+
+        let isRTL = AppLanguage.current == .hebrew
+        for (index, attendee) in attendees.enumerated() {
+            let layout = rowLayouts[index]
+            drawPlainText(
+                attendee.ltrMarkerText,
+                in: layout.markerRect,
+                font: attendeeFont,
+                baseWritingDirection: .leftToRight,
+                alignment: .right,
+                color: valueColor
+            )
+            drawPlainText(
+                attendee.name,
+                in: layout.nameRect,
+                font: attendeeFont,
+                baseWritingDirection: isRTL ? .rightToLeft : .leftToRight,
+                alignment: isRTL ? .right : .left,
+                color: valueColor
+            )
+        }
 
         return labelHeight + attendeesHeight + 12
     }
@@ -532,6 +556,92 @@ final class PdfExporter {
         ]
 
         NSAttributedString(string: text, attributes: attributes).draw(in: rect)
+    }
+
+    struct AttendeeCoverRowLayout: Equatable {
+        let markerRect: CGRect
+        let nameRect: CGRect
+    }
+
+    static func attendeeCoverRowLayouts(
+        for attendees: [ExportTextFormatter.NumberedAttendee],
+        x: CGFloat,
+        y: CGFloat,
+        width: CGFloat,
+        lineHeight: CGFloat,
+        font: UIFont,
+        markerNameSpacing: CGFloat = 6,
+        visualLeftOffset: CGFloat = 14,
+        isRTL: Bool = AppLanguage.current == .hebrew
+    ) -> [AttendeeCoverRowLayout] {
+        guard !attendees.isEmpty, width > 0 else { return [] }
+
+        let markerColumnWidth = attendees
+            .map { textWidth($0.ltrMarkerText, font: font) }
+            .max() ?? 0
+        let preferredNameColumnWidth = attendees
+            .map { textWidth($0.name, font: font) }
+            .max() ?? 0
+        let availableNameWidth = max(width - markerColumnWidth - markerNameSpacing, 1)
+        let nameColumnWidth = min(preferredNameColumnWidth, availableNameWidth)
+        let totalWidth = markerColumnWidth + markerNameSpacing + nameColumnWidth
+        let centeredBlockX = x + max((width - totalWidth) / 2, 0)
+        let blockX = isRTL ? max(x, centeredBlockX - visualLeftOffset) : centeredBlockX
+
+        return attendees.enumerated().map { index, attendee in
+            let rowY = y + CGFloat(index) * lineHeight
+
+            if isRTL {
+                let nameRect = CGRect(
+                    x: blockX,
+                    y: rowY,
+                    width: nameColumnWidth,
+                    height: lineHeight
+                )
+                let markerRect = CGRect(
+                    x: nameRect.maxX + markerNameSpacing,
+                    y: rowY,
+                    width: markerColumnWidth,
+                    height: lineHeight
+                )
+                return AttendeeCoverRowLayout(markerRect: markerRect, nameRect: nameRect)
+            }
+
+            let markerRect = CGRect(x: blockX, y: rowY, width: markerColumnWidth, height: lineHeight)
+            let nameRect = CGRect(
+                x: markerRect.maxX + markerNameSpacing,
+                y: rowY,
+                width: nameColumnWidth,
+                height: lineHeight
+            )
+            return AttendeeCoverRowLayout(markerRect: markerRect, nameRect: nameRect)
+        }
+    }
+
+    private static func drawPlainText(
+        _ text: String,
+        in rect: CGRect,
+        font: UIFont,
+        baseWritingDirection: NSWritingDirection,
+        alignment: NSTextAlignment,
+        color: UIColor
+    ) {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = alignment
+        paragraphStyle.baseWritingDirection = baseWritingDirection
+        paragraphStyle.lineBreakMode = .byWordWrapping
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: color,
+            .paragraphStyle: paragraphStyle,
+        ]
+
+        NSAttributedString(string: text, attributes: attributes).draw(in: rect)
+    }
+
+    private static func textWidth(_ text: String, font: UIFont) -> CGFloat {
+        ceil((text as NSString).size(withAttributes: [.font: font]).width)
     }
 
     private static func drawFooterDisplayRuns(

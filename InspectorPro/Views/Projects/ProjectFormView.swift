@@ -176,11 +176,8 @@ struct ReportFormView: View {
             }
 
             Section {
-                DirectionalTextField(
-                    text: $attendees,
-                    placeholder: AppStrings.text("נוכחים"),
-                    layoutDirection: layoutDirection,
-                    alignment: .right
+                ReportAttendeesEditor(
+                    text: $attendees
                 )
             } header: {
                 RTLSectionHeader(title: ExportTextFormatter.rtlHeadingText("\(AppStrings.text("נוכחים")):"))
@@ -323,6 +320,67 @@ struct ReportFormView: View {
     private func userFacingErrorMessage(for error: Error) -> String {
         let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
         return description.isEmpty ? AppStrings.text("אירעה שגיאה בשמירה") : description
+    }
+}
+
+private struct ReportAttendeesEditor: View {
+    @Binding var text: String
+    @State private var isFocused = false
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            DirectionalTextEditor(
+                text: $text,
+                isFocused: $isFocused,
+                layoutDirection: .rightToLeft,
+                alignment: .right
+            )
+            .frame(minHeight: 92)
+
+            if text.isEmpty {
+                placeholderView
+                    .allowsHitTesting(false)
+            }
+
+            if !text.isEmpty {
+                clearButtonView
+            }
+        }
+        .frame(minHeight: 92)
+        .environment(\.layoutDirection, .leftToRight)
+    }
+
+    private var placeholderView: some View {
+        HStack {
+            Spacer(minLength: 0)
+            Text(AppStrings.text("נוכחים"))
+        }
+        .font(.body)
+        .foregroundStyle(Color(.placeholderText))
+        .padding(.horizontal, 5)
+        .padding(.top, 8)
+    }
+
+    private var clearButtonView: some View {
+        HStack {
+            clearButton
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 8)
+        .padding(.top, 8)
+    }
+
+    private var clearButton: some View {
+        Button {
+            text = ""
+            isFocused = true
+        } label: {
+            Image(systemName: "xmark.circle.fill")
+                .font(.body)
+                .foregroundStyle(.secondary.opacity(0.55))
+                .accessibilityLabel(AppStrings.text("נקה"))
+        }
+        .buttonStyle(.plain)
     }
 }
 

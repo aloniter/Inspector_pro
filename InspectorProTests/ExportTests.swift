@@ -52,6 +52,21 @@ private func occurrenceCount(of needle: String, in haystack: String) -> Int {
     haystack.components(separatedBy: needle).count - 1
 }
 
+private let variedAttendeesText = [
+    "א",
+    "ישראל ישראלי",
+    "משה כהן לוי ארוך מאוד",
+    "דני",
+    "נועה",
+    "אביגיל בר",
+    "רן",
+    "יוסף כהן",
+    "מיכל",
+    "שם עשירי",
+    "שם אחד עשר",
+    "שם שנים עשר",
+].joined(separator: "\n")
+
 private func pixelRGBA(in image: UIImage, at point: CGPoint) -> (red: UInt8, green: UInt8, blue: UInt8, alpha: UInt8)? {
     guard let cgImage = image.cgImage, cgImage.width > 0, cgImage.height > 0 else {
         return nil
@@ -508,12 +523,44 @@ private func pixelRGBA(in image: UIImage, at point: CGPoint) -> (red: UInt8, gre
 
 @Test func exportFormatterBuildsNumberedAttendeeLinesForRTL() {
     let lines = ExportTextFormatter.numberedAttendeeLines(from: "אלון\nדפנה\n אבישי ")
+    let attendees = ExportTextFormatter.numberedAttendees(from: "אלון\nדפנה\n אבישי ")
 
     #expect(lines == [
-        "\u{202B}1.\u{00A0}אלון\u{202C}",
-        "\u{202B}2.\u{00A0}דפנה\u{202C}",
-        "\u{202B}3.\u{00A0}אבישי\u{202C}",
+        "1.\u{00A0}אלון",
+        "2.\u{00A0}דפנה",
+        "3.\u{00A0}אבישי",
     ])
+    #expect(attendees == [
+        .init(number: 1, name: "אלון"),
+        .init(number: 2, name: "דפנה"),
+        .init(number: 3, name: "אבישי"),
+    ])
+    #expect(attendees[0].ltrMarkerText == "1.")
+    #expect(attendees[0].rtlMarkerText == "1.")
+    #expect(attendees[0].rtlEditableMarkerText == "1.")
+}
+
+@Test func pdfAttendeeCoverRowsCenterCompactRTLBlockUnderHeading() {
+    let attendees = ExportTextFormatter.numberedAttendees(from: "שלום\nמה\nקורה")
+    let rows = PdfExporter.attendeeCoverRowLayouts(
+        for: attendees,
+        x: 50,
+        y: 120,
+        width: 360,
+        lineHeight: 22,
+        font: .systemFont(ofSize: 12),
+        isRTL: true
+    )
+
+    #expect(rows.count == 3)
+    for row in rows {
+        #expect(row.nameRect.minX == rows[0].nameRect.minX)
+        #expect(row.markerRect.minX == rows[0].markerRect.minX)
+        #expect(row.markerRect.minX > row.nameRect.maxX)
+    }
+    let blockMinX = rows[0].nameRect.minX
+    let blockMaxX = rows[0].markerRect.maxX
+    #expect(abs(((blockMinX + blockMaxX) / 2) - 216) < 1)
 }
 
 @Test func exportFormatterUsesNumericCoverDate() {
@@ -599,10 +646,18 @@ private func pixelRGBA(in image: UIImage, at point: CGPoint) -> (red: UInt8, gre
     #expect(!numbering.contains("<w:ind w:right="))
     #expect(!numbering.contains("<w:tab w:val=\"num\""))
     #expect(numbering.contains("<w:num w:numId=\"1\">"))
+    #expect(numbering.contains("<w:abstractNum w:abstractNumId=\"2\">"))
+    #expect(numbering.contains("<w:numFmt w:val=\"decimal\"/>"))
+    #expect(numbering.contains("<w:lvlText w:val=\"%1.\"/>"))
+    #expect(numbering.contains("<w:ind w:start=\"900\" w:hanging=\"480\"/>"))
+    #expect(numbering.contains("<w:num w:numId=\"2\">"))
     #expect(styles.contains("w:styleId=\"InspectorDescriptionBullet\""))
     #expect(styles.contains("<w:numId w:val=\"1\"/>"))
+    #expect(styles.contains("w:styleId=\"InspectorCoverAttendeeNumber\""))
+    #expect(styles.contains("<w:numId w:val=\"2\"/>"))
     #expect(styles.contains("<w:bidi/>"))
     #expect(styles.contains("<w:ind w:start=\"540\" w:hanging=\"360\"/>"))
+    #expect(styles.contains("<w:ind w:start=\"900\" w:hanging=\"480\"/>"))
     #expect(styles.contains("<w:jc w:val=\"start\"/>"))
     #expect(!styles.contains("<w:ind w:left="))
     #expect(!styles.contains("<w:ind w:right="))
@@ -631,26 +686,35 @@ private func pixelRGBA(in image: UIImage, at point: CGPoint) -> (red: UInt8, gre
     let dateLabelParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">תאריך<") })
     let dateValueParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">6.4.2026<") })
     let attendeesHeadingText = OpenXMLBuilder.escapeXML(ExportTextFormatter.rtlHeadingText("נוכחים:"))
-    let firstAttendeeText = OpenXMLBuilder.escapeXML("\u{202B}1.\u{00A0}אלון\u{202C}")
-    let secondAttendeeText = OpenXMLBuilder.escapeXML("\u{202B}2.\u{00A0}דפנה\u{202C}")
     let attendeesHeadingParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(attendeesHeadingText) })
-    let firstAttendeeParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(firstAttendeeText) })
+    let firstAttendeeParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">אלון<") })
+    let secondAttendeeParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">דפנה<") })
     let notesLabelParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">הערות<") })
     let notesContentParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">נדרש תיקון<") })
 
     #expect(xml.contains(attendeesHeadingText))
+    #expect(xml.contains("<w:tbl>"))
+    #expect(xml.contains("<w:tblW w:w=\"2800\" w:type=\"dxa\"/>"))
+    #expect(xml.contains("<w:jc w:val=\"center\"/>"))
+    #expect(xml.contains("<w:gridCol w:w=\"2800\"/>"))
+    #expect(xml.contains("<w:left w:w=\"0\" w:type=\"dxa\"/>"))
+    #expect(xml.contains("<w:right w:w=\"320\" w:type=\"dxa\"/>"))
+    #expect(!xml.contains("<w:gridCol w:w=\"2760\"/>"))
+    #expect(!xml.contains("<w:gridCol w:w=\"480\"/>"))
+    #expect(!xml.contains("<w:tblpPr"))
+    #expect(!xml.contains("<w:tab"))
+    #expect(!xml.contains("<w:bidiVisual/>"))
     #expect(!xml.contains("w:color w:val=\"1F4E79\""))
     #expect(xml.contains("w:jc w:val=\"center\""))
     #expect(!xml.contains("w:sz w:val=\"20\""))
     #expect(xml.contains("w:sz w:val=\"24\""))
-    #expect(!xml.contains("w:jc w:val=\"right\""))
     for labelParagraph in [addressLabelParagraph, dateLabelParagraph, attendeesHeadingParagraph, notesLabelParagraph] {
         #expect(labelParagraph.contains("<w:b/>"))
         #expect(labelParagraph.contains("<w:bCs/>"))
         #expect(labelParagraph.contains("<w:sz w:val=\"24\"/>"))
         #expect(labelParagraph.contains("<w:szCs w:val=\"24\"/>"))
     }
-    for valueParagraph in [addressValueParagraph, dateValueParagraph, firstAttendeeParagraph, notesContentParagraph] {
+    for valueParagraph in [addressValueParagraph, dateValueParagraph, notesContentParagraph] {
         #expect(!valueParagraph.contains("<w:b/>"))
         #expect(!valueParagraph.contains("<w:bCs/>"))
         #expect(valueParagraph.contains("<w:sz w:val=\"24\"/>"))
@@ -658,10 +722,18 @@ private func pixelRGBA(in image: UIImage, at point: CGPoint) -> (red: UInt8, gre
     }
     #expect(attendeesHeadingParagraph.contains("w:jc w:val=\"center\""))
     #expect(attendeesHeadingParagraph.contains("w:color w:val=\"64748B\""))
-    #expect(firstAttendeeParagraph.contains("w:jc w:val=\"center\""))
+    #expect(firstAttendeeParagraph.contains("w:jc w:val=\"start\""))
+    #expect(firstAttendeeParagraph.contains("<w:bidi/>"))
+    #expect(firstAttendeeParagraph.contains("<w:rtl/>"))
+    #expect(firstAttendeeParagraph.contains("<w:pStyle w:val=\"InspectorCoverAttendeeNumber\"/>"))
+    #expect(firstAttendeeParagraph.contains("<w:numId w:val=\"2\"/>"))
+    #expect(firstAttendeeParagraph.contains("<w:ind w:start=\"900\" w:hanging=\"480\"/>"))
+    #expect(secondAttendeeParagraph.contains("<w:numId w:val=\"2\"/>"))
     #expect(firstAttendeeParagraph.contains("w:color w:val=\"111827\""))
-    #expect(xml.contains(firstAttendeeText))
-    #expect(xml.contains(secondAttendeeText))
+    #expect(xml.contains(">אלון<"))
+    #expect(xml.contains(">דפנה<"))
+    #expect(!xml.contains(OpenXMLBuilder.escapeXML("1.\u{00A0}אלון")))
+    #expect(!xml.contains(OpenXMLBuilder.escapeXML("2.\u{00A0}דפנה")))
     #expect(xml.contains(">הערות<"))
     #expect(xml.contains(">נדרש תיקון<"))
     #expect(notesContentParagraph.contains("w:jc w:val=\"center\""))
@@ -1098,6 +1170,87 @@ private func pixelRGBA(in image: UIImage, at point: CGPoint) -> (red: UInt8, gre
     }
 }
 
+@Test func pdfExporterGeneratesCoverWithShortSecondAttendeeName() async throws {
+    let date = DateComponents(
+        calendar: Calendar(identifier: .gregorian),
+        year: 2026,
+        month: 6,
+        day: 30
+    ).date!
+    let report = Report(
+        name: "Attendee Alignment",
+        address: "גרציאני",
+        date: date,
+        attendees: variedAttendeesText
+    )
+    let url = try await PdfExporter.export(
+        report: report,
+        photos: [],
+        options: ExportOptions(format: .pdf, quality: .economical, photoCount: 0),
+        onProgress: { _ in }
+    )
+    let environment = ProcessInfo.processInfo.environment
+    let keepSample = environment["KEEP_ATTENDEE_ALIGNMENT_PDF"] == "1"
+        || environment["TEST_RUNNER_KEEP_ATTENDEE_ALIGNMENT_PDF"] == "1"
+    defer {
+        if !keepSample {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    #expect(FileManager.default.fileExists(atPath: url.path))
+    #expect(url.pathExtension == "pdf")
+}
+
+@Test func docxExporterGeneratesCoverWithRTLAttendeeMarkers() async throws {
+    let date = DateComponents(
+        calendar: Calendar(identifier: .gregorian),
+        year: 2026,
+        month: 6,
+        day: 30
+    ).date!
+    let report = Report(
+        name: "Attendee Alignment",
+        address: "גרציאני",
+        date: date,
+        attendees: variedAttendeesText
+    )
+    let url = try await DocxExporter.export(
+        report: report,
+        photos: [],
+        options: ExportOptions(format: .docx, quality: .economical, photoCount: 0),
+        onProgress: { _ in }
+    )
+    let environment = ProcessInfo.processInfo.environment
+    let keepSample = environment["KEEP_ATTENDEE_ALIGNMENT_DOCX"] == "1"
+        || environment["TEST_RUNNER_KEEP_ATTENDEE_ALIGNMENT_DOCX"] == "1"
+    defer {
+        if !keepSample {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    let xmlEntries = try docxXMLEntries(from: url)
+    let documentXMLData = try #require(xmlEntries["word/document.xml"])
+    let documentText = try #require(String(data: documentXMLData, encoding: .utf8))
+    #expect(!documentText.contains("<w:bidiVisual/>"))
+    #expect(!documentText.contains("<w:tblpPr"))
+    #expect(documentText.contains("<w:tblW w:w=\"2800\" w:type=\"dxa\"/>"))
+    #expect(documentText.contains("<w:gridCol w:w=\"2800\"/>"))
+    #expect(documentText.contains("<w:right w:w=\"320\" w:type=\"dxa\"/>"))
+    #expect(!documentText.contains("<w:gridCol w:w=\"2760\"/>"))
+    #expect(!documentText.contains("<w:gridCol w:w=\"480\"/>"))
+    #expect(!documentText.contains("<w:tab"))
+    #expect(documentText.contains("<w:pStyle w:val=\"InspectorCoverAttendeeNumber\"/>"))
+    #expect(documentText.contains("<w:numId w:val=\"2\"/>"))
+    #expect(documentText.contains("<w:ind w:start=\"900\" w:hanging=\"480\"/>"))
+    #expect(documentText.contains(">א<"))
+    #expect(documentText.contains(">שם עשירי<"))
+    #expect(documentText.contains(">משה כהן לוי ארוך מאוד<"))
+    #expect(!documentText.contains(OpenXMLBuilder.escapeXML("1.\u{00A0}א")))
+    #expect(url.pathExtension == "docx")
+}
+
 @Test func docxTemplateReservesHeaderAndFooterSpace() {
     let options = ExportOptions(
         format: .docx,
@@ -1338,8 +1491,19 @@ private func pixelRGBA(in image: UIImage, at point: CGPoint) -> (red: UInt8, gre
     #expect(documentText.contains(">כפר ויתקין<"))
     #expect(documentText.contains(">\(ExportTextFormatter.reportCoverDateString(from: report.date))<"))
     #expect(documentText.contains(OpenXMLBuilder.escapeXML(ExportTextFormatter.rtlHeadingText("נוכחים:"))))
-    #expect(documentText.contains(OpenXMLBuilder.escapeXML("\u{202B}1.\u{00A0}אלון\u{202C}")))
-    #expect(documentText.contains(OpenXMLBuilder.escapeXML("\u{202B}2.\u{00A0}דפנה\u{202C}")))
+    #expect(!documentText.contains("<w:bidiVisual/>"))
+    #expect(!documentText.contains("<w:tblpPr"))
+    #expect(documentText.contains("<w:tblW w:w=\"2800\" w:type=\"dxa\"/>"))
+    #expect(documentText.contains("<w:gridCol w:w=\"2800\"/>"))
+    #expect(documentText.contains("<w:right w:w=\"320\" w:type=\"dxa\"/>"))
+    #expect(!documentText.contains("<w:gridCol w:w=\"2760\"/>"))
+    #expect(!documentText.contains("<w:gridCol w:w=\"480\"/>"))
+    #expect(documentText.contains("<w:pStyle w:val=\"InspectorCoverAttendeeNumber\"/>"))
+    #expect(documentText.contains("<w:numId w:val=\"2\"/>"))
+    #expect(documentText.contains("<w:ind w:start=\"900\" w:hanging=\"480\"/>"))
+    #expect(documentText.contains(">אלון<"))
+    #expect(documentText.contains(">דפנה<"))
+    #expect(!documentText.contains(OpenXMLBuilder.escapeXML("1.\u{00A0}אלון")))
     #expect(documentText.contains(">הערות<"))
     #expect(documentText.contains(">תקין<"))
     #expect(documentText.contains(">שורת בדיקה</w:t>"))

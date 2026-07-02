@@ -3,6 +3,15 @@ import Foundation
 /// Provides XML template strings for DOCX document generation.
 /// Used by DocxExporter to build the OpenXML structure.
 final class DocxTemplateBuilder {
+    private enum CoverAttendeesList {
+        static let tableWidthTwips = 2_800
+        static let cellLeftMarginTwips = 0
+        static let cellRightMarginTwips = 320
+        static let paragraphStartIndentTwips = 900
+        static let paragraphHangingIndentTwips = 480
+        static let rowSpacingAfterTwips = 40
+        static let sectionSpacingAfterTwips = 260
+    }
 
     // MARK: - Content Types
 
@@ -186,7 +195,7 @@ final class DocxTemplateBuilder {
         label: String,
         value: String
     ) -> String {
-        let valueLines = ExportTextFormatter.numberedAttendeeLines(from: value)
+        let valueLines = ExportTextFormatter.numberedAttendees(from: value).map(\.name)
 
         let labelParagraph = coverParagraphXML(
             text: ExportTextFormatter.rtlHeadingText("\(label):"),
@@ -198,18 +207,78 @@ final class DocxTemplateBuilder {
             alignment: "center"
         )
 
-        let valueParagraphs = valueLines.enumerated().map { index, line in
-            coverParagraphXML(
-                text: line,
-                fontSize: ExportTypography.Cover.attendeeItemDocxSize,
-                color: "111827",
-                spacingBefore: 0,
-                spacingAfter: index == valueLines.count - 1 ? 260 : 40,
-                alignment: "center"
-            )
-        }.joined()
+        let valueParagraphs = attendeesCoverNumberedListXML(lines: valueLines)
 
         return labelParagraph + valueParagraphs
+    }
+
+    private static func attendeesCoverNumberedListXML(lines: [String]) -> String {
+        guard !lines.isEmpty else { return "" }
+
+        let rows = lines.enumerated().map { index, line in
+            let spacingAfter = index == lines.count - 1
+                ? CoverAttendeesList.sectionSpacingAfterTwips
+                : CoverAttendeesList.rowSpacingAfterTwips
+            let escapedText = OpenXMLBuilder.escapeXML(line)
+            let bidiTag = AppLanguage.current == .hebrew ? "<w:bidi/>" : ""
+            let rtlTag = AppLanguage.current == .hebrew ? "<w:rtl/>" : ""
+
+            return """
+        <w:p>
+          <w:pPr>
+            <w:pStyle w:val="InspectorCoverAttendeeNumber"/>
+            <w:numPr>
+              <w:ilvl w:val="0"/>
+              <w:numId w:val="2"/>
+            </w:numPr>
+            \(bidiTag)
+            <w:spacing w:before="0" w:after="\(spacingAfter)"/>
+            <w:ind w:start="\(CoverAttendeesList.paragraphStartIndentTwips)" w:hanging="\(CoverAttendeesList.paragraphHangingIndentTwips)"/>
+            <w:jc w:val="start"/>
+          </w:pPr>
+          <w:r>
+            <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>\(rtlTag)<w:color w:val="111827"/><w:sz w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/><w:szCs w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/></w:rPr>
+            <w:t xml:space="preserve">\(escapedText)</w:t>
+          </w:r>
+        </w:p>
+"""
+        }.joined()
+
+        return """
+    <w:tbl>
+      <w:tblPr>
+        <w:tblW w:w="\(CoverAttendeesList.tableWidthTwips)" w:type="dxa"/>
+        <w:jc w:val="center"/>
+        <w:tblBorders>
+          <w:top w:val="nil"/>
+          <w:left w:val="nil"/>
+          <w:bottom w:val="nil"/>
+          <w:right w:val="nil"/>
+          <w:insideH w:val="nil"/>
+          <w:insideV w:val="nil"/>
+        </w:tblBorders>
+        <w:tblLayout w:type="fixed"/>
+        <w:tblCellMar>
+          <w:top w:w="0" w:type="dxa"/>
+          <w:left w:w="\(CoverAttendeesList.cellLeftMarginTwips)" w:type="dxa"/>
+          <w:bottom w:w="0" w:type="dxa"/>
+          <w:right w:w="\(CoverAttendeesList.cellRightMarginTwips)" w:type="dxa"/>
+        </w:tblCellMar>
+      </w:tblPr>
+      <w:tblGrid>
+        <w:gridCol w:w="\(CoverAttendeesList.tableWidthTwips)"/>
+      </w:tblGrid>
+      <w:tr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="\(CoverAttendeesList.tableWidthTwips)" w:type="dxa"/>
+            <w:vAlign w:val="top"/>
+          </w:tcPr>
+\(rows)
+        </w:tc>
+      </w:tr>
+    </w:tbl>
+"""
     }
 
     private static func coverParagraphXML(
@@ -443,6 +512,28 @@ final class DocxTemplateBuilder {
       <w:lang w:val="he-IL" w:bidi="he-IL"/>
     </w:rPr>
   </w:style>
+  <w:style w:type="paragraph" w:styleId="InspectorCoverAttendeeNumber">
+    <w:name w:val="Inspector Cover Attendee Number"/>
+    <w:basedOn w:val="Normal"/>
+    <w:pPr>
+      <w:numPr>
+        <w:ilvl w:val="0"/>
+        <w:numId w:val="2"/>
+      </w:numPr>
+      <w:bidi/>
+      <w:spacing w:after="40" w:line="240" w:lineRule="auto"/>
+      <w:ind w:start="\(CoverAttendeesList.paragraphStartIndentTwips)" w:hanging="\(CoverAttendeesList.paragraphHangingIndentTwips)"/>
+      <w:jc w:val="start"/>
+    </w:pPr>
+    <w:rPr>
+      <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
+      <w:color w:val="111827"/>
+      <w:sz w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/>
+      <w:szCs w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/>
+      <w:rtl/>
+      <w:lang w:val="he-IL" w:bidi="he-IL"/>
+    </w:rPr>
+  </w:style>
 </w:styles>
 """
     }
@@ -475,8 +566,35 @@ final class DocxTemplateBuilder {
       </w:rPr>
     </w:lvl>
   </w:abstractNum>
+  <w:abstractNum w:abstractNumId="2">
+    <w:multiLevelType w:val="singleLevel"/>
+    <w:lvl w:ilvl="0">
+      <w:start w:val="1"/>
+      <w:numFmt w:val="decimal"/>
+      <w:suff w:val="space"/>
+      <w:lvlText w:val="%1."/>
+      <w:lvlJc w:val="right"/>
+      <w:pPr>
+        <w:bidi/>
+        <w:spacing w:after="40" w:line="240" w:lineRule="auto"/>
+        <w:ind w:start="\(CoverAttendeesList.paragraphStartIndentTwips)" w:hanging="\(CoverAttendeesList.paragraphHangingIndentTwips)"/>
+        <w:jc w:val="start"/>
+      </w:pPr>
+      <w:rPr>
+        <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
+        <w:color w:val="111827"/>
+        <w:sz w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/>
+        <w:szCs w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/>
+        <w:rtl/>
+        <w:lang w:val="he-IL" w:bidi="he-IL"/>
+      </w:rPr>
+    </w:lvl>
+  </w:abstractNum>
   <w:num w:numId="1">
     <w:abstractNumId w:val="1"/>
+  </w:num>
+  <w:num w:numId="2">
+    <w:abstractNumId w:val="2"/>
   </w:num>
 </w:numbering>
 """

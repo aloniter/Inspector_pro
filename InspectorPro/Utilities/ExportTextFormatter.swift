@@ -1,6 +1,39 @@
 import Foundation
 
 enum ExportTextFormatter {
+    struct NumberedAttendee: Equatable {
+        let number: Int
+        let name: String
+
+        var numberText: String {
+            "\(number)"
+        }
+
+        var ltrMarkerText: String {
+            "\(number)."
+        }
+
+        var rtlMarkerText: String {
+            ltrMarkerText
+        }
+
+        var rtlEditableMarkerText: String {
+            ltrMarkerText
+        }
+
+        func markerText(isRTL: Bool) -> String {
+            isRTL ? rtlMarkerText : ltrMarkerText
+        }
+
+        func editableMarkerText(isRTL: Bool) -> String {
+            isRTL ? rtlEditableMarkerText : ltrMarkerText
+        }
+
+        var exportText: String {
+            "\(ltrMarkerText)\(ExportTextFormatter.bulletSeparator)\(name)"
+        }
+    }
+
     struct DescriptionLine: Equatable {
         struct TextRun: Equatable {
             let text: String
@@ -102,10 +135,15 @@ enum ExportTextFormatter {
     }
 
     static func numberedAttendeeLines(from text: String) -> [String] {
+        numberedAttendees(from: text)
+            .map(\.exportText)
+    }
+
+    static func numberedAttendees(from text: String) -> [NumberedAttendee] {
         normalizedNonEmptyLines(from: text)
             .enumerated()
             .map { index, line in
-                "\(rtlEmbeddingStart)\(index + 1).\(bulletSeparator)\(line)\(rtlEmbeddingEnd)"
+                NumberedAttendee(number: index + 1, name: line)
             }
     }
 
