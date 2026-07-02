@@ -12,6 +12,22 @@
 
 ---
 
+## Fix attendee marker consistency: replace Word auto-numbering and bidi tricks
+
+- [x] DOCX: replace `w:numPr` auto-numbering with a fixed 3-column table (name/spacer/marker), marker as literal text, no bidi/rtl tag on the marker
+- [x] PDF: draw the marker with plain LTR base direction always (the RTL toggle from the previous fix caused inconsistent rendering — some rows `.1`, others missing the dot)
+- [x] Remove now-dead `InspectorCoverAttendeeNumber` style and numId=2/abstractNumId=2 from styles.xml/numbering.xml
+- [x] Update tests for the new structure; verify via LibreOffice headless render + pdftoppm with 11-12 attendees including the user's exact requested list
+- [x] Investigate DOCX table centering (LibreOffice showed left-of-center offset); tried explicit `w:tblInd` and single-cell nesting — neither changed LibreOffice's rendered position; reverted to plain `w:jc="center"` (standard, Word-supported) and documented the LibreOffice-specific caveat
+- [x] Run full test suite, commit
+
+## Review
+
+- Root cause of the reported bug: the previous session's DOCX fix (`w:suff="tab"` + `w:numPr`) still let Word auto-number/indent the first item differently, and the PDF fix that drew the marker with RTL base direction was bidi-ambiguous for a digit-only string, rendering inconsistently row to row (`.1` vs missing dot) — exactly the "fragile bidi trick" the user flagged.
+- DOCX now uses a fixed borderless 3-column table per attendees block (name cell, thin spacer, marker cell with literal `"N."` text), no `w:numPr`, no bidi/rtl tag on the marker paragraph. PDF now always draws the marker with LTR base direction. Verified via LibreOffice headless conversion + pdftoppm with the user's exact 6-name list extended past 10, and with the 12-name mixed-length fixture: numbers align in one right column, names align in one left column, markers read `1.`/`2.`/`10.` consistently on every row, first row indentation matches all others.
+- Caveat found and documented: LibreOffice's headless PDF conversion renders the DOCX attendee table slightly left-of-center regardless of `w:jc="center"`, explicit `w:tblInd`, or single-cell-wrapper nesting (none changed the rendered position). `w:jc="center"` is the correct, standard, Word-supported property, so it was kept; real Microsoft Word must be checked directly, which this environment cannot do.
+- Tests: 84 passed, 0 failed on iPhone 16e / iOS 18.6 after a clean build.
+
 ## Attendee list Word consistency + photo editor polish
 
 - [x] DOCX: switch attendee numbering `w:suff` from space to tab so names align in one column at any marker width (10+, long names)

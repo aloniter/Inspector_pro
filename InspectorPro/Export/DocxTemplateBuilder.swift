@@ -4,11 +4,10 @@ import Foundation
 /// Used by DocxExporter to build the OpenXML structure.
 final class DocxTemplateBuilder {
     private enum CoverAttendeesList {
-        static let tableWidthTwips = 3_600
-        static let cellLeftMarginTwips = 0
-        static let cellRightMarginTwips = 320
-        static let paragraphStartIndentTwips = 900
-        static let paragraphHangingIndentTwips = 480
+        static let tableWidthTwips = 4_800
+        static let markerColumnWidthTwips = 680
+        static let spacerColumnWidthTwips = 160
+        static let nameColumnWidthTwips = tableWidthTwips - markerColumnWidthTwips - spacerColumnWidthTwips
         static let rowSpacingAfterTwips = 40
         static let sectionSpacingAfterTwips = 260
     }
@@ -195,7 +194,7 @@ final class DocxTemplateBuilder {
         label: String,
         value: String
     ) -> String {
-        let valueLines = ExportTextFormatter.numberedAttendees(from: value).map(\.name)
+        let attendees = ExportTextFormatter.numberedAttendees(from: value)
 
         let labelParagraph = coverParagraphXML(
             text: ExportTextFormatter.rtlHeadingText("\(label):"),
@@ -207,40 +206,65 @@ final class DocxTemplateBuilder {
             alignment: "center"
         )
 
-        let valueParagraphs = attendeesCoverNumberedListXML(lines: valueLines)
+        let valueTable = attendeesCoverFixedColumnTableXML(attendees: attendees)
 
-        return labelParagraph + valueParagraphs
+        return labelParagraph + valueTable
     }
 
-    private static func attendeesCoverNumberedListXML(lines: [String]) -> String {
-        guard !lines.isEmpty else { return "" }
+    /// Fixed three-column borderless table: name column (visual-left), a thin
+    /// spacer, and a literal-text marker column (visual-right). Deliberately
+    /// avoids Word auto-numbering (`w:numPr`) and paragraph `<w:bidi/>`
+    /// reordering for the marker — both proved unstable in real Word/PDF
+    /// rendering (inconsistent marker glyph order, mismatched first-row
+    /// indentation). Centered with the table's own standard `w:jc="center"`.
+    private static func attendeesCoverFixedColumnTableXML(
+        attendees: [ExportTextFormatter.NumberedAttendee]
+    ) -> String {
+        guard !attendees.isEmpty else { return "" }
 
-        let rows = lines.enumerated().map { index, line in
-            let spacingAfter = index == lines.count - 1
+        let rows = attendees.enumerated().map { index, attendee -> String in
+            let spacingAfter = index == attendees.count - 1
                 ? CoverAttendeesList.sectionSpacingAfterTwips
                 : CoverAttendeesList.rowSpacingAfterTwips
-            let escapedText = OpenXMLBuilder.escapeXML(line)
-            let bidiTag = AppLanguage.current == .hebrew ? "<w:bidi/>" : ""
-            let rtlTag = AppLanguage.current == .hebrew ? "<w:rtl/>" : ""
+            let nameText = OpenXMLBuilder.escapeXML(attendee.name)
+            let markerText = OpenXMLBuilder.escapeXML(attendee.ltrMarkerText)
 
             return """
-        <w:p>
-          <w:pPr>
-            <w:pStyle w:val="InspectorCoverAttendeeNumber"/>
-            <w:numPr>
-              <w:ilvl w:val="0"/>
-              <w:numId w:val="2"/>
-            </w:numPr>
-            \(bidiTag)
-            <w:spacing w:before="0" w:after="\(spacingAfter)"/>
-            <w:ind w:start="\(CoverAttendeesList.paragraphStartIndentTwips)" w:hanging="\(CoverAttendeesList.paragraphHangingIndentTwips)"/>
-            <w:jc w:val="start"/>
-          </w:pPr>
-          <w:r>
-            <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>\(rtlTag)<w:color w:val="111827"/><w:sz w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/><w:szCs w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/></w:rPr>
-            <w:t xml:space="preserve">\(escapedText)</w:t>
-          </w:r>
-        </w:p>
+        <w:tr>
+          <w:trPr><w:cantSplit/></w:trPr>
+          <w:tc>
+            <w:tcPr>
+              <w:tcW w:w="\(CoverAttendeesList.nameColumnWidthTwips)" w:type="dxa"/>
+              <w:vAlign w:val="center"/>
+            </w:tcPr>
+            <w:p>
+              <w:pPr><w:spacing w:before="0" w:after="\(spacingAfter)"/><w:jc w:val="left"/></w:pPr>
+              <w:r>
+                <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:rtl/><w:color w:val="111827"/><w:sz w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/><w:szCs w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/></w:rPr>
+                <w:t xml:space="preserve">\(nameText)</w:t>
+              </w:r>
+            </w:p>
+          </w:tc>
+          <w:tc>
+            <w:tcPr>
+              <w:tcW w:w="\(CoverAttendeesList.spacerColumnWidthTwips)" w:type="dxa"/>
+            </w:tcPr>
+            <w:p><w:pPr><w:spacing w:before="0" w:after="\(spacingAfter)"/></w:pPr></w:p>
+          </w:tc>
+          <w:tc>
+            <w:tcPr>
+              <w:tcW w:w="\(CoverAttendeesList.markerColumnWidthTwips)" w:type="dxa"/>
+              <w:vAlign w:val="center"/>
+            </w:tcPr>
+            <w:p>
+              <w:pPr><w:spacing w:before="0" w:after="\(spacingAfter)"/><w:jc w:val="right"/></w:pPr>
+              <w:r>
+                <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:color w:val="111827"/><w:sz w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/><w:szCs w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/></w:rPr>
+                <w:t xml:space="preserve">\(markerText)</w:t>
+              </w:r>
+            </w:p>
+          </w:tc>
+        </w:tr>
 """
         }.joined()
 
@@ -260,23 +284,17 @@ final class DocxTemplateBuilder {
         <w:tblLayout w:type="fixed"/>
         <w:tblCellMar>
           <w:top w:w="0" w:type="dxa"/>
-          <w:left w:w="\(CoverAttendeesList.cellLeftMarginTwips)" w:type="dxa"/>
+          <w:left w:w="0" w:type="dxa"/>
           <w:bottom w:w="0" w:type="dxa"/>
-          <w:right w:w="\(CoverAttendeesList.cellRightMarginTwips)" w:type="dxa"/>
+          <w:right w:w="0" w:type="dxa"/>
         </w:tblCellMar>
       </w:tblPr>
       <w:tblGrid>
-        <w:gridCol w:w="\(CoverAttendeesList.tableWidthTwips)"/>
+        <w:gridCol w:w="\(CoverAttendeesList.nameColumnWidthTwips)"/>
+        <w:gridCol w:w="\(CoverAttendeesList.spacerColumnWidthTwips)"/>
+        <w:gridCol w:w="\(CoverAttendeesList.markerColumnWidthTwips)"/>
       </w:tblGrid>
-      <w:tr>
-        <w:tc>
-          <w:tcPr>
-            <w:tcW w:w="\(CoverAttendeesList.tableWidthTwips)" w:type="dxa"/>
-            <w:vAlign w:val="top"/>
-          </w:tcPr>
 \(rows)
-        </w:tc>
-      </w:tr>
     </w:tbl>
 """
     }
@@ -512,24 +530,6 @@ final class DocxTemplateBuilder {
       <w:lang w:val="he-IL" w:bidi="he-IL"/>
     </w:rPr>
   </w:style>
-  <w:style w:type="paragraph" w:styleId="InspectorCoverAttendeeNumber">
-    <w:name w:val="Inspector Cover Attendee Number"/>
-    <w:basedOn w:val="Normal"/>
-    <w:pPr>
-      <w:bidi/>
-      <w:spacing w:after="40" w:line="240" w:lineRule="auto"/>
-      <w:ind w:start="\(CoverAttendeesList.paragraphStartIndentTwips)" w:hanging="\(CoverAttendeesList.paragraphHangingIndentTwips)"/>
-      <w:jc w:val="start"/>
-    </w:pPr>
-    <w:rPr>
-      <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
-      <w:color w:val="111827"/>
-      <w:sz w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/>
-      <w:szCs w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/>
-      <w:rtl/>
-      <w:lang w:val="he-IL" w:bidi="he-IL"/>
-    </w:rPr>
-  </w:style>
 </w:styles>
 """
     }
@@ -562,35 +562,8 @@ final class DocxTemplateBuilder {
       </w:rPr>
     </w:lvl>
   </w:abstractNum>
-  <w:abstractNum w:abstractNumId="2">
-    <w:multiLevelType w:val="singleLevel"/>
-    <w:lvl w:ilvl="0">
-      <w:start w:val="1"/>
-      <w:numFmt w:val="decimal"/>
-      <w:suff w:val="tab"/>
-      <w:lvlText w:val="%1."/>
-      <w:lvlJc w:val="right"/>
-      <w:pPr>
-        <w:bidi/>
-        <w:spacing w:after="40" w:line="240" w:lineRule="auto"/>
-        <w:ind w:start="\(CoverAttendeesList.paragraphStartIndentTwips)" w:hanging="\(CoverAttendeesList.paragraphHangingIndentTwips)"/>
-        <w:jc w:val="start"/>
-      </w:pPr>
-      <w:rPr>
-        <w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>
-        <w:color w:val="111827"/>
-        <w:sz w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/>
-        <w:szCs w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/>
-        <w:rtl/>
-        <w:lang w:val="he-IL" w:bidi="he-IL"/>
-      </w:rPr>
-    </w:lvl>
-  </w:abstractNum>
   <w:num w:numId="1">
     <w:abstractNumId w:val="1"/>
-  </w:num>
-  <w:num w:numId="2">
-    <w:abstractNumId w:val="2"/>
   </w:num>
 </w:numbering>
 """

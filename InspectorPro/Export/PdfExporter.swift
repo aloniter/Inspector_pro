@@ -298,13 +298,15 @@ final class PdfExporter {
         let isRTL = AppLanguage.current == .hebrew
         for (index, attendee) in attendees.enumerated() {
             let layout = rowLayouts[index]
-            // RTL base direction renders "1." with the digit rightmost and the
-            // dot toward the name — the native Hebrew Word list marker.
+            // Marker is plain Western digits + a period ("1.", "10."); always
+            // draw it with LTR base direction so the glyph order is stable.
+            // An RTL base direction on a digit-only string is bidi-ambiguous
+            // and rendered inconsistently between rows in real testing.
             drawPlainText(
                 attendee.ltrMarkerText,
                 in: layout.markerRect,
                 font: attendeeFont,
-                baseWritingDirection: isRTL ? .rightToLeft : .leftToRight,
+                baseWritingDirection: .leftToRight,
                 alignment: .right,
                 color: valueColor
             )
