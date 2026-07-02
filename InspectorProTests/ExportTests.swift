@@ -194,6 +194,78 @@ private func pixelRGBA(in image: UIImage, at point: CGPoint) -> (red: UInt8, gre
     #expect(first.data == second.data)
 }
 
+private func makeScaleOneImage(width: CGFloat, height: CGFloat) throws -> UIImage {
+    let format = UIGraphicsImageRendererFormat.default()
+    format.scale = 1
+    let size = CGSize(width: width, height: height)
+    let rendered = UIGraphicsImageRenderer(size: size, format: format).image { context in
+        UIColor.systemTeal.setFill()
+        context.fill(CGRect(origin: .zero, size: size))
+        UIColor.systemRed.setFill()
+        context.fill(CGRect(x: width * 0.25, y: height * 0.25, width: width * 0.5, height: height * 0.5))
+    }
+    // Round-trip through JPEG so the image matches real import inputs (scale 1).
+    let data = try #require(rendered.jpegDataStripped(quality: 0.9))
+    return try #require(UIImage(data: data))
+}
+
+@Test func resizedCapsExactPixelWidthWithoutScreenScaleInflation() throws {
+    let source = try makeScaleOneImage(width: 400, height: 300)
+
+    let resized = source.resized(maxWidth: 100)
+    let cgImage = try #require(resized.cgImage)
+    #expect(cgImage.width == 100)
+    #expect(cgImage.height == 75)
+
+    let untouched = source.resized(maxWidth: 800)
+    let untouchedCG = try #require(untouched.cgImage)
+    #expect(untouchedCG.width == 400)
+    #expect(untouchedCG.height == 300)
+}
+
+@Test func annotationRendererPreservesBaseImagePixelSize() throws {
+    let base = try makeScaleOneImage(width: 220, height: 160)
+    let stroke = AnnotationElement(
+        tool: .freehand,
+        color: .systemRed,
+        lineWidthRatio: 0.01,
+        points: [CGPoint(x: 0.2, y: 0.2), CGPoint(x: 0.8, y: 0.8)]
+    )
+
+    let composite = AnnotationImageRenderer.render(baseImage: base, annotations: [stroke])
+    let cgImage = try #require(composite.cgImage)
+    #expect(cgImage.width == 220)
+    #expect(cgImage.height == 160)
+}
+
+@Test func annotatedImageStorageMatchesImportLimits() async throws {
+    #expect(AppConstants.annotatedImageJPEGQuality <= AppConstants.importJPEGQuality)
+
+    FileManagerService.shared.ensureDirectoriesExist()
+    let projectID = "tests-annotated-cap-\(UUID().uuidString)"
+    defer {
+        FileManagerService.shared.deleteItem(
+            at: AppConstants.imagesBaseURL.appendingPathComponent(projectID)
+        )
+    }
+
+    // Legacy originals could be stored wider than importMaxWidth; annotating
+    // one must not persist an oversized composite.
+    let oversized = try makeScaleOneImage(width: 3000, height: 1500)
+    let annotatedPath = try await ImageStorageService.shared.saveAnnotatedImage(
+        oversized,
+        projectID: projectID,
+        originalUUID: "sample"
+    )
+
+    let savedURL = AppConstants.imagesBaseURL.appendingPathComponent(annotatedPath)
+    let savedData = try Data(contentsOf: savedURL)
+    let savedImage = try #require(UIImage(data: savedData))
+    let savedCG = try #require(savedImage.cgImage)
+    #expect(savedCG.width == Int(AppConstants.importMaxWidth))
+    #expect(savedCG.height == Int(AppConstants.importMaxWidth) / 2)
+}
+
 @Test func reportSortedPhotosUsesManualPosition() {
     let earlyDate = Date(timeIntervalSince1970: 1_000)
     let lateDate = Date(timeIntervalSince1970: 2_000)

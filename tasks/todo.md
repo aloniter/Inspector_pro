@@ -12,6 +12,155 @@
 
 ---
 
+## Release hardening: export RTL, photo storage, regression protection
+
+Plan (branch `fable/release-hardening-export-rtl-storage`):
+
+- [x] Commit the already-verified attendees fixed-alignment export work as the baseline commit (it implements the attendees/numbering priority; 81 tests passed in its verification run)
+- [x] Fix `UIImage.resized(maxWidth:)` rendering at screen scale (3× on device): imports save up to 6000px JPEGs instead of ≤2000px, which is the root cause of oversized originals and 10MB+ annotated copies
+- [x] Cap annotated composite saves at `importMaxWidth` and save them at the same JPEG quality as originals (0.85 instead of 0.92)
+- [x] Add regression tests: `resized` produces exact pixel widths, annotation renderer preserves pixel size, annotated saves never exceed the import width cap
+- [x] Audit findings (no code change needed): export photo full-cell stretch is intentional per lessons; exports purged at launch; account deletion via support mailto exists; DOCX temp dirs cleaned via defer
+- [x] Run full test suite + build; document results
+
+## Review
+
+- Root cause of storage growth: `UIGraphicsImageRenderer(size:)` defaults to screen scale, so `resized(maxWidth: 2000)` produced 6000px bitmaps on 3× devices. Imports were *upscaling* 4032px camera photos to 6000px JPEGs, and annotating one photo re-encoded those inflated pixels at quality 0.92, producing 10MB+ derived files. Fixed by rendering `resized` at `format.scale = 1`.
+- Annotated composites now cap at `importMaxWidth` (2000px) and save at `annotatedImageJPEGQuality` (0.85, same as originals), so annotating a legacy oversized original also shrinks rather than balloons. Original files are never touched; composites are regenerated on each save, so no data loss is possible.
+- Export behavior unchanged by design: the byte-budget loop in `ImageCompressor` already clamped export payloads, and no test pins absolute pixel dimensions. Full-cell no-crop stretch in report tables kept as-is (explicit user preference per lessons).
+- New regression tests: exact pixel width from `resized` (catches screen-scale inflation), annotation renderer preserving base pixel size, and an `ImageStorageService` round-trip asserting annotated saves decode at ≤2000px.
+- Verification: `xcodebuild test` on iPhone 16 / iOS 18.6 — 84 tests, 0 failures (81 baseline + 3 new).
+
+## Fine tune attendees under heading
+
+- [x] Keep app attendees editor unchanged
+- [x] Nudge DOCX attendee list content slightly left under `נוכחים:`
+- [x] Apply matching PDF attendee block nudge
+- [x] Update focused tests and lessons
+- [x] Run verification
+
+## Review
+
+- App editor: unchanged.
+- DOCX: kept the centered attendee container and real Word numbering, but added a small right cell margin (`320` twips) so the list content moves slightly visual-left and sits better under `נוכחים:`.
+- PDF: added the same visual intent with a `14pt` left nudge for the measured attendee block.
+- Tests: XcodeBuildMCP `test_sim` passed on iPhone 16 / iOS 18.6 with 81 passed, 0 failed, 0 skipped.
+
+## Fix visible report attendee numbering
+
+- [x] Keep the app attendees editor unchanged as plain right-aligned names
+- [x] Fix exported DOCX attendees so Word visibly shows `1. שם`, not clipped dots
+- [x] Keep exported PDF attendee markers visually as `1. שם`
+- [x] Update tests/lessons for Word RTL list marker clipping
+- [x] Run verification
+
+## Review
+
+- App editor: unchanged from the previous fix; it remains plain right-aligned attendee names with no visible numbering.
+- DOCX: kept real Word numbering, but widened the centered attendee list container from 2200 to 2800 twips and increased the RTL numbering gutter to `w:start="900"` / `w:hanging="480"` so Word has room to render the digit plus dot instead of clipping the digit and showing only dots.
+- PDF: unchanged; it already draws an explicit visible marker such as `1.` next to the attendee name inside the compact centered block.
+- Tests: XcodeBuildMCP `test_sim` passed on iPhone 16 / iOS 18.6 with 81 passed, 0 failed, 0 skipped.
+
+## Attendees under heading with DOCX auto-numbering
+
+- [x] Remove visual numbering from the in-app attendees editor
+- [x] Keep app attendees as simple right-aligned newline-separated names
+- [x] Export DOCX attendees as a real Word numbered list so Enter continues numbering
+- [x] Position DOCX/PDF attendee list under the `נוכחים:` heading, not at the page edge
+- [x] Update tests, lessons, and run verification
+
+## Review
+
+- App editor: removed the custom visual numbering overlay. The report attendees field now uses a plain right-aligned RTL multiline editor, so the app shows only names line-by-line.
+- PDF: cover attendees still render numbered, but the measured marker/name rows are centered as one compact block under `נוכחים:` instead of being pushed to the page edge.
+- DOCX: cover attendees export as editable Word numbered paragraphs using `w:numPr`/`numId=2`; the attendee text runs contain only names, not manual `1.` strings. The numbered paragraphs sit inside a borderless one-cell centered container, with no tabs, no positioned table, and no old two-column grid.
+- Tests: XcodeBuildMCP `test_sim` passed on iPhone 16 / iOS 18.6 with 81 passed, 0 failed, 0 skipped.
+
+## Force attendees visual-right anchoring
+
+- [x] Force the report attendees editor to use local RTL/right anchoring regardless of environment layout direction
+- [x] Keep the attendee number and name compact in one visual row
+- [x] Anchor PDF attendees to the right side of the cover content area
+- [x] Anchor DOCX attendees to the right side as editable text, without two marker/name columns
+- [x] Update tests, lessons, and run verification
+
+## Review
+
+- App editor: forced the attendees editor to local RTL/right anchoring and changed marker drawing so the marker is measured next to the right-aligned name, not drawn from the left side of the card.
+- PDF: attendees are drawn row-by-row, with each name anchored to the right edge and its number placed immediately beside it.
+- DOCX: attendees now export in a borderless one-column right-aligned table. Each row remains one editable text line such as `1. שלום`; there are no marker/name columns, no tabs, and no positioned table.
+- Tests: XcodeBuildMCP `test_sim` passed on iPhone 16 / iOS 18.6 with 81 passed, 0 failed, 0 skipped.
+
+## Compact RTL attendees across app, PDF, and DOCX
+
+- [x] Replace the report attendees editor split-column layout with a compact RTL list
+- [x] Keep attendee storage newline-based and avoid persisting generated numbers
+- [x] Render PDF attendees as right-aligned single-line list items, not separate marker/name rectangles
+- [x] Render DOCX attendees as editable RTL paragraphs, not a positioned marker/name table or tabs
+- [x] Update focused tests for compact attendees and no split-column DOCX XML
+- [x] Build/run tests and document review results
+
+## Review
+
+- App editor: replaced the wide fixed marker/name column view with a compact numbered gutter inside the same multiline text editor. The saved `report.attendees` value remains newline-separated names only; generated numbers are still visual-only.
+- PDF: cover attendees now render as one right-aligned text block where each attendee line is one compact string such as `1. אלון`, not separate marker/name rectangles.
+- DOCX: cover attendees now export as normal editable RTL paragraphs, one attendee per paragraph, with no attendee positioned table, fixed grid columns, tabs, or image conversion.
+- Tests: XcodeBuildMCP `test_sim` passed on iPhone 16 / iOS 18.6 with 80 passed, 0 failed, 0 skipped.
+
+## Fixed-column attendees across app, PDF, and DOCX
+
+- [x] Replace the report attendees editor display with fixed visual columns for marker and name
+- [x] Keep Return/newline storage behavior unchanged
+- [x] Keep PDF cover attendees on fixed marker/name columns, including 10+ attendee markers
+- [x] Change DOCX cover attendees to a borderless fixed-width table instead of centered text lines
+- [x] Verify app, PDF render, DOCX render/XML, and update lessons
+
+## Review
+
+- App editor: replaced the attendees editor rendering with a fixed two-column UIKit-backed view. The stored text is still only newline-separated attendee names; the visual markers are drawn in a separate right-side marker column, and the name text view sits in a fixed column to its left. Return still adds a new attendee row.
+- App visual verification: on iPhone 16 / iOS 18.6, typed short and longer Hebrew names through the on-screen Hebrew keyboard and captured `/var/folders/xf/8h1_qd0x159_l7v8kj6dxpk40000gn/T/screenshot_optimized_2315a2fa-dac1-4215-af41-a35d99aeefcd.jpg`. The number column stays on the visual right and the names start in the left column.
+- PDF: cover-page attendees now render row-by-row with measured fixed rectangles: one marker rect and one name rect. The list remains centered as a block, but individual name length no longer changes the marker x-position. The test data covers 12 attendees, including `.10`, `.11`, and `.12`.
+- PDF visual verification: rendered `/Users/aloniter/Projects/InspectorPro/tmp/pdfs/generated/attendees-fixed-columns-sample.pdf` to `/Users/aloniter/Projects/InspectorPro/tmp/pdfs/generated/attendees-fixed-columns-sample-page1.png`; markers `.1` through `.12` align in one visual-right column with names in a separate fixed column.
+- DOCX: cover-page attendees now export as a real borderless fixed-width Word table. The grid is a wide editable name column plus a narrow marker column on the visual right, with no visible borders and no image conversion.
+- DOCX visual/XML verification: rendered `/Users/aloniter/Projects/InspectorPro/tmp/docs/generated/attendees-fixed-columns-sample.docx` with Quick Look to `/Users/aloniter/Projects/InspectorPro/tmp/docs/generated/attendees-fixed-columns-sample.docx.png` and inspected `/Users/aloniter/Projects/InspectorPro/tmp/docs/generated/attendees-fixed-columns-documentxml-snippet.txt`; the snippet has fixed `w:tblGrid` widths `2760` and `480`, positioned table x `3532`, separate editable name/marker cells, and marker rows including `.1` and `.10`.
+- Tests: XcodeBuildMCP `test_sim` passed on iPhone 16 / iOS 18.6 with 81 passed, 0 failed, 0 skipped.
+
+## PDF cover attendee number column alignment
+
+- [x] Draw PDF cover attendees with a fixed number column and fixed name column
+- [x] Keep the attendees block centered under the `נוכחים:` heading
+- [x] Verify DOCX cover attendee markers stay editable and render with RTL dot placement
+- [x] Run tests and visually verify the rendered PDF cover page
+- [x] Document review results
+
+## Review
+
+- Reworked PDF cover attendee rendering so the list is centered as a block, but each row uses a fixed number column and a fixed attendee-name column. Short names such as `היי` no longer shift `2.` horizontally.
+- Corrected the fixed-column order back to Hebrew RTL: the number column is on the visual right and the attendee-name column is to its left.
+- Added structured `ExportTextFormatter.NumberedAttendee` data while preserving `numberedAttendeeLines(from:)` for DOCX/current text-based callers, with the DOCX marker emitted as an editable text run that renders visually as `.1`, `.2`, etc. in RTL.
+- Added focused tests for structured attendee formatting, fixed RTL PDF row column geometry, generating a cover PDF with `שלום\nהיי\nאלון\nיובל`, and generating a DOCX cover whose XML contains editable RTL attendee markers.
+- Captured the correction in `tasks/lessons.md` so future centered numbered lists do not rely on per-line centering.
+- Verification: XcodeBuildMCP `test_sim` passed on iPhone 16 / iOS 18.6 with 81 passed, 0 failed, 0 skipped. Re-ran with `KEEP_ATTENDEE_ALIGNMENT_PDF=1` and `KEEP_ATTENDEE_ALIGNMENT_DOCX=1` to retain visual samples.
+- Visual verification: rendered `tmp/pdfs/generated/attendees-alignment-sample.pdf` to `tmp/pdfs/generated/attendees-alignment-sample-page1.png` with `pdftoppm`; the rendered PNG shows `.1`, `.2`, `.3`, and `.4` in one aligned visual-right number column.
+- DOCX verification: generated `tmp/docs/generated/attendees-alignment-sample.docx`, rendered a Quick Look thumbnail at `tmp/docs/generated/attendees-alignment-sample.docx.png`, and inspected `word/document.xml`; attendee lines are editable text values such as `‫1‬. שלום`, which render visually as `שלום .1`.
+
+## Report attendees multiline input
+
+- [x] Replace the single-line report attendees field with a multiline RTL input
+- [x] Preserve visual-right placeholder/value alignment in Hebrew
+- [x] Keep export storage as newline-separated attendees so PDF/DOCX numbering stays unchanged
+- [x] Build, run tests, and inspect the Hebrew edit-report screen
+- [x] Document review results
+
+## Review
+
+- Replaced the report attendees `DirectionalTextField` with a dedicated multiline `ReportAttendeesEditor` backed by `DirectionalTextEditor`, so Return creates a new attendee line instead of behaving like a single-line field.
+- Added explicit alignment support to `DirectionalTextEditor` and used `.right` for attendees, preserving Hebrew visual-right text/placeholder alignment and keeping the clear button on the visual left.
+- Export storage remains the same newline-separated `report.attendees` string; PDF/DOCX numbering behavior was not changed.
+- Verification: XcodeBuildMCP `test_sim` passed on iPhone 16 / iOS 18.6 with 78 passed, 0 failed, 0 skipped.
+- Runtime: XcodeBuildMCP build/run succeeded on iPhone 16 / iOS 18.6. Edit-report screenshot confirmed existing attendee text is visually right-aligned with clear button on the left: `/var/folders/xf/8h1_qd0x159_l7v8kj6dxpk40000gn/T/screenshot_optimized_5cc4e378-d9ca-4cf5-b1eb-d7a9c7caa27b.jpg`.
+- Runtime: after clearing the field, typing one character, pressing Return, and typing another character, screenshot confirmed two separate visual-right lines: `/var/folders/xf/8h1_qd0x159_l7v8kj6dxpk40000gn/T/screenshot_optimized_9f7ce51b-9842-45d2-babf-21b9dd653d7f.jpg`. The test edit was canceled without saving.
+
 ## Photo editor preview visual polish
 
 - [x] Polish photo detail preview card without changing fit, scroll, annotation, save, or export behavior

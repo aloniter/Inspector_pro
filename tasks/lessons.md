@@ -1,5 +1,20 @@
 # Lessons Learned
 
+## UIGraphicsImageRenderer defaults to screen scale — pixel caps silently triple
+- `UIGraphicsImageRenderer(size:)` with the default format renders at the main screen scale (3× on modern iPhones). Any "resize to N px" helper built on it actually produces 3N-pixel bitmaps, so imports were storing up to 6000px JPEGs (upscaled from 4032px camera photos) and annotated composites ballooned storage by 10MB+ per photo.
+- When a renderer output feeds `jpegData`/disk storage or a pixel budget, always set `format.scale = 1` explicitly (`AnnotationImageRenderer` already did this via `baseImage.scale`).
+- Derived images (annotated composites) must never be stored heavier than their source: cap them to `importMaxWidth` and use a JPEG quality ≤ the original's, since they are regenerated on every save.
+- Verification rule: assert `resized(maxWidth:)` output `cgImage.width` equals the requested pixel width exactly, and that a saved annotated composite of an oversized source decodes at `importMaxWidth`.
+
+## Attendees app input and report export intentionally differ
+- In the app report editor, keep `נוכחים` as plain newline-separated Hebrew names, visually right-aligned, with no visible generated numbers. The user explicitly preferred removing in-app numbers because the editor numbering kept creating visual and editing problems.
+- In exported PDF/DOCX, keep numbering, but the numbered block must sit under the centered `נוכחים:` heading rather than at the page edge.
+- DOCX attendees must use real Word numbering (`w:numPr`) so pressing Enter while editing continues the numbering automatically. Do not type manual `1.`/`2.` text into the attendee runs, and do not use tabs, giant spacing, positioned tables, or marker/name split columns.
+- A one-cell borderless DOCX table is acceptable only as a local container to center the editable numbered list under the heading; the attendee paragraphs inside it still need real Word list semantics.
+- Word can clip RTL decimal list markers when `w:start - w:hanging` is too small; this renders as dots without digits even though `w:numPr` is present. Reserve enough marker gutter for visible values like `1.`, `10.`, etc.
+- After the marker gutter is wide enough, the numbered block may still sit a little too far visual-right under the centered `נוכחים:` heading. Use a small internal right margin/visual-left offset to place the list professionally under the heading without changing the numbering semantics.
+- Verification rule: assert DOCX attendee XML has the attendee names as editable text, has `w:numId` for the cover attendee list, reserves a wide enough list marker indent, has the small right cell margin that nudges content left, has no manual numbered attendee strings, no `w:tab`, no `w:tblpPr`, and no old two-column attendee grid.
+
 ## Authenticated UI QA should use the provided test account
 - When simulator visual verification is blocked by the login screen, use the user-provided app test account from the current chat/session instead of stopping at unauthenticated launch.
 - Do not write credentials, passwords, emails, or tokens into tracked repo files, task notes, screenshots, or logs.
@@ -19,7 +34,12 @@
 ## Centered cover-page sections must stay centered in actual export alignment
 - When a user asks for typography-only changes on a stacked cover-page section, do not reinterpret alignment even if the text is RTL.
 - Reason: changing `w:jc` or PDF paragraph alignment from `center` to `right` can move the whole Hebrew block to the visual side in Word/PDF, even when the text direction itself remains correct.
-- Verification rule: for `נוכחים` cover-page changes, assert the generated DOCX paragraph uses `w:jc w:val="center"` for both the heading and numbered attendee lines, and visually compare against the user-provided Word screenshot when available.
+- Verification rule: for simple paragraph-based cover sections, assert centered paragraph alignment and visually compare against the user-provided Word/PDF screenshot when available. For `נוכחים`, keep the list block visually centered under its heading while preserving compact RTL list semantics.
+
+## Fixed-column attendees were rejected for this flow
+- Do not reintroduce the old fixed marker/name column layout for report attendees in the app or on the cover page. The user rejected it because it still looked visually detached from the `נוכחים:` heading and made app editing feel strange.
+- The current intended behavior is: app editor shows names only; PDF uses a compact centered numbered block; DOCX uses editable auto-numbered paragraphs in a centered one-cell container.
+- Verification rule: if a later fix touches attendees again, compare against the latest correction first, not the earlier fixed-column attempts.
 
 ## SwiftData versioned schemas are immutable once used
 - Do not add or remove fields inside an existing versioned schema after it has been used to create a store, even during the same feature branch.

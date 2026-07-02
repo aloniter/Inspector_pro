@@ -9,6 +9,9 @@ enum AppConstants {
     static let thumbnailMaxSize: CGFloat = 200
     static let thumbnailJPEGQuality: CGFloat = 0.6
     static let importMaxWidth: CGFloat = 2000
+    static let importJPEGQuality: CGFloat = 0.85
+    /// Annotated composites are derived images; keep them no heavier than originals.
+    static let annotatedImageJPEGQuality: CGFloat = 0.85
     static let brandingLogoMaxSize: CGFloat = 1200
     static let brandingLogoJPEGQuality: CGFloat = 0.85
     static let gallerySelectionLimit = 500

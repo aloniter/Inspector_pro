@@ -1,7 +1,9 @@
 import UIKit
 
 extension UIImage {
-    /// Resize image to fit within maxWidth while preserving aspect ratio
+    /// Resize image to fit within maxWidth while preserving aspect ratio.
+    /// Renders at scale 1 so maxWidth is an exact pixel cap; the default
+    /// renderer format uses the screen scale, which tripled stored pixels.
     func resized(maxWidth: CGFloat) -> UIImage {
         let currentWidth = size.width
         guard currentWidth > maxWidth else { return self }
@@ -12,7 +14,9 @@ extension UIImage {
             height: size.height * scale
         )
 
-        let renderer = UIGraphicsImageRenderer(size: newSize)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
         return renderer.image { _ in
             draw(in: CGRect(origin: .zero, size: newSize))
         }

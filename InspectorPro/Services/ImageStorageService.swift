@@ -18,7 +18,7 @@ actor ImageStorageService {
 
         // Save original (resized to max import width)
         let resized = image.resized(maxWidth: AppConstants.importMaxWidth)
-        guard let imageData = resized.jpegDataStripped(quality: 0.85) else {
+        guard let imageData = resized.jpegDataStripped(quality: AppConstants.importJPEGQuality) else {
             throw ImageStorageError.compressionFailed
         }
         let imageName = "\(uuid).jpg"
@@ -39,7 +39,10 @@ actor ImageStorageService {
         let dirURL = baseURL.appendingPathComponent(dirRelative)
         FileManagerService.shared.ensureDirectoryExists(at: dirURL)
 
-        guard let data = image.jpegDataStripped(quality: 0.92) else {
+        // Cap dimensions like imports so annotated copies of legacy oversized
+        // originals cannot balloon storage.
+        let resized = image.resized(maxWidth: AppConstants.importMaxWidth)
+        guard let data = resized.jpegDataStripped(quality: AppConstants.annotatedImageJPEGQuality) else {
             throw ImageStorageError.compressionFailed
         }
         let annotatedName = "ann_\(originalUUID).jpg"
