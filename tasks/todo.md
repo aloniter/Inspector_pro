@@ -12,6 +12,25 @@
 
 ---
 
+## Fix attendee marker dot orientation and name/marker gap (real Word + PDF feedback)
+
+- [x] PDF: split marker into separately-positioned digit (outer/margin edge) and period (toward name) draws — a single right-aligned "N." string put the period at the margin, backwards
+- [x] DOCX: rebuild attendee row as 4 fixed columns (digit, period, spacer, name) with explicit `<w:bidiVisual/>` so column order is deterministic — omitting it caused a silent full column reversal once a 4th column was added
+- [x] DOCX: right-align the name paragraph (was left-aligned) so short names hug the marker instead of leaving a large dead gap
+- [x] Diagnosed and fixed an unrelated infra issue: `xcodebuild test` silently installed a stale binary onto the simulator despite reporting success; fixed by using an explicit `-derivedDataPath`
+- [x] Verify via pixel measurement (not eyeballing) on rendered PDF and LibreOffice-converted DOCX
+- [x] Run full test suite, commit
+
+## Review
+
+- Root cause (both PDF and DOCX): a marker rendered as one "N." string, right-aligned, puts its LAST character (the period, since digits+period are inherently LTR) at the outer edge and the digit inward — backwards for a Hebrew reader. Confirmed by the user's own real PDF and Word screenshot.
+- PDF: digit and period are now drawn as two separate rects, digit flush at the marker column's outer edge, period immediately to its left.
+- DOCX: attendee rows now use 4 fixed columns (digit/period/spacer/name) with `<w:bidiVisual/>` explicitly declaring RTL column order — verified necessary after discovering the 3-column table's implicit column order silently reversed once a 4th column was added in the same renderer.
+- Gap fix: name paragraph alignment changed from left to right, so short names sit adjacent to the marker instead of floating at the far side of a wide fixed column.
+- Verified via pixel-level cluster analysis (PIL/numpy) on rendered PNGs, not visual inspection alone, after an initial round of debugging showed a false negative caused by a stale simulator-installed binary (xcodebuild reported success but skipped reinstalling the updated app — traced via `nm` on the installed dylib, fixed with an explicit `-derivedDataPath`).
+- Tests: 84 passed, 0 failed on iPhone 16e / iOS 18.6, clean derived-data build.
+- LibreOffice's DOCX render still shows a visible gap between name and marker that I could not conclusively attribute to the XML vs. a LibreOffice-specific rendering quirk (LibreOffice has shown multiple quirks this session unrelated to the actual XML — stale left-anchoring, full column reversal). The underlying alignment/column XML is verified correct by direct inspection; real Word confirmation is needed for final sign-off.
+
 ## Fix attendee marker consistency: replace Word auto-numbering and bidi tricks
 
 - [x] DOCX: replace `w:numPr` auto-numbering with a fixed 3-column table (name/spacer/marker), marker as literal text, no bidi/rtl tag on the marker

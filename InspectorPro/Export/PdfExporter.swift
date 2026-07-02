@@ -298,16 +298,11 @@ final class PdfExporter {
         let isRTL = AppLanguage.current == .hebrew
         for (index, attendee) in attendees.enumerated() {
             let layout = rowLayouts[index]
-            // Marker is plain Western digits + a period ("1.", "10."); always
-            // draw it with LTR base direction so the glyph order is stable.
-            // An RTL base direction on a digit-only string is bidi-ambiguous
-            // and rendered inconsistently between rows in real testing.
-            drawPlainText(
-                attendee.ltrMarkerText,
+            drawAttendeeMarker(
+                attendee,
                 in: layout.markerRect,
                 font: attendeeFont,
-                baseWritingDirection: .leftToRight,
-                alignment: .right,
+                isRTL: isRTL,
                 color: valueColor
             )
             drawPlainText(
@@ -620,6 +615,66 @@ final class PdfExporter {
             )
             return AttendeeCoverRowLayout(markerRect: markerRect, nameRect: nameRect)
         }
+    }
+
+    /// Draws the attendee marker as two separately-positioned pieces: the
+    /// digits flush against the outer (RTL: right) edge of `rect`, and the
+    /// period immediately beside them, toward the name. A single "1." string
+    /// drawn right-aligned in one pass puts the period — its last LTR
+    /// character — at the outer edge instead, which reads backwards next to
+    /// Hebrew text. Both pieces are plain Western characters, so no bidi
+    /// direction is needed for either.
+    private static func drawAttendeeMarker(
+        _ attendee: ExportTextFormatter.NumberedAttendee,
+        in rect: CGRect,
+        font: UIFont,
+        isRTL: Bool,
+        color: UIColor
+    ) {
+        guard isRTL else {
+            drawPlainText(
+                attendee.ltrMarkerText,
+                in: rect,
+                font: font,
+                baseWritingDirection: .leftToRight,
+                alignment: .left,
+                color: color
+            )
+            return
+        }
+
+        let digitWidth = textWidth(attendee.numberText, font: font)
+        let dotWidth = textWidth(".", font: font)
+
+        let digitRect = CGRect(
+            x: rect.maxX - digitWidth,
+            y: rect.minY,
+            width: digitWidth,
+            height: rect.height
+        )
+        let dotRect = CGRect(
+            x: digitRect.minX - dotWidth,
+            y: rect.minY,
+            width: dotWidth,
+            height: rect.height
+        )
+
+        drawPlainText(
+            attendee.numberText,
+            in: digitRect,
+            font: font,
+            baseWritingDirection: .leftToRight,
+            alignment: .right,
+            color: color
+        )
+        drawPlainText(
+            ".",
+            in: dotRect,
+            font: font,
+            baseWritingDirection: .leftToRight,
+            alignment: .right,
+            color: color
+        )
     }
 
     private static func drawPlainText(

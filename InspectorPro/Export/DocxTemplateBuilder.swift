@@ -5,9 +5,10 @@ import Foundation
 final class DocxTemplateBuilder {
     private enum CoverAttendeesList {
         static let tableWidthTwips = 4_800
-        static let markerColumnWidthTwips = 680
+        static let dotColumnWidthTwips = 200
+        static let digitColumnWidthTwips = 480
         static let spacerColumnWidthTwips = 160
-        static let nameColumnWidthTwips = tableWidthTwips - markerColumnWidthTwips - spacerColumnWidthTwips
+        static let nameColumnWidthTwips = tableWidthTwips - dotColumnWidthTwips - digitColumnWidthTwips - spacerColumnWidthTwips
         static let rowSpacingAfterTwips = 40
         static let sectionSpacingAfterTwips = 260
     }
@@ -211,12 +212,23 @@ final class DocxTemplateBuilder {
         return labelParagraph + valueTable
     }
 
-    /// Fixed three-column borderless table: name column (visual-left), a thin
-    /// spacer, and a literal-text marker column (visual-right). Deliberately
-    /// avoids Word auto-numbering (`w:numPr`) and paragraph `<w:bidi/>`
-    /// reordering for the marker — both proved unstable in real Word/PDF
-    /// rendering (inconsistent marker glyph order, mismatched first-row
-    /// indentation). Centered with the table's own standard `w:jc="center"`.
+    /// Fixed four-column borderless table with explicit `w:bidiVisual` RTL
+    /// column order: digit column (visual-right, flush against the outer
+    /// margin), a period column, a thin spacer, and the name column
+    /// (visual-left, text hugging the marker so short names don't leave a
+    /// large dead gap). Columns are declared digit-first because
+    /// `w:bidiVisual` renders the first `<w:gridCol>`/`<w:tc>` as the
+    /// rightmost — relying on the *absence* of bidiVisual and hoping a
+    /// renderer's implicit default matches proved inconsistent between
+    /// LibreOffice and this renderer's own 3-vs-4-column layouts, so the
+    /// order is stated explicitly instead. Deliberately avoids Word
+    /// auto-numbering (`w:numPr`) and paragraph `<w:bidi/>` reordering for
+    /// the marker text itself — both proved unstable in real Word/PDF
+    /// rendering (inconsistent glyph order, mismatched first-row
+    /// indentation). The digit and period are separate cells, not one "N."
+    /// string, because a single right-aligned LTR string puts the period —
+    /// its last character — at the outer edge, which reads backwards next to
+    /// Hebrew text. Centered with `w:jc="center"`.
     private static func attendeesCoverFixedColumnTableXML(
         attendees: [ExportTextFormatter.NumberedAttendee]
     ) -> String {
@@ -227,21 +239,34 @@ final class DocxTemplateBuilder {
                 ? CoverAttendeesList.sectionSpacingAfterTwips
                 : CoverAttendeesList.rowSpacingAfterTwips
             let nameText = OpenXMLBuilder.escapeXML(attendee.name)
-            let markerText = OpenXMLBuilder.escapeXML(attendee.ltrMarkerText)
+            let digitText = OpenXMLBuilder.escapeXML(attendee.numberText)
 
             return """
         <w:tr>
           <w:trPr><w:cantSplit/></w:trPr>
           <w:tc>
             <w:tcPr>
-              <w:tcW w:w="\(CoverAttendeesList.nameColumnWidthTwips)" w:type="dxa"/>
+              <w:tcW w:w="\(CoverAttendeesList.digitColumnWidthTwips)" w:type="dxa"/>
               <w:vAlign w:val="center"/>
             </w:tcPr>
             <w:p>
-              <w:pPr><w:spacing w:before="0" w:after="\(spacingAfter)"/><w:jc w:val="left"/></w:pPr>
+              <w:pPr><w:spacing w:before="0" w:after="\(spacingAfter)"/><w:jc w:val="right"/></w:pPr>
               <w:r>
-                <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:rtl/><w:color w:val="111827"/><w:sz w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/><w:szCs w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/></w:rPr>
-                <w:t xml:space="preserve">\(nameText)</w:t>
+                <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:color w:val="111827"/><w:sz w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/><w:szCs w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/></w:rPr>
+                <w:t xml:space="preserve">\(digitText)</w:t>
+              </w:r>
+            </w:p>
+          </w:tc>
+          <w:tc>
+            <w:tcPr>
+              <w:tcW w:w="\(CoverAttendeesList.dotColumnWidthTwips)" w:type="dxa"/>
+              <w:vAlign w:val="center"/>
+            </w:tcPr>
+            <w:p>
+              <w:pPr><w:spacing w:before="0" w:after="\(spacingAfter)"/><w:jc w:val="right"/></w:pPr>
+              <w:r>
+                <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:color w:val="111827"/><w:sz w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/><w:szCs w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/></w:rPr>
+                <w:t xml:space="preserve">.</w:t>
               </w:r>
             </w:p>
           </w:tc>
@@ -253,14 +278,14 @@ final class DocxTemplateBuilder {
           </w:tc>
           <w:tc>
             <w:tcPr>
-              <w:tcW w:w="\(CoverAttendeesList.markerColumnWidthTwips)" w:type="dxa"/>
+              <w:tcW w:w="\(CoverAttendeesList.nameColumnWidthTwips)" w:type="dxa"/>
               <w:vAlign w:val="center"/>
             </w:tcPr>
             <w:p>
               <w:pPr><w:spacing w:before="0" w:after="\(spacingAfter)"/><w:jc w:val="right"/></w:pPr>
               <w:r>
-                <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:color w:val="111827"/><w:sz w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/><w:szCs w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/></w:rPr>
-                <w:t xml:space="preserve">\(markerText)</w:t>
+                <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:rtl/><w:color w:val="111827"/><w:sz w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/><w:szCs w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/></w:rPr>
+                <w:t xml:space="preserve">\(nameText)</w:t>
               </w:r>
             </w:p>
           </w:tc>
@@ -273,6 +298,7 @@ final class DocxTemplateBuilder {
       <w:tblPr>
         <w:tblW w:w="\(CoverAttendeesList.tableWidthTwips)" w:type="dxa"/>
         <w:jc w:val="center"/>
+        <w:bidiVisual/>
         <w:tblBorders>
           <w:top w:val="nil"/>
           <w:left w:val="nil"/>
@@ -290,9 +316,10 @@ final class DocxTemplateBuilder {
         </w:tblCellMar>
       </w:tblPr>
       <w:tblGrid>
-        <w:gridCol w:w="\(CoverAttendeesList.nameColumnWidthTwips)"/>
+        <w:gridCol w:w="\(CoverAttendeesList.digitColumnWidthTwips)"/>
+        <w:gridCol w:w="\(CoverAttendeesList.dotColumnWidthTwips)"/>
         <w:gridCol w:w="\(CoverAttendeesList.spacerColumnWidthTwips)"/>
-        <w:gridCol w:w="\(CoverAttendeesList.markerColumnWidthTwips)"/>
+        <w:gridCol w:w="\(CoverAttendeesList.nameColumnWidthTwips)"/>
       </w:tblGrid>
 \(rows)
     </w:tbl>
