@@ -12,6 +12,21 @@
 
 ---
 
+## Attendee list Word consistency + photo editor polish
+
+- [x] DOCX: switch attendee numbering `w:suff` from space to tab so names align in one column at any marker width (10+, long names)
+- [x] DOCX: remove duplicated `w:numPr` from the paragraph style (kept on paragraphs) to eliminate the first-item indentation anomaly in real Word
+- [x] DOCX: widen the centered attendee container 2800 → 3600 twips so long Hebrew names stay on one line
+- [x] PDF: draw attendee markers with RTL base direction so "1." renders digit-rightmost with the dot toward the name; marker/name gap 6 → 9pt
+- [x] Photo detail screen: single clean image card (removed the nested gradient ring), unified paddings/radii, quieter notes field — styling only, no behavior/export/annotation changes
+- [x] Verification
+
+## Review
+
+- Verified with the app-generated samples (12 attendees incl. one-char and very long names): PDF rendered via pdftoppm and DOCX rendered via LibreOffice both show one clean number column (digits share the right edge, dot between digit and name), one clean name column, the block centered under `נוכחים:`, and long names on one line. PDF and DOCX are visually consistent.
+- Export photo behavior untouched: photo-table tests (full-cell extents, no `a:srcRect`, annotated composite fidelity) all still pass unchanged.
+- Tests: 84 passed, 0 failed on iPhone 16e / iOS 18.6 after a clean rebuild (a corrupted-unsigned DerivedData product from concurrent xcodebuild runs caused transient launch failures; wiped and rebuilt).
+
 ## Release hardening: export RTL, photo storage, regression protection
 
 Plan (branch `fable/release-hardening-export-rtl-storage`):

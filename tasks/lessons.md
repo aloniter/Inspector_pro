@@ -1,5 +1,17 @@
 # Lessons Learned
 
+## RTL numbered lists need suff="tab", not suff="space"
+- `w:suff="space"` makes each item's text start right after the marker, so name alignment breaks the moment "10." appears, and Word renders it less predictably than its own default list machinery. `w:suff="tab"` lands the text at the hanging-indent position (`w:ind w:start`) for every item — names align in one clean column regardless of marker width.
+- Do not put `w:numPr` in BOTH the paragraph style and each paragraph; keep it on the paragraphs only. Style+paragraph double numbering is an exotic combination real Word can render inconsistently (reported as the first list item having different indentation).
+- The attendee container width must fit the longest realistic name after the `w:ind w:start` gutter, or names wrap; 3600 twips fits typical multi-word Hebrew names.
+- PDF markers must be drawn with an RTL base writing direction so "1." renders digit-rightmost with the dot toward the name (native Hebrew Word look); LTR base puts the dot at the far right edge, which reads wrong.
+- Verification rule: render generated DOCX through LibreOffice headless (`soffice --convert-to pdf`) plus `pdftoppm`, with 12+ attendees including one-char and very long names, and check: numbers share a right edge, names share a column, dot sits between digit and name.
+
+## Never run two xcodebuild test invocations concurrently on one project
+- Parallel xcodebuild runs racing on the same DerivedData can leave an UNSIGNED app product; every later incremental build reuses it and the simulator fails with "Launchd job spawn failed" / RequestDenied even after sim reboots and CoreSimulator resets.
+- Recovery: delete the project's own DerivedData directory (verify via `PlistBuddy -c "Print :WorkspacePath" <dir>/info.plist` — several checkouts named InspectorPro exist on this machine), resolve packages, rebuild.
+- `TEST_RUNNER_X=1` must be set as a shell environment variable before xcodebuild, not passed as a command-line argument (arguments become build-setting overrides).
+
 ## UIGraphicsImageRenderer defaults to screen scale — pixel caps silently triple
 - `UIGraphicsImageRenderer(size:)` with the default format renders at the main screen scale (3× on modern iPhones). Any "resize to N px" helper built on it actually produces 3N-pixel bitmaps, so imports were storing up to 6000px JPEGs (upscaled from 4032px camera photos) and annotated composites ballooned storage by 10MB+ per photo.
 - When a renderer output feeds `jpegData`/disk storage or a pixel budget, always set `format.scale = 1` explicitly (`AnnotationImageRenderer` already did this via `baseImage.scale`).

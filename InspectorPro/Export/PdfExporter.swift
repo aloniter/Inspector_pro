@@ -298,11 +298,13 @@ final class PdfExporter {
         let isRTL = AppLanguage.current == .hebrew
         for (index, attendee) in attendees.enumerated() {
             let layout = rowLayouts[index]
+            // RTL base direction renders "1." with the digit rightmost and the
+            // dot toward the name — the native Hebrew Word list marker.
             drawPlainText(
                 attendee.ltrMarkerText,
                 in: layout.markerRect,
                 font: attendeeFont,
-                baseWritingDirection: .leftToRight,
+                baseWritingDirection: isRTL ? .rightToLeft : .leftToRight,
                 alignment: .right,
                 color: valueColor
             )
@@ -570,7 +572,7 @@ final class PdfExporter {
         width: CGFloat,
         lineHeight: CGFloat,
         font: UIFont,
-        markerNameSpacing: CGFloat = 6,
+        markerNameSpacing: CGFloat = 9,
         visualLeftOffset: CGFloat = 14,
         isRTL: Bool = AppLanguage.current == .hebrew
     ) -> [AttendeeCoverRowLayout] {

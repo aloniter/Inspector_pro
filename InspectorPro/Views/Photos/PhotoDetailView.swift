@@ -22,8 +22,8 @@ struct PhotoDetailView: View {
     var body: some View {
         VStack(spacing: 0) {
             PhotoDetailImagePreview(image: displayedImage)
-                .padding(.horizontal, 14)
-                .padding(.top, 14)
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
                 .padding(.bottom, 12)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .layoutPriority(1)
@@ -193,38 +193,25 @@ private struct PhotoDetailImagePreview: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemBackground))
-
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(uiColor: .tertiarySystemGroupedBackground),
-                            Color(uiColor: .secondarySystemGroupedBackground),
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .padding(6)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
 
             if let image {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(2)
+                    .padding(10)
             } else {
                 ProgressView()
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.black.opacity(0.07), lineWidth: 1)
         }
-        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
+        .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 3)
     }
 }
 
@@ -257,7 +244,7 @@ private struct PhotoDetailBottomPanel: View {
                 }
 
                 ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(Color(uiColor: .secondarySystemGroupedBackground))
 
                     DirectionalTextEditor(
@@ -269,8 +256,8 @@ private struct PhotoDetailBottomPanel: View {
                 }
                 .frame(height: 104)
                 .overlay {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Color.black.opacity(0.05), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
                 }
             }
 

@@ -4,7 +4,7 @@ import Foundation
 /// Used by DocxExporter to build the OpenXML structure.
 final class DocxTemplateBuilder {
     private enum CoverAttendeesList {
-        static let tableWidthTwips = 2_800
+        static let tableWidthTwips = 3_600
         static let cellLeftMarginTwips = 0
         static let cellRightMarginTwips = 320
         static let paragraphStartIndentTwips = 900
@@ -516,10 +516,6 @@ final class DocxTemplateBuilder {
     <w:name w:val="Inspector Cover Attendee Number"/>
     <w:basedOn w:val="Normal"/>
     <w:pPr>
-      <w:numPr>
-        <w:ilvl w:val="0"/>
-        <w:numId w:val="2"/>
-      </w:numPr>
       <w:bidi/>
       <w:spacing w:after="40" w:line="240" w:lineRule="auto"/>
       <w:ind w:start="\(CoverAttendeesList.paragraphStartIndentTwips)" w:hanging="\(CoverAttendeesList.paragraphHangingIndentTwips)"/>
@@ -571,7 +567,7 @@ final class DocxTemplateBuilder {
     <w:lvl w:ilvl="0">
       <w:start w:val="1"/>
       <w:numFmt w:val="decimal"/>
-      <w:suff w:val="space"/>
+      <w:suff w:val="tab"/>
       <w:lvlText w:val="%1."/>
       <w:lvlJc w:val="right"/>
       <w:pPr>
