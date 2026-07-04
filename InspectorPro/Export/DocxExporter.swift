@@ -259,9 +259,18 @@ final class DocxExporter {
 
     /// Measures the attendees block with the DOCX text font (Arial, matching
     /// the cell runs) so the DOCX table centers as a compact, content-fitted
-    /// block — the same layout the PDF exporter draws. A little slack is added
-    /// to the name column so Word's Arial metrics never wrap a name that fit
-    /// when measured on-device.
+    /// block — the same layout the PDF exporter draws.
+    ///
+    /// The name column gets real headroom on top of the measurement: a fixed
+    /// 4pt cushion proved too small in real Word (2026-07-04, on-device
+    /// report) — the widest name rendered touching both edges of its fixed
+    /// cell, so Word's slightly wider Hebrew Arial shaping clipped it, and
+    /// typing any longer name into the exported document clipped immediately.
+    /// The cushion scales with the measured width (metric drift is
+    /// proportional) with an absolute floor so short-name lists keep editing
+    /// room, clamped so the table never exceeds the content width. Names hug
+    /// the marker at the visual right of the cell, so the extra width is
+    /// invisible dead space on the block's outer-left side.
     private static func attendeeColumnWidths(
         for attendees: String,
         options: ExportOptions
@@ -276,10 +285,13 @@ final class DocxExporter {
             maxTotalWidth: options.contentWidth
         )
         let twips = { (points: CGFloat) in Int((points * 20).rounded()) }
-        let nameSlackTwips = 80 // ~4pt cushion against renderer metric drift
+        let markerColumnTwips = max(twips(columns.markerColumnWidth), 1)
+        let measuredNameTwips = max(twips(columns.nameColumnWidth), 1)
+        let nameSlackTwips = max(measuredNameTwips * 12 / 100, 300)
+        let maxNameTwips = max(options.contentWidthTwips - markerColumnTwips, 1)
         return DocxTemplateBuilder.AttendeeColumnWidths(
-            markerColumnTwips: max(twips(columns.markerColumnWidth), 1),
-            nameColumnTwips: max(twips(columns.nameColumnWidth) + nameSlackTwips, 1)
+            markerColumnTwips: markerColumnTwips,
+            nameColumnTwips: min(measuredNameTwips + nameSlackTwips, maxNameTwips)
         )
     }
 

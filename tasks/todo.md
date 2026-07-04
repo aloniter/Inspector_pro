@@ -12,6 +12,23 @@
 
 ---
 
+## Fix DOCX attendee name clipping in real Word (on-device verification feedback, 2026-07-04)
+
+- [x] Reproduce: pulled the user's failing on-device export (name column 640 twips; widest name "אבישי" touching both cell edges) and rendered it through real Word via AppleScript PDF export
+- [x] Root cause 1: name column sized to CoreText measurement + only 4pt — zero headroom for Word's wider Hebrew Arial shaping or for post-export editing
+- [x] Root cause 2: `w:jc="right"` inside `<w:bidi/>` paragraphs renders at the visual LEFT in both real Word and LibreOffice (empirically proven with a 3-way jc variant DOCX) — names sat far from markers in mixed-length lists
+- [x] Fix (DOCX only): `w:jc="left"` on marker + name paragraphs (visual right); name column slack = max(12%, 300 twips) clamped to content width; marker column unchanged
+- [x] New regression test `docxAttendeeNameColumnKeepsWordHeadroomForVariedNames` (12 attendees: one-char, typical, long multi-word); updated jc assertions
+- [x] 87/87 tests pass with fresh DerivedData; pixel-verified real-Word render: 12/12 marker right edges within 3px, uniform gaps, no clipping
+- [x] PDF and photo pages untouched (git diff: DocxExporter, DocxTemplateBuilder, ExportTests only)
+
+## Review
+
+- The two defects compounded: exact-fit cells clipped the widest name in Word, and the swapped-jc alignment meant any added headroom would have pushed names away from markers. Fixing both together keeps the accepted visual design (names hugging markers, digits flush at the outer edge) while making clipping impossible at export time and leaving ~15pt of typing room.
+- Real Word is now scriptable in the verification loop (AppleScript open → save-as-PDF → pdftoppm → pixel clusters) — LibreOffice alone would NOT have caught this bug.
+
+---
+
 ## Fix attendee marker dot orientation and name/marker gap (real Word + PDF feedback)
 
 - [x] PDF: split marker into separately-positioned digit (outer/margin edge) and period (toward name) draws — a single right-aligned "N." string put the period at the margin, backwards

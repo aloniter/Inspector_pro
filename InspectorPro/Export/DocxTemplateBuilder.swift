@@ -240,11 +240,19 @@ final class DocxTemplateBuilder {
     /// right-to-left (`<w:bidi/>` paragraph + `<w:rtl/>` run); the Unicode bidi
     /// algorithm lays that out as digit-flush-right / period-toward-the-name,
     /// so no separate digit/period cells, spacer column, invisible bidi
-    /// controls, or Word auto-numbering (`<w:numPr>`) are needed. The name cell
-    /// is right-aligned RTL so short names hug the marker instead of drifting
-    /// away. Both columns are fixed width (`<w:tblLayout w:type="fixed"/>`) so a
-    /// name's length never moves the numbers; the whole table is centered with
-    /// `w:jc="center"` and sized to its content by the exporter.
+    /// controls, or Word auto-numbering (`<w:numPr>`) are needed.
+    ///
+    /// Paragraph alignment inside `<w:bidi/>` paragraphs is SWAPPED by both
+    /// real Word and LibreOffice: `w:jc="right"` renders at the visual LEFT and
+    /// `w:jc="left"` at the visual RIGHT (verified 2026-07-04 by rendering both
+    /// values through Word-for-Mac and LibreOffice). Marker and name paragraphs
+    /// therefore use `w:jc="left"` to land at the visual right of their cells:
+    /// the digit flush at the outer edge with its folded gap between the period
+    /// and the name, and names hugging the marker instead of drifting to the
+    /// far side of the name column. Both columns are fixed width
+    /// (`<w:tblLayout w:type="fixed"/>`) so a name's length never moves the
+    /// numbers; the whole table is centered with `w:jc="center"` and sized to
+    /// its content by the exporter.
     private static func attendeesCoverTableXML(
         attendees: [ExportTextFormatter.NumberedAttendee],
         columns: AttendeeColumnWidths
@@ -269,7 +277,7 @@ final class DocxTemplateBuilder {
               <w:vAlign w:val="center"/>
             </w:tcPr>
             <w:p>
-              <w:pPr><w:spacing w:before="0" w:after="\(spacingAfter)"/><w:bidi/><w:jc w:val="right"/></w:pPr>
+              <w:pPr><w:spacing w:before="0" w:after="\(spacingAfter)"/><w:bidi/><w:jc w:val="left"/></w:pPr>
               <w:r>
                 <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:rtl/><w:color w:val="111827"/><w:sz w:val="\(itemSize)"/><w:szCs w:val="\(itemSize)"/></w:rPr>
                 <w:t xml:space="preserve">\(markerText)</w:t>
@@ -282,7 +290,7 @@ final class DocxTemplateBuilder {
               <w:vAlign w:val="center"/>
             </w:tcPr>
             <w:p>
-              <w:pPr><w:spacing w:before="0" w:after="\(spacingAfter)"/><w:bidi/><w:jc w:val="right"/></w:pPr>
+              <w:pPr><w:spacing w:before="0" w:after="\(spacingAfter)"/><w:bidi/><w:jc w:val="left"/></w:pPr>
               <w:r>
                 <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:rtl/><w:color w:val="111827"/><w:sz w:val="\(itemSize)"/><w:szCs w:val="\(itemSize)"/></w:rPr>
                 <w:t xml:space="preserve">\(nameText)</w:t>

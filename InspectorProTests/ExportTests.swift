@@ -807,21 +807,27 @@ private func makeScaleOneImage(width: CGFloat, height: CGFloat) throws -> UIImag
     }
     #expect(attendeesHeadingParagraph.contains("w:jc w:val=\"center\""))
     #expect(attendeesHeadingParagraph.contains("w:color w:val=\"64748B\""))
-    // Name cell: RTL, right-aligned so short names hug the marker; no
-    // auto-numbering and no paragraph style reference.
-    #expect(firstAttendeeParagraph.contains("w:jc w:val=\"right\""))
+    // Name cell: RTL, aligned to the VISUAL right so short names hug the
+    // marker. Word and LibreOffice swap w:jc left/right inside <w:bidi/>
+    // paragraphs, so visual-right requires w:jc="left" (verified in real Word;
+    // w:jc="right" stranded names at the far-left of the cell).
+    #expect(firstAttendeeParagraph.contains("w:jc w:val=\"left\""))
+    #expect(!firstAttendeeParagraph.contains("w:jc w:val=\"right\""))
     #expect(firstAttendeeParagraph.contains("<w:bidi/>"))
     #expect(firstAttendeeParagraph.contains("<w:rtl/>"))
     #expect(!firstAttendeeParagraph.contains("<w:pStyle"))
     #expect(!firstAttendeeParagraph.contains("<w:numPr>"))
     #expect(firstAttendeeParagraph.contains("w:color w:val=\"111827\""))
     // Marker cell: single "N." string rendered right-to-left (bidi + rtl) so
-    // the digit sits at the outer edge and the period toward the name.
-    #expect(firstMarkerParagraph.contains("w:jc w:val=\"right\""))
+    // the digit sits at the outer edge and the period toward the name; same
+    // swapped-jc rule places it at the visual right of the marker cell with
+    // the folded gap between the period and the name.
+    #expect(firstMarkerParagraph.contains("w:jc w:val=\"left\""))
+    #expect(!firstMarkerParagraph.contains("w:jc w:val=\"right\""))
     #expect(firstMarkerParagraph.contains("<w:bidi/>"))
     #expect(firstMarkerParagraph.contains("<w:rtl/>"))
     #expect(!firstMarkerParagraph.contains("<w:numPr>"))
-    #expect(secondAttendeeParagraph.contains("w:jc w:val=\"right\""))
+    #expect(secondAttendeeParagraph.contains("w:jc w:val=\"left\""))
     #expect(secondMarkerParagraph.contains(">2.<"))
     #expect(xml.contains(">אלון<"))
     #expect(xml.contains(">דפנה<"))
@@ -1344,6 +1350,68 @@ private func makeScaleOneImage(width: CGFloat, height: CGFloat) throws -> UIImag
     #expect(documentText.contains(">12.<"))
     #expect(!documentText.contains(OpenXMLBuilder.escapeXML("1.\u{00A0}א")))
     #expect(url.pathExtension == "docx")
+}
+
+@Test func docxAttendeeNameColumnKeepsWordHeadroomForVariedNames() async throws {
+    // Regression (2026-07-04, on-device report): the widest attendee name
+    // exactly filled its fixed DOCX cell, so real Word's slightly wider Hebrew
+    // Arial shaping clipped it, and typing any longer name into the exported
+    // document clipped immediately. The name column must always carry real
+    // headroom beyond the measurement, while the marker column stays
+    // measurement-exact so the numbers keep their fixed alignment.
+    let report = Report(
+        name: "Attendee Headroom",
+        address: "גרציאני",
+        date: .now,
+        attendees: variedAttendeesText // 12 names: one-char, typical, long multi-word
+    )
+    let url = try await DocxExporter.export(
+        report: report,
+        photos: [],
+        options: ExportOptions(format: .docx, quality: .economical, photoCount: 0),
+        onProgress: { _ in }
+    )
+    defer { try? FileManager.default.removeItem(at: url) }
+
+    let xmlEntries = try docxXMLEntries(from: url)
+    let documentXMLData = try #require(xmlEntries["word/document.xml"])
+    let xml = try #require(String(data: documentXMLData, encoding: .utf8))
+
+    // Recompute the same on-device measurement the exporter uses.
+    let options = ExportOptions(format: .docx, quality: .economical, photoCount: 0)
+    let parsed = ExportTextFormatter.numberedAttendees(from: variedAttendeesText)
+    let pointSize = ExportTypography.Cover.attendeeItemPointSize
+    let font = UIFont(name: "Arial", size: pointSize) ?? UIFont.systemFont(ofSize: pointSize)
+    let columns = AttendeeCoverLayout.columns(
+        for: parsed,
+        font: font,
+        maxTotalWidth: options.contentWidth
+    )
+    let measuredMarkerTwips = Int((columns.markerColumnWidth * 20).rounded())
+    let measuredNameTwips = Int((columns.nameColumnWidth * 20).rounded())
+
+    let attendeeTableXML = try #require(
+        xml.components(separatedBy: "<w:tbl>").first { $0.contains(">1.<") }
+    )
+    let gridCols = attendeeTableXML
+        .components(separatedBy: "<w:gridCol w:w=\"")
+        .dropFirst()
+        .compactMap { Int($0.prefix(while: \.isNumber)) }
+    #expect(gridCols.count == 2)
+    let markerTwips = try #require(gridCols.first)
+    let nameTwips = try #require(gridCols.last)
+
+    // Marker column stays measurement-exact: numbers never move.
+    #expect(markerTwips == measuredMarkerTwips)
+    // Name column carries at least the absolute headroom floor (~15pt) and
+    // scales with the measured width, without exceeding the page content area.
+    #expect(nameTwips >= measuredNameTwips + 300)
+    #expect(nameTwips >= measuredNameTwips + (measuredNameTwips * 12 / 100))
+    #expect(markerTwips + nameTwips <= options.contentWidthTwips)
+    // Both attendee cell paragraphs align to the visual right via the swapped
+    // bidi jc value; the pre-fix value must not come back.
+    #expect(!attendeeTableXML.contains("w:jc w:val=\"right\""))
+    #expect(attendeeTableXML.contains("w:jc w:val=\"left\""))
 }
 
 @Test func docxTemplateReservesHeaderAndFooterSpace() {
