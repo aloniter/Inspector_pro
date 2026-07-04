@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		01EB830BA316678EB8F67647 /* BrandingProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A0EC2CBFFBE2E655A0007B /* BrandingProfile.swift */; };
+		04102D4A2D06D4FDAF40CCDE /* StorageDiagnosticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F486A03DE0E06BFB041BEC8 /* StorageDiagnosticsService.swift */; };
 		066CACDA620D966DCF40EF61 /* DocxTemplateBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B62DD3F09EC8E24B52C6F3 /* DocxTemplateBuilder.swift */; };
 		06DC8B4D2E4AEE9B86A97DF0 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB143F75D35501113F93AF18 /* EmptyStateView.swift */; };
 		0A21A31DC269F9C8BC0D9352 /* ExportProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C18DF15CC03B7EA27A0D6773 /* ExportProgressView.swift */; };
@@ -101,6 +102,7 @@
 		84A8347F124C540B2E6CD62A /* DocxExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocxExporter.swift; sourceTree = "<group>"; };
 		89D09CE2BE015C00BA34A9B3 /* ExportEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportEngine.swift; sourceTree = "<group>"; };
 		8F16CB3736D4EAD7A910794A /* UIImage+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIImage+Extensions.swift"; sourceTree = "<group>"; };
+		8F486A03DE0E06BFB041BEC8 /* StorageDiagnosticsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageDiagnosticsService.swift; sourceTree = "<group>"; };
 		9B025AA83129A5B9CB75B1A1 /* BrandingFooterFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandingFooterFormatter.swift; sourceTree = "<group>"; };
 		9BBBE3BB0DE9EC7D13278610 /* ImageStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageStorageService.swift; sourceTree = "<group>"; };
 		9D2D566AD2B33FCDFAB0D24E /* DefaultBrandingProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultBrandingProfile.swift; sourceTree = "<group>"; };
@@ -210,6 +212,7 @@
 				ECB8093C939BF929F24FF6C7 /* ExportPermissionService.swift */,
 				CFE1F59745698863A633182E /* FileManagerService.swift */,
 				9BBBE3BB0DE9EC7D13278610 /* ImageStorageService.swift */,
+				8F486A03DE0E06BFB041BEC8 /* StorageDiagnosticsService.swift */,
 				3E3E7D5046EBF0AF70D5725D /* SupabaseManager.swift */,
 				DD6209BD0901AEA23F54D732 /* ThumbnailService.swift */,
 			);
@@ -503,6 +506,7 @@
 				1D406F25A505DC3F2D8F5C1E /* ProjectFormView.swift in Sources */,
 				54EAE12B3C397705F3806A78 /* ProjectListView.swift in Sources */,
 				68693B4FBEEE92D23268315A /* ResolvedExportBranding.swift in Sources */,
+				04102D4A2D06D4FDAF40CCDE /* StorageDiagnosticsService.swift in Sources */,
 				5591DCEF30338A2206CB77CA /* SupabaseManager.swift in Sources */,
 				833B5BBD4A9C3909914AEB18 /* TemplateExtractor.swift in Sources */,
 				B6EE190BFDC33B49DC62115B /* ThumbnailService.swift in Sources */,

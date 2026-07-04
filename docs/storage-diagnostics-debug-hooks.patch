@@ -1,0 +1,150 @@
+diff --git a/InspectorPro/InspectorProApp.swift b/InspectorPro/InspectorProApp.swift
+index bcb9f18..5cabbcf 100644
+--- a/InspectorPro/InspectorProApp.swift
++++ b/InspectorPro/InspectorProApp.swift
+@@ -16,6 +16,9 @@ struct InspectorProApp: App {
+         // Exports are transient: clear any leftover export files from a previous
+         // session before showing the UI.
+         FileManagerService.shared.purgeExports()
++        #if DEBUG
++        StorageDiagnosticsService.debugPrintReport(label: "After launch")
++        #endif
+ 
+         let schema = Schema(versionedSchema: InspectorProSchemaV9.self)
+ 
+diff --git a/InspectorPro/Views/Export/ExportOptionsSheet.swift b/InspectorPro/Views/Export/ExportOptionsSheet.swift
+index 611cd1b..0ae10ce 100644
+--- a/InspectorPro/Views/Export/ExportOptionsSheet.swift
++++ b/InspectorPro/Views/Export/ExportOptionsSheet.swift
+@@ -117,6 +117,9 @@ struct ExportOptionsSheet: View {
+                     quality: .economical,
+                     photoCount: report.sortedPhotos.count
+                 )
++                #if DEBUG
++                StorageDiagnosticsService.debugPrintReport(label: "Before export")
++                #endif
+ 
+                 let url = try await ExportEngine.exportReport(
+                     report: report,
+@@ -128,6 +131,9 @@ struct ExportOptionsSheet: View {
+                         }
+                     }
+                 )
++                #if DEBUG
++                StorageDiagnosticsService.debugPrintReport(label: "After export returns")
++                #endif
+ 
+                 await MainActor.run {
+                     exportedURL = url
+@@ -198,6 +204,9 @@ struct ShareSheet: UIViewControllerRepresentable {
+         let exportedFileURL = fileURL
+         controller.completionWithItemsHandler = { _, _, _, _ in
+             try? FileManager.default.removeItem(at: exportedFileURL)
++            #if DEBUG
++            StorageDiagnosticsService.debugPrintReport(label: "After share completion")
++            #endif
+         }
+ 
+         return controller
+diff --git a/InspectorPro/Views/Projects/ProjectDetailView.swift b/InspectorPro/Views/Projects/ProjectDetailView.swift
+index 6ac8420..16a6023 100644
+--- a/InspectorPro/Views/Projects/ProjectDetailView.swift
++++ b/InspectorPro/Views/Projects/ProjectDetailView.swift
+@@ -117,6 +117,9 @@ struct ProjectDetailView: View {
+                         annotatedPath: photoPath.annotatedPath
+                     )
+                 }
++                #if DEBUG
++                StorageDiagnosticsService.debugPrintReport(label: "After report delete")
++                #endif
+             }
+         } catch {
+             for report in deletedReports {
+diff --git a/InspectorPro/Views/Projects/ProjectFormView.swift b/InspectorPro/Views/Projects/ProjectFormView.swift
+index f373eea..2848b1a 100644
+--- a/InspectorPro/Views/Projects/ProjectFormView.swift
++++ b/InspectorPro/Views/Projects/ProjectFormView.swift
+@@ -114,6 +114,9 @@ struct ProjectFormView: View {
+                     modelContext.delete(newProject)
+                     throw error
+                 }
++                #if DEBUG
++                StorageDiagnosticsService.debugPrintReport(label: "After project create")
++                #endif
+ 
+                 onProjectSaved?(newProject)
+             }
+@@ -305,6 +308,9 @@ struct ReportFormView: View {
+                     modelContext.delete(newReport)
+                     throw error
+                 }
++                #if DEBUG
++                StorageDiagnosticsService.debugPrintReport(label: "After report create")
++                #endif
+ 
+                 onReportSaved?(newReport)
+             }
+diff --git a/InspectorPro/Views/Projects/ProjectListView.swift b/InspectorPro/Views/Projects/ProjectListView.swift
+index 551e563..c37d154 100644
+--- a/InspectorPro/Views/Projects/ProjectListView.swift
++++ b/InspectorPro/Views/Projects/ProjectListView.swift
+@@ -108,6 +108,9 @@ struct ProjectListView: View {
+                 for directory in directoriesToPrune {
+                     await ImageStorageService.shared.removeDirectoryIfEmpty(at: directory)
+                 }
++                #if DEBUG
++                StorageDiagnosticsService.debugPrintReport(label: "After project delete")
++                #endif
+             }
+         } catch {
+             for project in deletedProjects {
+diff --git a/tasks/todo.md b/tasks/todo.md
+index 39c76b2..e252a41 100644
+--- a/tasks/todo.md
++++ b/tasks/todo.md
+@@ -12,6 +12,45 @@
+ 
+ ---
+ 
++## Temporary real-device storage diagnostics
++
++- [x] Keep instrumentation DEBUG-only and non-destructive
++- [x] Add launch, create, export, share completion, and delete diagnostic checkpoints
++- [x] Build/test with temporary diagnostics
++- [x] Attempt real-device run/log capture, or document exact Xcode steps if local tooling cannot access the device
++- [x] Summarize observed storage bucket growth
++
++## Review
++
++- Added temporary `StorageDiagnosticsService.debugPrintReport(label:)` calls only inside `#if DEBUG` blocks.
++- No cleanup, deletion, migration, recompression, or user-facing UI was added.
++- XcodeBuildMCP simulator verification: `test_sim` passed with 74 passed, 0 failed, 0 skipped; `build_sim` succeeded.
++- Physical-device Debug build succeeded for `Alon’s iPhone` (`00008140-001C6C380250801C`) and installed successfully over `com.aloniter.inspectorpro` using `devicectl`.
++- Real-device launch/log capture was blocked because the iPhone was locked. `devicectl` returned `RequestDenied` / `Unable to launch com.aloniter.inspectorpro because the device was not, or could not be, unlocked`.
++- No real-device storage bucket growth was observed yet because the app could not be launched for the reproduction flow.
++
++---
++
++## Storage forensics investigation
++
++- [x] Confirm branch/status and preserve unrelated untracked screenshot assets
++- [x] Audit every app file-write location and storage directory
++- [x] Extend read-only storage diagnostics to include Documents, app container folders, temp, caches, Application Support, SwiftData/database files, file-type counts, and orphan sizes
++- [x] Add developer-only/callable diagnostics print path without user-facing storage UI
++- [x] Add tests for the full diagnostics breakdown and read-only behavior
++- [x] Verify export/temp cleanup behavior for PDF and DOCX as far as automation allows
++- [x] Build/test and document root-cause findings plus recommended fixes only
++
++## Review
++
++- Started 2026-06-28 on branch `audit/aggressive-photo-compression-strategy`.
++- Scope is forensics/read-only diagnostics. No destructive cleanup, no migration, no automatic deletion, no user-facing UX changes, and no additional compression changes are approved.
++- Added `StorageDiagnosticsService` as a read-only container scanner for Documents, `InspectorPro`, Images, Exports, legacy `ExportCache`, Branding, temp, Library, caches, Application Support, HTTPStorages, SwiftData-like database files, PDF/DOCX files, image classes, empty image folders, and reference-based potential image orphans.
++- Added `docs/storage-forensics-investigation.md` with known write paths and temporary DEBUG call sites for collecting diagnostics from affected installs without adding settings UI.
++- Code audit: exports are still generated to `Documents/InspectorPro/Exports`, removed by `ShareSheet` completion, and purged again on launch; DOCX temp packages use `tmp/docx_export_<UUID>` and are removed by `defer`.
++- Simulator launch snapshot after reinstall: `Documents`, `Documents/InspectorPro`, `Images`, `Exports`, `Branding`, and `tmp` measured 0 KB by `du`; `Library` was ~1.5 MB, including ~780 KB caches, ~284 KB Application Support, and ~232 KB HTTPStorages. This did not reproduce the reported hundreds-of-MB growth.
++- Verification: XcodeBuildMCP `test_sim` passed with 74 passed, 0 failed, 0 skipped. XcodeBuildMCP `build_sim` succeeded with no warnings or errors.
++
+ ## Export sheet RTL layout polish
+ 
+ - [x] Move the `פורמט` and `סיכום` section headers to the visual right

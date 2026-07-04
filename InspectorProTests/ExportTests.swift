@@ -454,6 +454,149 @@ private func makeScaleOneImage(width: CGFloat, height: CGFloat) throws -> UIImag
     #expect(FileManager.default.fileExists(atPath: exportsURL.path))
 }
 
+@Test func storageDiagnosticsReportMeasuresFullContainerBreakdownWithoutDeletingFiles() throws {
+    let rootURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("storage-diagnostics-\(UUID().uuidString)")
+    let documentsURL = rootURL.appendingPathComponent("Documents")
+    let inspectorProURL = documentsURL.appendingPathComponent("InspectorPro")
+    let imagesURL = inspectorProURL.appendingPathComponent("Images")
+    let exportsURL = inspectorProURL.appendingPathComponent("Exports")
+    let legacyExportCacheURL = inspectorProURL.appendingPathComponent("ExportCache")
+    let brandingURL = inspectorProURL.appendingPathComponent("Branding")
+    let temporaryURL = rootURL.appendingPathComponent("tmp")
+    let libraryURL = rootURL.appendingPathComponent("Library")
+    let cachesURL = libraryURL.appendingPathComponent("Caches")
+    let applicationSupportURL = libraryURL.appendingPathComponent("Application Support")
+    let httpStoragesURL = libraryURL.appendingPathComponent("HTTPStorages")
+    let projectImagesURL = imagesURL.appendingPathComponent("project")
+    let emptyProjectURL = imagesURL.appendingPathComponent("empty-project")
+    let docxPackageURL = temporaryURL.appendingPathComponent("docx_export_\(UUID().uuidString)/word/media")
+
+    for url in [
+        projectImagesURL,
+        emptyProjectURL,
+        exportsURL,
+        legacyExportCacheURL,
+        brandingURL,
+        docxPackageURL,
+        cachesURL,
+        applicationSupportURL,
+        httpStoragesURL,
+    ] {
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    }
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+
+    let originalURL = projectImagesURL.appendingPathComponent("photo.jpg")
+    let annotatedURL = projectImagesURL.appendingPathComponent("ann_photo.jpg")
+    let orphanURL = projectImagesURL.appendingPathComponent("orphan.jpg")
+    let exportPDFURL = exportsURL.appendingPathComponent("report.pdf")
+    let exportDOCXURL = exportsURL.appendingPathComponent("report.docx")
+    let legacyExportCacheFileURL = legacyExportCacheURL.appendingPathComponent("cached-image.jpg")
+    let brandingLogoURL = brandingURL.appendingPathComponent("logo.jpg")
+    let outsidePDFURL = documentsURL.appendingPathComponent("outside.pdf")
+    let tempFileURL = temporaryURL.appendingPathComponent("scratch.tmp")
+    let docxTempXMLURL = docxPackageURL.deletingLastPathComponent().appendingPathComponent("document.xml")
+    let docxTempImageURL = docxPackageURL.appendingPathComponent("image.jpg")
+    let cacheURL = cachesURL.appendingPathComponent("cache.bin")
+    let swiftDataStoreURL = applicationSupportURL.appendingPathComponent("default.store")
+    let swiftDataWALURL = applicationSupportURL.appendingPathComponent("default.store-wal")
+    let supportOtherURL = applicationSupportURL.appendingPathComponent("other.txt")
+    let httpStorageURL = httpStoragesURL.appendingPathComponent("httpstorages.sqlite-wal")
+
+    try Data(repeating: 0x01, count: 3).write(to: originalURL)
+    try Data(repeating: 0x02, count: 4).write(to: annotatedURL)
+    try Data(repeating: 0x03, count: 5).write(to: orphanURL)
+    try Data(repeating: 0x04, count: 6).write(to: exportPDFURL)
+    try Data(repeating: 0x05, count: 7).write(to: exportDOCXURL)
+    try Data(repeating: 0x10, count: 18).write(to: legacyExportCacheFileURL)
+    try Data(repeating: 0x06, count: 8).write(to: brandingLogoURL)
+    try Data(repeating: 0x07, count: 9).write(to: outsidePDFURL)
+    try Data(repeating: 0x08, count: 10).write(to: tempFileURL)
+    try Data(repeating: 0x09, count: 11).write(to: docxTempXMLURL)
+    try Data(repeating: 0x0A, count: 12).write(to: docxTempImageURL)
+    try Data(repeating: 0x0B, count: 13).write(to: cacheURL)
+    try Data(repeating: 0x0C, count: 14).write(to: swiftDataStoreURL)
+    try Data(repeating: 0x0D, count: 15).write(to: swiftDataWALURL)
+    try Data(repeating: 0x0E, count: 16).write(to: supportOtherURL)
+    try Data(repeating: 0x0F, count: 17).write(to: httpStorageURL)
+
+    let report = StorageDiagnosticsService.makeReport(
+        knownPhotoReferences: [
+            StorageKnownPhotoReference(
+                originalPath: "project/photo.jpg",
+                annotatedPath: "project/ann_photo.jpg"
+            ),
+        ],
+        documentsURL: documentsURL,
+        inspectorProURL: inspectorProURL,
+        imagesURL: imagesURL,
+        exportsURL: exportsURL,
+        legacyExportCacheURL: legacyExportCacheURL,
+        brandingURL: brandingURL,
+        temporaryURL: temporaryURL,
+        libraryURL: libraryURL,
+        cachesURL: cachesURL,
+        applicationSupportURL: applicationSupportURL,
+        httpStoragesURL: httpStoragesURL
+    )
+
+    #expect(report.documentsDirectoryBytes == 60)
+    #expect(report.inspectorProDirectoryBytes == 51)
+    #expect(report.imagesDirectoryBytes == 12)
+    #expect(report.exportsDirectoryBytes == 13)
+    #expect(report.legacyExportCacheDirectoryBytes == 18)
+    #expect(report.brandingDirectoryBytes == 8)
+    #expect(report.temporaryDirectoryBytes == 33)
+    #expect(report.libraryDirectoryBytes == 75)
+    #expect(report.cachesDirectoryBytes == 13)
+    #expect(report.applicationSupportDirectoryBytes == 45)
+    #expect(report.httpStoragesDirectoryBytes == 17)
+    #expect(report.otherLibraryDirectoryBytes == 0)
+    #expect(report.swiftDataDatabaseBytes == 29)
+    #expect(report.originalJPGFiles == StorageFileCategorySummary(count: 2, bytes: 8))
+    #expect(report.annotatedJPGFiles == StorageFileCategorySummary(count: 1, bytes: 4))
+    #expect(report.pdfFiles == StorageFileCategorySummary(count: 2, bytes: 15))
+    #expect(report.docxFiles == StorageFileCategorySummary(count: 1, bytes: 7))
+    #expect(report.temporaryFiles == StorageFileCategorySummary(count: 3, bytes: 33))
+    #expect(report.orphanImageFiles == StorageFileCategorySummary(count: 1, bytes: 5))
+    #expect(report.emptyImageFolders == ["empty-project"])
+    #expect(report.potentialOrphanImagePaths == ["project/orphan.jpg"])
+    #expect(report.docxTemporaryPackageDirectories == StorageFileCategorySummary(count: 1, bytes: 23))
+    #expect(report.swiftDataDatabasePaths == ["default.store", "default.store-wal"])
+
+    let formatted = StorageDiagnosticsService.formattedReport(report)
+    #expect(formatted.contains("Documents total:"))
+    #expect(formatted.contains("InspectorPro total:"))
+    #expect(formatted.contains("Legacy ExportCache:"))
+    #expect(formatted.contains("Library total:"))
+    #expect(formatted.contains("HTTPStorages:"))
+    #expect(formatted.contains("Original images: 2 files"))
+    #expect(formatted.contains("DOCX temp packages: 1 dirs"))
+    #expect(formatted.contains("Orphans: 1 files"))
+
+    for url in [
+        originalURL,
+        annotatedURL,
+        orphanURL,
+        exportPDFURL,
+        exportDOCXURL,
+        legacyExportCacheFileURL,
+        brandingLogoURL,
+        outsidePDFURL,
+        tempFileURL,
+        docxTempXMLURL,
+        docxTempImageURL,
+        cacheURL,
+        swiftDataStoreURL,
+        swiftDataWALURL,
+        supportOtherURL,
+        httpStorageURL,
+    ] {
+        #expect(FileManager.default.fileExists(atPath: url.path))
+    }
+}
+
 @Test func xmlEscaping() {
     let input = "Test & <value> \"quoted\" 'apos'"
     let escaped = OpenXMLBuilder.escapeXML(input)
