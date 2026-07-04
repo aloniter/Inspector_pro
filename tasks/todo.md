@@ -4,9 +4,8 @@
 >
 > - User-facing app name: Inspectley
 > - Internal project/target name: InspectorPro
-> - Current App Store version: 1.0.1
-> - Current build: 2
-> - Current status: Submitted / Waiting for Review
+> - Current App Store version: 1.0.2 (build 3)
+> - App Store Connect confirmed: iOS App Version 1.0.2 is Ready for Distribution.
 > - App Store category: Business
 > - Older entries below are historical work-log notes and may mention old versions/builds/categories.
 

@@ -23,8 +23,8 @@ language and the reason the export code looks the way it does.
 
 ## Production status
 
-Current repo version is 1.0.2 build 3 in project.yml. Actual App Store
-Connect live/submitted version must be confirmed manually before release.
+Current repo version is 1.0.2 build 3 in project.yml. App Store Connect
+confirmed: iOS App Version 1.0.2 is Ready for Distribution (2026-07-04).
 This is a **live production app** — regressions reach paying B2B users.
 Login and export are gated through Supabase (`AuthService`,
 `ExportPermissionService`: trial/suspension flags, 6-hour offline cache).

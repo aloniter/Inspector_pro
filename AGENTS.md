@@ -15,8 +15,8 @@ support. Regressions reach paying users.
 - Internal project/target/module/folders are **InspectorPro**
   (bundle id `com.aloniter.inspectorpro`). Never rename internals;
   "Inspectley" is only for user-facing references.
-- Current repo version is 1.0.2 build 3 in project.yml. Actual App Store
-  Connect live/submitted version must be confirmed manually before release.
+- Current repo version is 1.0.2 build 3 in project.yml. App Store Connect
+  confirmed: iOS App Version 1.0.2 is Ready for Distribution (2026-07-04).
 - `project.yml` is the source of truth for the Xcode project
   (`xcodegen generate` after editing it). Dependencies: ZIPFoundation,
   supabase-swift (SPM).
