@@ -141,6 +141,7 @@ final class DocxExporter {
         let attendees = normalizedOptionalText(report.attendees)
         let notes = normalizedOptionalText(report.notes)
         let date = ExportTextFormatter.reportCoverDateString(from: report.date)
+        let attendeeColumns = attendees.map { attendeeColumnWidths(for: $0, options: options) }
         var documentXML = DocxTemplateBuilder.documentXML(options: options)
         documentXML = documentXML.replacingOccurrences(of: "{{PROJECT_TITLE}}", with: OpenXMLBuilder.escapeXML(report.name))
         documentXML = documentXML.replacingOccurrences(
@@ -150,7 +151,8 @@ final class DocxExporter {
                 date: date,
                 defectCount: report.openDefectCount,
                 attendees: attendees,
-                notes: notes
+                notes: notes,
+                attendeeColumns: attendeeColumns
             )
         )
         documentXML = documentXML.replacingOccurrences(of: "{{PHOTOS_TABLE}}", with: photosContentXML)
@@ -253,6 +255,32 @@ final class DocxExporter {
         guard let value else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// Measures the attendees block with the DOCX text font (Arial, matching
+    /// the cell runs) so the DOCX table centers as a compact, content-fitted
+    /// block — the same layout the PDF exporter draws. A little slack is added
+    /// to the name column so Word's Arial metrics never wrap a name that fit
+    /// when measured on-device.
+    private static func attendeeColumnWidths(
+        for attendees: String,
+        options: ExportOptions
+    ) -> DocxTemplateBuilder.AttendeeColumnWidths {
+        let parsed = ExportTextFormatter.numberedAttendees(from: attendees)
+        let pointSize = ExportTypography.Cover.attendeeItemPointSize
+        let font = UIFont(name: "Arial", size: pointSize)
+            ?? UIFont.systemFont(ofSize: pointSize)
+        let columns = AttendeeCoverLayout.columns(
+            for: parsed,
+            font: font,
+            maxTotalWidth: options.contentWidth
+        )
+        let twips = { (points: CGFloat) in Int((points * 20).rounded()) }
+        let nameSlackTwips = 80 // ~4pt cushion against renderer metric drift
+        return DocxTemplateBuilder.AttendeeColumnWidths(
+            markerColumnTwips: max(twips(columns.markerColumnWidth), 1),
+            nameColumnTwips: max(twips(columns.nameColumnWidth) + nameSlackTwips, 1)
+        )
     }
 
     private static func dateString(_ date: Date) -> String {

@@ -3,12 +3,25 @@ import Foundation
 /// Provides XML template strings for DOCX document generation.
 /// Used by DocxExporter to build the OpenXML structure.
 final class DocxTemplateBuilder {
+    /// Marker ("N.") and name column widths, in twips, for the attendees cover
+    /// table. The exporter measures these from the actual attendee names so the
+    /// block hugs its content and centers like a hand-made list; the builder's
+    /// fixed fallbacks keep the pure XML path deterministic for tests.
+    struct AttendeeColumnWidths: Equatable {
+        let markerColumnTwips: Int
+        let nameColumnTwips: Int
+
+        var tableWidthTwips: Int { markerColumnTwips + nameColumnTwips }
+    }
+
     private enum CoverAttendeesList {
-        static let tableWidthTwips = 4_800
-        static let dotColumnWidthTwips = 200
-        static let digitColumnWidthTwips = 480
-        static let spacerColumnWidthTwips = 160
-        static let nameColumnWidthTwips = tableWidthTwips - dotColumnWidthTwips - digitColumnWidthTwips - spacerColumnWidthTwips
+        /// Fallback widths used when the exporter supplies none (unit tests
+        /// exercising the XML directly). ~0.31" marker column fits "12." plus
+        /// the gap; ~1.3" name column fits typical Hebrew names.
+        static let fallbackColumns = AttendeeColumnWidths(
+            markerColumnTwips: 620,
+            nameColumnTwips: 2_600
+        )
         static let rowSpacingAfterTwips = 40
         static let sectionSpacingAfterTwips = 260
     }
@@ -107,7 +120,8 @@ final class DocxTemplateBuilder {
         date: String,
         defectCount: Int,
         attendees: String?,
-        notes: String?
+        notes: String?,
+        attendeeColumns: AttendeeColumnWidths? = nil
     ) -> String {
         var sections = [
             coverFieldSectionXML(label: AppStrings.text("כתובת"), value: address),
@@ -116,7 +130,11 @@ final class DocxTemplateBuilder {
         ]
 
         if let attendees {
-            sections.append(attendeesCoverFieldSectionXML(label: AppStrings.text("נוכחים"), value: attendees))
+            sections.append(attendeesCoverFieldSectionXML(
+                label: AppStrings.text("נוכחים"),
+                value: attendees,
+                columns: attendeeColumns ?? CoverAttendeesList.fallbackColumns
+            ))
         }
 
         if let notes {
@@ -193,7 +211,8 @@ final class DocxTemplateBuilder {
 
     private static func attendeesCoverFieldSectionXML(
         label: String,
-        value: String
+        value: String,
+        columns: AttendeeColumnWidths
     ) -> String {
         let attendees = ExportTextFormatter.numberedAttendees(from: value)
 
@@ -207,84 +226,65 @@ final class DocxTemplateBuilder {
             alignment: "center"
         )
 
-        let valueTable = attendeesCoverFixedColumnTableXML(attendees: attendees)
+        let valueTable = attendeesCoverTableXML(attendees: attendees, columns: columns)
 
         return labelParagraph + valueTable
     }
 
-    /// Fixed four-column borderless table with explicit `w:bidiVisual` RTL
-    /// column order: digit column (visual-right, flush against the outer
-    /// margin), a period column, a thin spacer, and the name column
-    /// (visual-left, text hugging the marker so short names don't leave a
-    /// large dead gap). Columns are declared digit-first because
-    /// `w:bidiVisual` renders the first `<w:gridCol>`/`<w:tc>` as the
-    /// rightmost — relying on the *absence* of bidiVisual and hoping a
-    /// renderer's implicit default matches proved inconsistent between
-    /// LibreOffice and this renderer's own 3-vs-4-column layouts, so the
-    /// order is stated explicitly instead. Deliberately avoids Word
-    /// auto-numbering (`w:numPr`) and paragraph `<w:bidi/>` reordering for
-    /// the marker text itself — both proved unstable in real Word/PDF
-    /// rendering (inconsistent glyph order, mismatched first-row
-    /// indentation). The digit and period are separate cells, not one "N."
-    /// string, because a single right-aligned LTR string puts the period —
-    /// its last character — at the outer edge, which reads backwards next to
-    /// Hebrew text. Centered with `w:jc="center"`.
-    private static func attendeesCoverFixedColumnTableXML(
-        attendees: [ExportTextFormatter.NumberedAttendee]
+    /// Borderless, centered two-column table for the attendees list.
+    ///
+    /// Grid order is marker-first; `<w:bidiVisual/>` renders the first
+    /// `<w:gridCol>`/`<w:tc>` as the visual rightmost, so the "N." marker sits
+    /// at the right edge and the name to its left — the natural Hebrew reading
+    /// order. The marker cell holds the single "N." string in one run rendered
+    /// right-to-left (`<w:bidi/>` paragraph + `<w:rtl/>` run); the Unicode bidi
+    /// algorithm lays that out as digit-flush-right / period-toward-the-name,
+    /// so no separate digit/period cells, spacer column, invisible bidi
+    /// controls, or Word auto-numbering (`<w:numPr>`) are needed. The name cell
+    /// is right-aligned RTL so short names hug the marker instead of drifting
+    /// away. Both columns are fixed width (`<w:tblLayout w:type="fixed"/>`) so a
+    /// name's length never moves the numbers; the whole table is centered with
+    /// `w:jc="center"` and sized to its content by the exporter.
+    private static func attendeesCoverTableXML(
+        attendees: [ExportTextFormatter.NumberedAttendee],
+        columns: AttendeeColumnWidths
     ) -> String {
         guard !attendees.isEmpty else { return "" }
+
+        let itemSize = ExportTypography.Cover.attendeeItemDocxSize
 
         let rows = attendees.enumerated().map { index, attendee -> String in
             let spacingAfter = index == attendees.count - 1
                 ? CoverAttendeesList.sectionSpacingAfterTwips
                 : CoverAttendeesList.rowSpacingAfterTwips
+            let markerText = OpenXMLBuilder.escapeXML(attendee.markerText)
             let nameText = OpenXMLBuilder.escapeXML(attendee.name)
-            let digitText = OpenXMLBuilder.escapeXML(attendee.numberText)
 
             return """
         <w:tr>
           <w:trPr><w:cantSplit/></w:trPr>
           <w:tc>
             <w:tcPr>
-              <w:tcW w:w="\(CoverAttendeesList.digitColumnWidthTwips)" w:type="dxa"/>
+              <w:tcW w:w="\(columns.markerColumnTwips)" w:type="dxa"/>
               <w:vAlign w:val="center"/>
             </w:tcPr>
             <w:p>
-              <w:pPr><w:spacing w:before="0" w:after="\(spacingAfter)"/><w:jc w:val="right"/></w:pPr>
+              <w:pPr><w:spacing w:before="0" w:after="\(spacingAfter)"/><w:bidi/><w:jc w:val="right"/></w:pPr>
               <w:r>
-                <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:color w:val="111827"/><w:sz w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/><w:szCs w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/></w:rPr>
-                <w:t xml:space="preserve">\(digitText)</w:t>
+                <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:rtl/><w:color w:val="111827"/><w:sz w:val="\(itemSize)"/><w:szCs w:val="\(itemSize)"/></w:rPr>
+                <w:t xml:space="preserve">\(markerText)</w:t>
               </w:r>
             </w:p>
           </w:tc>
           <w:tc>
             <w:tcPr>
-              <w:tcW w:w="\(CoverAttendeesList.dotColumnWidthTwips)" w:type="dxa"/>
+              <w:tcW w:w="\(columns.nameColumnTwips)" w:type="dxa"/>
               <w:vAlign w:val="center"/>
             </w:tcPr>
             <w:p>
-              <w:pPr><w:spacing w:before="0" w:after="\(spacingAfter)"/><w:jc w:val="right"/></w:pPr>
+              <w:pPr><w:spacing w:before="0" w:after="\(spacingAfter)"/><w:bidi/><w:jc w:val="right"/></w:pPr>
               <w:r>
-                <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:color w:val="111827"/><w:sz w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/><w:szCs w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/></w:rPr>
-                <w:t xml:space="preserve">.</w:t>
-              </w:r>
-            </w:p>
-          </w:tc>
-          <w:tc>
-            <w:tcPr>
-              <w:tcW w:w="\(CoverAttendeesList.spacerColumnWidthTwips)" w:type="dxa"/>
-            </w:tcPr>
-            <w:p><w:pPr><w:spacing w:before="0" w:after="\(spacingAfter)"/></w:pPr></w:p>
-          </w:tc>
-          <w:tc>
-            <w:tcPr>
-              <w:tcW w:w="\(CoverAttendeesList.nameColumnWidthTwips)" w:type="dxa"/>
-              <w:vAlign w:val="center"/>
-            </w:tcPr>
-            <w:p>
-              <w:pPr><w:spacing w:before="0" w:after="\(spacingAfter)"/><w:jc w:val="right"/></w:pPr>
-              <w:r>
-                <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:rtl/><w:color w:val="111827"/><w:sz w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/><w:szCs w:val="\(ExportTypography.Cover.attendeeItemDocxSize)"/></w:rPr>
+                <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:rtl/><w:color w:val="111827"/><w:sz w:val="\(itemSize)"/><w:szCs w:val="\(itemSize)"/></w:rPr>
                 <w:t xml:space="preserve">\(nameText)</w:t>
               </w:r>
             </w:p>
@@ -296,7 +296,7 @@ final class DocxTemplateBuilder {
         return """
     <w:tbl>
       <w:tblPr>
-        <w:tblW w:w="\(CoverAttendeesList.tableWidthTwips)" w:type="dxa"/>
+        <w:tblW w:w="\(columns.tableWidthTwips)" w:type="dxa"/>
         <w:jc w:val="center"/>
         <w:bidiVisual/>
         <w:tblBorders>
@@ -316,10 +316,8 @@ final class DocxTemplateBuilder {
         </w:tblCellMar>
       </w:tblPr>
       <w:tblGrid>
-        <w:gridCol w:w="\(CoverAttendeesList.digitColumnWidthTwips)"/>
-        <w:gridCol w:w="\(CoverAttendeesList.dotColumnWidthTwips)"/>
-        <w:gridCol w:w="\(CoverAttendeesList.spacerColumnWidthTwips)"/>
-        <w:gridCol w:w="\(CoverAttendeesList.nameColumnWidthTwips)"/>
+        <w:gridCol w:w="\(columns.markerColumnTwips)"/>
+        <w:gridCol w:w="\(columns.nameColumnTwips)"/>
       </w:tblGrid>
 \(rows)
     </w:tbl>

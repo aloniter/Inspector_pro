@@ -196,8 +196,6 @@ final class PdfExporter {
     private static let coverDefectColor = UIColor(
         red: 211.0 / 255.0, green: 47.0 / 255.0, blue: 47.0 / 255.0, alpha: 1
     )
-    private static let attendeeCoverVisualLeftOffset: CGFloat = 14
-
     private static func drawCoverSummaryLine(
         text: String,
         originY: CGFloat,
@@ -259,6 +257,13 @@ final class PdfExporter {
         return labelHeight + valuesHeight + 12
     }
 
+    /// Draws the "נוכחים:" heading and the attendees list as a compact,
+    /// centered two-column block: the name column on the visual (RTL) left and
+    /// the narrow "N." marker column on the visual right. The marker is drawn
+    /// with a right-to-left base direction so bidi renders it as digit-flush-
+    /// right / period-toward-the-name, exactly matching the DOCX table cell.
+    /// All markers share one fixed column and all names share another, so a
+    /// name's length never shifts the numbers.
     private static func drawAttendeesCoverFieldSection(
         label: String,
         attendees: [ExportTextFormatter.NumberedAttendee],
@@ -271,9 +276,10 @@ final class PdfExporter {
         let labelFontSize = ExportTypography.Cover.attendeesHeadingPointSize
         let attendeeFontSize = ExportTypography.Cover.attendeeItemPointSize
         let labelHeight = labelFontSize + 8
-        let attendeeLineHeight = attendeeFontSize + 10
-        let attendeesHeight = max(CGFloat(attendees.count) * attendeeLineHeight, attendeeLineHeight)
-        let attendeeFont = UIFont.systemFont(ofSize: attendeeFontSize)
+        let rowHeight = attendeeFontSize + 10
+        let listHeight = max(CGFloat(attendees.count) * rowHeight, rowHeight)
+        let font = UIFont.systemFont(ofSize: attendeeFontSize)
+        let isRTL = AppLanguage.current == .hebrew
 
         drawRTLText(
             label,
@@ -284,38 +290,39 @@ final class PdfExporter {
             color: labelColor
         )
 
-        let rowLayouts = attendeeCoverRowLayouts(
-            for: attendees,
-            x: x,
-            y: originY + labelHeight,
-            width: width,
-            lineHeight: attendeeLineHeight,
-            font: attendeeFont,
-            visualLeftOffset: attendeeCoverVisualLeftOffset,
-            isRTL: AppLanguage.current == .hebrew
-        )
+        let columns = AttendeeCoverLayout.columns(for: attendees, font: font, maxTotalWidth: width)
+        let blockX = x + max((width - columns.totalWidth) / 2, 0)
+        let listTop = originY + labelHeight
 
-        let isRTL = AppLanguage.current == .hebrew
+        // Name column on the RTL left, marker column on the RTL right (mirrored
+        // for LTR locales).
+        let nameX = isRTL ? blockX : blockX + columns.markerColumnWidth
+        let markerX = isRTL ? blockX + columns.nameColumnWidth : blockX
+        let writingDirection: NSWritingDirection = isRTL ? .rightToLeft : .leftToRight
+        let alignment: NSTextAlignment = isRTL ? .right : .left
+
         for (index, attendee) in attendees.enumerated() {
-            let layout = rowLayouts[index]
-            drawAttendeeMarker(
-                attendee,
-                in: layout.markerRect,
-                font: attendeeFont,
-                isRTL: isRTL,
+            let rowY = listTop + CGFloat(index) * rowHeight
+
+            drawPlainText(
+                attendee.markerText,
+                in: CGRect(x: markerX, y: rowY, width: columns.markerColumnWidth, height: rowHeight),
+                font: font,
+                baseWritingDirection: writingDirection,
+                alignment: alignment,
                 color: valueColor
             )
             drawPlainText(
                 attendee.name,
-                in: layout.nameRect,
-                font: attendeeFont,
-                baseWritingDirection: isRTL ? .rightToLeft : .leftToRight,
-                alignment: isRTL ? .right : .left,
+                in: CGRect(x: nameX, y: rowY, width: columns.nameColumnWidth, height: rowHeight),
+                font: font,
+                baseWritingDirection: writingDirection,
+                alignment: alignment,
                 color: valueColor
             )
         }
 
-        return labelHeight + attendeesHeight + 12
+        return labelHeight + listHeight + 12
     }
 
     // MARK: - Table
@@ -555,126 +562,6 @@ final class PdfExporter {
         ]
 
         NSAttributedString(string: text, attributes: attributes).draw(in: rect)
-    }
-
-    struct AttendeeCoverRowLayout: Equatable {
-        let markerRect: CGRect
-        let nameRect: CGRect
-    }
-
-    static func attendeeCoverRowLayouts(
-        for attendees: [ExportTextFormatter.NumberedAttendee],
-        x: CGFloat,
-        y: CGFloat,
-        width: CGFloat,
-        lineHeight: CGFloat,
-        font: UIFont,
-        markerNameSpacing: CGFloat = 9,
-        visualLeftOffset: CGFloat = 14,
-        isRTL: Bool = AppLanguage.current == .hebrew
-    ) -> [AttendeeCoverRowLayout] {
-        guard !attendees.isEmpty, width > 0 else { return [] }
-
-        let markerColumnWidth = attendees
-            .map { textWidth($0.ltrMarkerText, font: font) }
-            .max() ?? 0
-        let preferredNameColumnWidth = attendees
-            .map { textWidth($0.name, font: font) }
-            .max() ?? 0
-        let availableNameWidth = max(width - markerColumnWidth - markerNameSpacing, 1)
-        let nameColumnWidth = min(preferredNameColumnWidth, availableNameWidth)
-        let totalWidth = markerColumnWidth + markerNameSpacing + nameColumnWidth
-        let centeredBlockX = x + max((width - totalWidth) / 2, 0)
-        let blockX = isRTL ? max(x, centeredBlockX - visualLeftOffset) : centeredBlockX
-
-        return attendees.enumerated().map { index, attendee in
-            let rowY = y + CGFloat(index) * lineHeight
-
-            if isRTL {
-                let nameRect = CGRect(
-                    x: blockX,
-                    y: rowY,
-                    width: nameColumnWidth,
-                    height: lineHeight
-                )
-                let markerRect = CGRect(
-                    x: nameRect.maxX + markerNameSpacing,
-                    y: rowY,
-                    width: markerColumnWidth,
-                    height: lineHeight
-                )
-                return AttendeeCoverRowLayout(markerRect: markerRect, nameRect: nameRect)
-            }
-
-            let markerRect = CGRect(x: blockX, y: rowY, width: markerColumnWidth, height: lineHeight)
-            let nameRect = CGRect(
-                x: markerRect.maxX + markerNameSpacing,
-                y: rowY,
-                width: nameColumnWidth,
-                height: lineHeight
-            )
-            return AttendeeCoverRowLayout(markerRect: markerRect, nameRect: nameRect)
-        }
-    }
-
-    /// Draws the attendee marker as two separately-positioned pieces: the
-    /// digits flush against the outer (RTL: right) edge of `rect`, and the
-    /// period immediately beside them, toward the name. A single "1." string
-    /// drawn right-aligned in one pass puts the period — its last LTR
-    /// character — at the outer edge instead, which reads backwards next to
-    /// Hebrew text. Both pieces are plain Western characters, so no bidi
-    /// direction is needed for either.
-    private static func drawAttendeeMarker(
-        _ attendee: ExportTextFormatter.NumberedAttendee,
-        in rect: CGRect,
-        font: UIFont,
-        isRTL: Bool,
-        color: UIColor
-    ) {
-        guard isRTL else {
-            drawPlainText(
-                attendee.ltrMarkerText,
-                in: rect,
-                font: font,
-                baseWritingDirection: .leftToRight,
-                alignment: .left,
-                color: color
-            )
-            return
-        }
-
-        let digitWidth = textWidth(attendee.numberText, font: font)
-        let dotWidth = textWidth(".", font: font)
-
-        let digitRect = CGRect(
-            x: rect.maxX - digitWidth,
-            y: rect.minY,
-            width: digitWidth,
-            height: rect.height
-        )
-        let dotRect = CGRect(
-            x: digitRect.minX - dotWidth,
-            y: rect.minY,
-            width: dotWidth,
-            height: rect.height
-        )
-
-        drawPlainText(
-            attendee.numberText,
-            in: digitRect,
-            font: font,
-            baseWritingDirection: .leftToRight,
-            alignment: .right,
-            color: color
-        )
-        drawPlainText(
-            ".",
-            in: dotRect,
-            font: font,
-            baseWritingDirection: .leftToRight,
-            alignment: .right,
-            color: color
-        )
     }
 
     private static func drawPlainText(

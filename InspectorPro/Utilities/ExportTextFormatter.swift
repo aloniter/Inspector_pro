@@ -1,36 +1,18 @@
 import Foundation
 
 enum ExportTextFormatter {
+    /// One cover-page attendee row: a 1-based `number` and its trimmed `name`.
+    /// `markerText` is the single canonical "N." string used by both the PDF
+    /// and DOCX exporters; each renderer applies RTL bidi so it reads correctly
+    /// next to Hebrew names (digit flush to the outer edge, period toward the
+    /// name). There is deliberately no LTR/RTL/"editable" marker variant — the
+    /// direction is a rendering concern, not a data concern.
     struct NumberedAttendee: Equatable {
         let number: Int
         let name: String
 
-        var numberText: String {
-            "\(number)"
-        }
-
-        var ltrMarkerText: String {
+        var markerText: String {
             "\(number)."
-        }
-
-        var rtlMarkerText: String {
-            ltrMarkerText
-        }
-
-        var rtlEditableMarkerText: String {
-            ltrMarkerText
-        }
-
-        func markerText(isRTL: Bool) -> String {
-            isRTL ? rtlMarkerText : ltrMarkerText
-        }
-
-        func editableMarkerText(isRTL: Bool) -> String {
-            isRTL ? rtlEditableMarkerText : ltrMarkerText
-        }
-
-        var exportText: String {
-            "\(ltrMarkerText)\(ExportTextFormatter.bulletSeparator)\(name)"
         }
     }
 
@@ -132,11 +114,6 @@ enum ExportTextFormatter {
 
     static func bulletedDescriptionLines(from text: String) -> [String] {
         descriptionLines(from: text).map(\.exportText)
-    }
-
-    static func numberedAttendeeLines(from text: String) -> [String] {
-        numberedAttendees(from: text)
-            .map(\.exportText)
     }
 
     static func numberedAttendees(from text: String) -> [NumberedAttendee] {

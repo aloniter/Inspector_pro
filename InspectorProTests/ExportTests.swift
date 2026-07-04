@@ -593,46 +593,58 @@ private func makeScaleOneImage(width: CGFloat, height: CGFloat) throws -> UIImag
     ])
 }
 
-@Test func exportFormatterBuildsNumberedAttendeeLinesForRTL() {
-    let lines = ExportTextFormatter.numberedAttendeeLines(from: "אלון\nדפנה\n אבישי ")
+@Test func exportFormatterBuildsNumberedAttendeesForRTL() {
     let attendees = ExportTextFormatter.numberedAttendees(from: "אלון\nדפנה\n אבישי ")
 
-    #expect(lines == [
-        "1.\u{00A0}אלון",
-        "2.\u{00A0}דפנה",
-        "3.\u{00A0}אבישי",
-    ])
+    // Each non-empty line becomes one trimmed attendee, numbered from 1.
     #expect(attendees == [
         .init(number: 1, name: "אלון"),
         .init(number: 2, name: "דפנה"),
         .init(number: 3, name: "אבישי"),
     ])
-    #expect(attendees[0].ltrMarkerText == "1.")
-    #expect(attendees[0].rtlMarkerText == "1.")
-    #expect(attendees[0].rtlEditableMarkerText == "1.")
+    // The marker is the single canonical "N." string shared by both exporters.
+    #expect(attendees.map(\.markerText) == ["1.", "2.", "3."])
 }
 
-@Test func pdfAttendeeCoverRowsCenterCompactRTLBlockUnderHeading() {
-    let attendees = ExportTextFormatter.numberedAttendees(from: "שלום\nמה\nקורה")
-    let rows = PdfExporter.attendeeCoverRowLayouts(
-        for: attendees,
-        x: 50,
-        y: 120,
-        width: 360,
-        lineHeight: 22,
-        font: .systemFont(ofSize: 12),
-        isRTL: true
-    )
+@Test func exportFormatterDropsEmptyAttendeeLines() {
+    let attendees = ExportTextFormatter.numberedAttendees(from: "  \nאלון\n\n  \nדפנה\n")
 
-    #expect(rows.count == 3)
-    for row in rows {
-        #expect(row.nameRect.minX == rows[0].nameRect.minX)
-        #expect(row.markerRect.minX == rows[0].markerRect.minX)
-        #expect(row.markerRect.minX > row.nameRect.maxX)
-    }
-    let blockMinX = rows[0].nameRect.minX
-    let blockMaxX = rows[0].markerRect.maxX
-    #expect(abs(((blockMinX + blockMaxX) / 2) - 216) < 1)
+    #expect(attendees == [
+        .init(number: 1, name: "אלון"),
+        .init(number: 2, name: "דפנה"),
+    ])
+}
+
+@Test func attendeeCoverLayoutFitsCompactTwoColumnBlock() {
+    let attendees = ExportTextFormatter.numberedAttendees(from: "שלום\nמה\nקורה")
+    let font = UIFont.systemFont(ofSize: 12)
+    let columns = AttendeeCoverLayout.columns(for: attendees, font: font, maxTotalWidth: 360)
+
+    // Marker column is just "N." plus the fixed gap — it never depends on names.
+    let expectedMarker = attendees
+        .map { AttendeeCoverLayout.textWidth($0.markerText, font: font) }
+        .max()! + AttendeeCoverLayout.markerNameGap
+    #expect(abs(columns.markerColumnWidth - expectedMarker) < 0.5)
+    // Name column fits the widest name and no more, so the block stays compact.
+    let widestName = ["שלום", "מה", "קורה"]
+        .map { AttendeeCoverLayout.textWidth($0, font: font) }
+        .max()!
+    #expect(abs(columns.nameColumnWidth - widestName) < 0.5)
+    #expect(columns.totalWidth <= 360)
+    #expect(columns.totalWidth == columns.markerColumnWidth + columns.nameColumnWidth)
+}
+
+@Test func attendeeCoverLayoutMarkerColumnIsStableAcrossNameLengths() {
+    let font = UIFont.systemFont(ofSize: 12)
+    let shortNames = ExportTextFormatter.numberedAttendees(from: "ש\nא\nב")
+    let longNames = ExportTextFormatter.numberedAttendees(from: "משה כהן לוי\nישראל ישראלי\nאבישי")
+
+    let shortColumns = AttendeeCoverLayout.columns(for: shortNames, font: font, maxTotalWidth: 400)
+    let longColumns = AttendeeCoverLayout.columns(for: longNames, font: font, maxTotalWidth: 400)
+
+    // Name length must not move the numbers: the marker column is identical.
+    #expect(abs(shortColumns.markerColumnWidth - longColumns.markerColumnWidth) < 0.5)
+    #expect(longColumns.nameColumnWidth > shortColumns.nameColumnWidth)
 }
 
 @Test func exportFormatterUsesNumericCoverDate() {
@@ -758,31 +770,28 @@ private func makeScaleOneImage(width: CGFloat, height: CGFloat) throws -> UIImag
     let attendeesHeadingText = OpenXMLBuilder.escapeXML(ExportTextFormatter.rtlHeadingText("נוכחים:"))
     let attendeesHeadingParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(attendeesHeadingText) })
     let firstAttendeeParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">אלון<") })
-    let firstAttendeeDigitParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">1<") })
-    let firstAttendeeDotParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">.<") })
+    let firstMarkerParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">1.<") })
     let secondAttendeeParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">דפנה<") })
-    let secondAttendeeDigitParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">2<") })
+    let secondMarkerParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">2.<") })
     let notesLabelParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">הערות<") })
     let notesContentParagraph = try #require(xml.components(separatedBy: "<w:p>").first { $0.contains(">נדרש תיקון<") })
 
     #expect(xml.contains(attendeesHeadingText))
+    // Clean borderless two-column table (marker column + name column),
+    // centered, using the builder's fixed fallback widths (620 + 2600).
     #expect(xml.contains("<w:tbl>"))
-    #expect(xml.contains("<w:tblW w:w=\"4800\" w:type=\"dxa\"/>"))
+    #expect(xml.contains("<w:tblW w:w=\"3220\" w:type=\"dxa\"/>"))
     #expect(xml.contains("<w:jc w:val=\"center\"/>"))
-    #expect(xml.contains("<w:gridCol w:w=\"3960\"/>"))
-    #expect(xml.contains("<w:gridCol w:w=\"160\"/>"))
-    #expect(xml.contains("<w:gridCol w:w=\"200\"/>"))
-    #expect(xml.contains("<w:gridCol w:w=\"480\"/>"))
+    #expect(xml.contains("<w:gridCol w:w=\"620\"/>"))
+    #expect(xml.contains("<w:gridCol w:w=\"2600\"/>"))
     #expect(!xml.contains("<w:tblpPr"))
     #expect(!xml.contains("<w:tab"))
-    // bidiVisual gives an explicit, unambiguous RTL column order (digit
-    // rightmost) instead of relying on a renderer's implicit default, which
-    // proved inconsistent between LibreOffice and this layout's column count.
+    // bidiVisual puts the marker column on the visual right without relying on
+    // a renderer's implicit default.
     #expect(xml.contains("<w:bidiVisual/>"))
+    // No Word auto-numbering anywhere in the attendees block.
     #expect(!xml.contains("<w:numPr>"))
-    #expect(!xml.contains("w:color w:val=\"1F4E79\""))
     #expect(xml.contains("w:jc w:val=\"center\""))
-    #expect(!xml.contains("w:sz w:val=\"20\""))
     #expect(xml.contains("w:sz w:val=\"24\""))
     for labelParagraph in [addressLabelParagraph, dateLabelParagraph, attendeesHeadingParagraph, notesLabelParagraph] {
         #expect(labelParagraph.contains("<w:b/>"))
@@ -798,31 +807,28 @@ private func makeScaleOneImage(width: CGFloat, height: CGFloat) throws -> UIImag
     }
     #expect(attendeesHeadingParagraph.contains("w:jc w:val=\"center\""))
     #expect(attendeesHeadingParagraph.contains("w:color w:val=\"64748B\""))
-    // Name cell: right-aligned text (hugs the marker, no dead gap for short
-    // names), no auto-numbering, no bidi flip.
+    // Name cell: RTL, right-aligned so short names hug the marker; no
+    // auto-numbering and no paragraph style reference.
     #expect(firstAttendeeParagraph.contains("w:jc w:val=\"right\""))
-    #expect(!firstAttendeeParagraph.contains("<w:bidi/>"))
+    #expect(firstAttendeeParagraph.contains("<w:bidi/>"))
     #expect(firstAttendeeParagraph.contains("<w:rtl/>"))
     #expect(!firstAttendeeParagraph.contains("<w:pStyle"))
     #expect(!firstAttendeeParagraph.contains("<w:numPr>"))
     #expect(firstAttendeeParagraph.contains("w:color w:val=\"111827\""))
-    // Digit and period are separate cells (not one "N." string) so the digit
-    // sits flush at the outer margin and the period sits toward the name —
-    // a single right-aligned "N." string puts the period at the outer edge.
-    #expect(firstAttendeeDigitParagraph.contains("w:jc w:val=\"right\""))
-    #expect(!firstAttendeeDigitParagraph.contains("<w:bidi/>"))
-    #expect(!firstAttendeeDigitParagraph.contains("<w:rtl/>"))
-    #expect(!firstAttendeeDigitParagraph.contains("<w:numPr>"))
-    #expect(firstAttendeeDotParagraph.contains("w:jc w:val=\"right\""))
-    #expect(!firstAttendeeDotParagraph.contains("<w:bidi/>"))
+    // Marker cell: single "N." string rendered right-to-left (bidi + rtl) so
+    // the digit sits at the outer edge and the period toward the name.
+    #expect(firstMarkerParagraph.contains("w:jc w:val=\"right\""))
+    #expect(firstMarkerParagraph.contains("<w:bidi/>"))
+    #expect(firstMarkerParagraph.contains("<w:rtl/>"))
+    #expect(!firstMarkerParagraph.contains("<w:numPr>"))
     #expect(secondAttendeeParagraph.contains("w:jc w:val=\"right\""))
-    #expect(secondAttendeeDigitParagraph.contains(">2<"))
+    #expect(secondMarkerParagraph.contains(">2.<"))
     #expect(xml.contains(">אלון<"))
     #expect(xml.contains(">דפנה<"))
-    #expect(xml.contains(">1<"))
-    #expect(xml.contains(">2<"))
-    #expect(!xml.contains(">1.<"))
-    #expect(!xml.contains(">2.<"))
+    // Marker is the whole "N." unit in one cell...
+    #expect(xml.contains(">1.<"))
+    #expect(xml.contains(">2.<"))
+    // ...and never merged with the name into a single run.
     #expect(!xml.contains(OpenXMLBuilder.escapeXML("1.\u{00A0}אלון")))
     #expect(!xml.contains(OpenXMLBuilder.escapeXML("2.\u{00A0}דפנה")))
     #expect(xml.contains(">הערות<"))
@@ -1326,21 +1332,16 @@ private func makeScaleOneImage(width: CGFloat, height: CGFloat) throws -> UIImag
     let documentText = try #require(String(data: documentXMLData, encoding: .utf8))
     #expect(documentText.contains("<w:bidiVisual/>"))
     #expect(!documentText.contains("<w:tblpPr"))
-    #expect(documentText.contains("<w:tblW w:w=\"4800\" w:type=\"dxa\"/>"))
-    #expect(documentText.contains("<w:gridCol w:w=\"3960\"/>"))
-    #expect(documentText.contains("<w:gridCol w:w=\"200\"/>"))
-    #expect(documentText.contains("<w:gridCol w:w=\"480\"/>"))
+    #expect(documentText.contains("<w:tbl>"))
     #expect(!documentText.contains("<w:tab"))
     #expect(!documentText.contains("<w:numPr>"))
     #expect(!documentText.contains("InspectorCoverAttendeeNumber"))
     #expect(documentText.contains(">א<"))
     #expect(documentText.contains(">שם עשירי<"))
     #expect(documentText.contains(">משה כהן לוי ארוך מאוד<"))
-    // Digit and period render as separate cells, never combined as "N.".
-    #expect(documentText.contains(">1<"))
-    #expect(documentText.contains(">12<"))
-    #expect(!documentText.contains(">1.<"))
-    #expect(!documentText.contains(">12.<"))
+    // Marker is a single "N." string per row (1- and 2-digit), never split.
+    #expect(documentText.contains(">1.<"))
+    #expect(documentText.contains(">12.<"))
     #expect(!documentText.contains(OpenXMLBuilder.escapeXML("1.\u{00A0}א")))
     #expect(url.pathExtension == "docx")
 }
@@ -1587,15 +1588,11 @@ private func makeScaleOneImage(width: CGFloat, height: CGFloat) throws -> UIImag
     #expect(documentText.contains(OpenXMLBuilder.escapeXML(ExportTextFormatter.rtlHeadingText("נוכחים:"))))
     #expect(documentText.contains("<w:bidiVisual/>"))
     #expect(!documentText.contains("<w:tblpPr"))
-    #expect(documentText.contains("<w:tblW w:w=\"4800\" w:type=\"dxa\"/>"))
-    #expect(documentText.contains("<w:gridCol w:w=\"3960\"/>"))
-    #expect(documentText.contains("<w:gridCol w:w=\"200\"/>"))
-    #expect(documentText.contains("<w:gridCol w:w=\"480\"/>"))
     #expect(!documentText.contains("InspectorCoverAttendeeNumber"))
     #expect(documentText.contains(">אלון<"))
     #expect(documentText.contains(">דפנה<"))
-    #expect(!documentText.contains(">1.<"))
-    #expect(!documentText.contains(">2.<"))
+    #expect(documentText.contains(">1.<"))
+    #expect(documentText.contains(">2.<"))
     #expect(!documentText.contains(OpenXMLBuilder.escapeXML("1.\u{00A0}אלון")))
     #expect(documentText.contains(">הערות<"))
     #expect(documentText.contains(">תקין<"))
