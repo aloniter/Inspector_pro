@@ -1,5 +1,7 @@
 # Architecture
 
+> Deeper shared agent context (flows, storage/export lifecycle, RTL warnings, verification rules) lives in [docs/AI_CONTEXT.md](/Users/aloniter/Projects/InspectorPro/docs/AI_CONTEXT.md).
+
 ## Baseline Constraint
 
 Architecture changes should start from the current tester build as the stable baseline. Documentation below describes what is implemented now, not an aspirational design.
@@ -16,13 +18,16 @@ Inspectley currently follows a local-first three-layer structure (the codebase, 
 
 ### Data Layer
 
-- `InspectorProSchemaV6` is the active schema in [InspectorPro/Models/InspectorProMigration.swift](/Users/aloniter/Projects/InspectorPro/InspectorPro/Models/InspectorProMigration.swift).
-- `Project` stores report metadata plus `showsNumberedImagesInReport` and an optional `brandingProfile`.
+- `InspectorProSchemaV9` is the active schema in [InspectorPro/Models/InspectorProMigration.swift](/Users/aloniter/Projects/InspectorPro/InspectorPro/Models/InspectorProMigration.swift) (versioned schemas V1–V9 with a migration plan; only append V10+, never edit existing versions).
+- `Project` stores name/address and cascades to `Report`.
+- `Report` stores name, optional address (falls back to the project address), date, attendees, notes, `showsNumberedImagesInReport`, and an optional per-report `brandingProfile`; cascades to `PhotoRecord`.
 - `PhotoRecord` stores relative image paths, optional annotated-image path, free text, manual order, and timestamps.
-- `BrandingProfile` stores branding v1 content:
+- `BrandingProfile` stores branding content:
 - `name`
 - `isDefault`
 - `usesBundledDefaultLogo`
+- `showLogoInReport`
+- `showFooterInReport`
 - `footerAddressLine`
 - `primaryFooterLinePDF`
 - `primaryFooterLineDOCX`
@@ -31,13 +36,15 @@ Inspectley currently follows a local-first three-layer structure (the codebase, 
 ### Storage Layer
 
 - [ImageStorageService.swift](/Users/aloniter/Projects/InspectorPro/InspectorPro/Services/ImageStorageService.swift) saves resized original JPEGs and annotated JPEGs under `Documents/InspectorPro/Images/<project-id>/`.
-- [FileManagerService.swift](/Users/aloniter/Projects/InspectorPro/InspectorPro/Services/FileManagerService.swift) ensures app directories for images, branding assets, export cache, and exports.
-- [ThumbnailService.swift](/Users/aloniter/Projects/InspectorPro/InspectorPro/Services/ThumbnailService.swift) keeps an in-memory thumbnail cache for photo lists.
+- [FileManagerService.swift](/Users/aloniter/Projects/InspectorPro/InspectorPro/Services/FileManagerService.swift) ensures app directories for images, branding assets, and exports, and purges leftover exports (plus the legacy `ExportCache` directory) at every launch — exports are transient: each file is also deleted after its share sheet completes.
+- [ThumbnailService.swift](/Users/aloniter/Projects/InspectorPro/InspectorPro/Services/ThumbnailService.swift) keeps an in-memory (never on-disk) thumbnail cache for photo lists.
+- Photo/report/project deletion also deletes the image files; project deletion prunes now-empty per-project image folders.
 - Branding logos are stored separately under `Documents/InspectorPro/Branding/`.
 
 ### App Flow
 
-- [InspectorProApp.swift](/Users/aloniter/Projects/InspectorPro/InspectorPro/InspectorProApp.swift) initializes SwiftData, file directories, and branding bootstrap.
+- [InspectorProApp.swift](/Users/aloniter/Projects/InspectorPro/InspectorPro/InspectorProApp.swift) initializes SwiftData (V9 + migration plan, in-memory fallback on failure), file directories, launch export purge, and branding bootstrap, then routes Login vs. project list via `AuthService`.
+- Auth and gating: [AuthService.swift](/Users/aloniter/Projects/InspectorPro/InspectorPro/Services/AuthService.swift) + `SupabaseManager` handle Supabase sessions; [ExportPermissionService.swift](/Users/aloniter/Projects/InspectorPro/InspectorPro/Services/ExportPermissionService.swift) gates every export server-side (trial/suspension flags) with a 6-hour offline cache.
 - [ProjectListView.swift](/Users/aloniter/Projects/InspectorPro/InspectorPro/Views/Projects/ProjectListView.swift) is the root screen for projects and settings.
 - [ProjectDetailView.swift](/Users/aloniter/Projects/InspectorPro/InspectorPro/Views/Projects/ProjectDetailView.swift) owns photo import, reorder, delete, and export entry.
 - [PhotoDetailView.swift](/Users/aloniter/Projects/InspectorPro/InspectorPro/Views/Photos/PhotoDetailView.swift) manages notes and annotation entry.
@@ -55,7 +62,7 @@ Inspectley currently follows a local-first three-layer structure (the codebase, 
 
 ### Branding V1 Architecture
 
-- [BrandingBootstrapper.swift](/Users/aloniter/Projects/InspectorPro/InspectorPro/Branding/BrandingBootstrapper.swift) creates or finds the default profile and links unassigned projects to it.
+- [BrandingBootstrapper.swift](/Users/aloniter/Projects/InspectorPro/InspectorPro/Branding/BrandingBootstrapper.swift) creates or finds the default profile and links unassigned reports to it.
 - [DefaultBrandingProfile.swift](/Users/aloniter/Projects/InspectorPro/InspectorPro/Branding/DefaultBrandingProfile.swift) defines the shipped default footer content.
 - [ResolvedExportBranding.swift](/Users/aloniter/Projects/InspectorPro/InspectorPro/Branding/ResolvedExportBranding.swift) is the shared export-facing abstraction used by both PDF and DOCX.
 - [BrandingSettingsView.swift](/Users/aloniter/Projects/InspectorPro/InspectorPro/Views/Settings/BrandingSettingsView.swift) is the manual branding editor for the default profile.
@@ -83,8 +90,8 @@ Inspectley currently follows a local-first three-layer structure (the codebase, 
 
 ### Caching
 
-- `ExportCache` exists as infrastructure.
-- The active export code paths still compress image data directly rather than routing through the cache.
+- The former `ExportCache` was removed; launch-time hygiene still deletes its leftover directory on old installs.
+- Export code paths compress image data directly on every export (correct: compression budgets depend on the report's photo count).
 
 ## Pending
 
