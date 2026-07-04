@@ -11,6 +11,22 @@
 
 ---
 
+## PDF export memory fix (2026-07-04, branch fix/pdf-export-memory)
+
+- [x] Root cause: `PdfExporter` retained every photo's `FlattenedExportImage` (compressed Data + UIImage) for the whole render; once drawn, each decoded bitmap (~1–2MB) stayed resident — O(N) peak, ~200–400MB for 150–200 photo reports
+- [x] Fix: prep loop stores only compressed JPEG `Data`; each row decodes just-in-time inside `autoreleasepool` and releases the bitmap after drawing — decoded-image residency now O(1)
+- [x] Removed dead `image:` parameter from `photoRowHeight` (was never used; row height comes from options + text)
+- [x] New test `pdfExporterPaginatesTwoPhotosPerPageWithRealPhotos` (5 real photos, asserts cover + ceil(5/2) pages via CGPDFDocument) with `KEEP_PDF_PAGINATION_SAMPLE` hook
+- [x] 88/88 tests pass with fresh DerivedData, before AND after the change
+- [x] Visual proof: before/after sample PDFs from identical inputs rasterized at 150dpi — 4 pages each, **0 differing pixel values** on every page; file sizes byte-count identical (85,132B)
+- [x] Scope: git diff touches only PdfExporter.swift + ExportTests.swift — DOCX/RTL/storage/compression untouched
+
+## Review
+
+- Same bytes, same draw rects, same progress and error behavior — only the lifetime of decoded bitmaps changed. Prep-time validation still throws `imageLoadFailed` exactly as before; the render-loop decode is from already-validated data.
+
+---
+
 ## Fix DOCX attendee name clipping in real Word (on-device verification feedback, 2026-07-04)
 
 - [x] Reproduce: pulled the user's failing on-device export (name column 640 twips; widest name "אבישי" touching both cell edges) and rendered it through real Word via AppleScript PDF export

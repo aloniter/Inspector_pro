@@ -15,10 +15,14 @@ final class PdfExporter {
         // Prepare final flattened export images once so PDF and DOCX share the same
         // source selection, compression, orientation normalization, and dimensions.
         // Yield between images so queued MainActor UI updates can animate progress.
-        var exportImages: [FlattenedExportImage] = []
+        // Only the compressed JPEG data is kept: retaining the UIImage here pinned
+        // every decoded bitmap in memory for the whole render once drawn, which
+        // peaked at hundreds of MB for 150+ photo reports. Each row decodes its
+        // own image just-in-time inside the render loop instead.
+        var exportImageData: [Data] = []
         for (index, photo) in photos.enumerated() {
             let image = try FlattenedExportImageRenderer.render(photo: photo, options: options)
-            exportImages.append(image)
+            exportImageData.append(image.data)
             onProgress(Double(index + 1) / Double(max(photos.count, 1)) * 0.9)
             await Task.yield()
         }
@@ -44,7 +48,6 @@ final class PdfExporter {
             currentY += drawTableHeader(options: options, y: currentY)
 
             for (index, photo) in photos.enumerated() {
-                let exportImage = exportImages[index]
                 let itemNumber = report.showsNumberedImagesInReport ? index + 1 : nil
                 let descriptionLines = descriptionLines(
                     photo: photo,
@@ -53,7 +56,6 @@ final class PdfExporter {
                 )
                 let rowHeight = min(
                     photoRowHeight(
-                        image: exportImage.image,
                         descriptionLines: descriptionLines,
                         options: options
                     ),
@@ -67,13 +69,21 @@ final class PdfExporter {
                     currentY += drawTableHeader(options: options, y: currentY)
                 }
 
-                drawPhotoRow(
-                    image: exportImage.image,
-                    descriptionLines: descriptionLines,
-                    options: options,
-                    y: currentY,
-                    rowHeight: rowHeight
-                )
+                // Decode just-in-time and release the bitmap as soon as the row is
+                // drawn, so only one decoded image is ever resident. The data was
+                // validated decodable during preparation, so the decode cannot fail
+                // here in practice.
+                autoreleasepool {
+                    if let image = UIImage(data: exportImageData[index]) {
+                        drawPhotoRow(
+                            image: image,
+                            descriptionLines: descriptionLines,
+                            options: options,
+                            y: currentY,
+                            rowHeight: rowHeight
+                        )
+                    }
+                }
 
                 currentY += rowHeight
             }
@@ -436,7 +446,6 @@ final class PdfExporter {
     }
 
     private static func photoRowHeight(
-        image: UIImage,
         descriptionLines: [ExportTextFormatter.DescriptionLine],
         options: ExportOptions
     ) -> CGFloat {

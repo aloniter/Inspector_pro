@@ -1305,6 +1305,70 @@ private func makeScaleOneImage(width: CGFloat, height: CGFloat) throws -> UIImag
     #expect(url.pathExtension == "pdf")
 }
 
+@Test func pdfExporterPaginatesTwoPhotosPerPageWithRealPhotos() async throws {
+    FileManagerService.shared.ensureDirectoriesExist()
+    let relativeDirectory = "tests/\(UUID().uuidString)"
+    let directoryURL = AppConstants.imagesBaseURL.appendingPathComponent(relativeDirectory)
+    try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+    let date = DateComponents(
+        calendar: Calendar(identifier: .gregorian),
+        year: 2026,
+        month: 6,
+        day: 30
+    ).date!
+    let report = Report(
+        name: "PDF Pagination",
+        address: "גרציאני",
+        date: date,
+        attendees: "אלון\nדפנה"
+    )
+    report.showsNumberedImagesInReport = true
+
+    // Five deterministic photos: 1 cover page + ceil(5 / 2) photo pages.
+    let fillColors: [UIColor] = [.systemBlue, .systemRed, .systemGreen, .systemOrange, .systemPurple]
+    var photos: [PhotoRecord] = []
+    let format = UIGraphicsImageRendererFormat.default()
+    format.scale = 1
+    for (index, color) in fillColors.enumerated() {
+        let size = CGSize(width: 400, height: 300)
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+            color.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            UIColor.black.setFill()
+            context.fill(CGRect(x: 40 * CGFloat(index + 1), y: 60, width: 60, height: 90))
+        }
+        let imagePath = "\(relativeDirectory)/photo\(index).jpg"
+        try #require(image.jpegDataStripped(quality: 0.9))
+            .write(to: AppConstants.imagesBaseURL.appendingPathComponent(imagePath))
+        let photo = PhotoRecord(imagePath: imagePath, position: index)
+        photo.freeText = "ליקוי מספר \(index + 1)\nתיאור קצר של הליקוי"
+        photo.report = report
+        photos.append(photo)
+    }
+    report.photos = photos
+
+    let url = try await PdfExporter.export(
+        report: report,
+        photos: photos,
+        options: ExportOptions(format: .pdf, quality: .economical, photoCount: photos.count),
+        onProgress: { _ in }
+    )
+    let environment = ProcessInfo.processInfo.environment
+    let keepSample = environment["KEEP_PDF_PAGINATION_SAMPLE"] == "1"
+        || environment["TEST_RUNNER_KEEP_PDF_PAGINATION_SAMPLE"] == "1"
+    defer {
+        if !keepSample {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    let document = try #require(CGPDFDocument(url as CFURL))
+    // Pagination is the layout-critical invariant: cover page + 2 photos per page.
+    #expect(document.numberOfPages == 1 + Int(ceil(Double(photos.count) / 2.0)))
+}
+
 @Test func docxExporterGeneratesCoverWithRTLAttendeeMarkers() async throws {
     let date = DateComponents(
         calendar: Calendar(identifier: .gregorian),
