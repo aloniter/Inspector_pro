@@ -1,6 +1,6 @@
 # Release Checklist
 
-> Product name: **Inspectley** (internal target/scheme: `InspectorPro`). Current App Store release: **1.0.1 (build 2)** — submitted 2026-06-17, Waiting for Review.
+> Product name: **Inspectley** (internal target/scheme: `InspectorPro`). Live App Store release: **1.0.2** — App Store Connect confirmed Ready for Distribution (2026-07-04). In preparation: **1.0.3 (build 4)** — small stability/performance release, primarily the PDF export memory fix (see [tasks/todo.md](tasks/todo.md), "PDF export memory fix"). Not yet archived/submitted.
 
 ## Baseline Policy
 

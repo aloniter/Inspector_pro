@@ -4,10 +4,34 @@
 >
 > - User-facing app name: Inspectley
 > - Internal project/target name: InspectorPro
-> - Current App Store version: 1.0.2 (build 3)
-> - App Store Connect confirmed: iOS App Version 1.0.2 is Ready for Distribution.
+> - Live App Store version: 1.0.2 (build 3) — App Store Connect confirmed Ready for Distribution.
+> - In preparation (repo only, not archived/submitted): 1.0.3 (build 4).
 > - App Store category: Business
 > - Older entries below are historical work-log notes and may mention old versions/builds/categories.
+
+---
+
+## Prepare repo for App Store version 1.0.3 (2026-07-04, on main)
+
+- [x] Confirmed git state: on `main`, synced with `origin/main`, clean tree (only known pre-existing untracked screenshot leftovers present)
+- [x] `project.yml`: `MARKETING_VERSION` 1.0.2 → 1.0.3, `CURRENT_PROJECT_VERSION` 3 → 4
+- [x] `xcodegen generate` regenerated `InspectorPro.xcodeproj/project.pbxproj`; verified both Debug and Release configs show `MARKETING_VERSION = 1.0.3` / `CURRENT_PROJECT_VERSION = 4`
+- [x] Full test suite, fresh DerivedData: 88/88 passed
+- [x] Confirmed zero `.swift` files changed by this prep — only `project.yml` + regenerated `project.pbxproj`
+- [x] Updated `RELEASE_CHECKLIST.md` header and `docs/AI_CONTEXT.md` status line to reflect 1.0.2 live / 1.0.3 in preparation
+- [x] No archive, upload, or App Store Connect submission performed — this task is repo preparation only
+
+### Scope of 1.0.3
+
+Small stability/performance release: the PDF export memory fix already merged to `main` (`d2790eb` — decode-per-row instead of retaining all bitmaps; zero-pixel-diff verified against pre-fix output). No PDF/DOCX layout, RTL, attendee, storage, or compression-budget changes are included.
+
+### Draft release notes (Hebrew App Store listing; provide an English equivalent if the listing has an English locale)
+
+"שיפורי יציבות וזיכרון בייצוא PDF לדוחות גדולים. שיפורי אמינות נוספים." (Improved PDF export stability and memory usage for larger reports. Minor reliability improvements.)
+
+### Draft reviewer notes
+
+This is a B2B inspection-report app. Accounts are provisioned by the company/admin — there is no in-app sign-up. Export access is controlled by backend account status (trial/suspension flags via Supabase); if the reviewer needs to test export, sign in with the existing reviewer demo account (see the local, gitignored `tasks/appstore-submission/reviewer-credentials.local.md` — do not commit credentials).
 
 ---
 
